@@ -1,0 +1,28 @@
+# Build outputs
+/target
+*.o
+*.so
+*.rlib
+*.dll
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+
+# Log files
+*.log
+
+# Don't ignore assets (explicitly include them)
+!assets/
+!assets/**
