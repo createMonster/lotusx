@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceMarket {
+pub struct BinancePerpMarket {
     pub symbol: String,
     #[serde(rename = "baseAsset")]
     pub base_asset: String,
@@ -12,11 +12,11 @@ pub struct BinanceMarket {
     pub base_asset_precision: i32,
     #[serde(rename = "quotePrecision")]
     pub quote_precision: i32,
-    pub filters: Vec<BinanceFilter>,
+    pub filters: Vec<BinancePerpFilter>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceFilter {
+pub struct BinancePerpFilter {
     #[serde(rename = "filterType")]
     pub filter_type: String,
     #[serde(rename = "minPrice")]
@@ -30,12 +30,12 @@ pub struct BinanceFilter {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceExchangeInfo {
-    pub symbols: Vec<BinanceMarket>,
+pub struct BinancePerpExchangeInfo {
+    pub symbols: Vec<BinancePerpMarket>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct BinanceOrderRequest {
+pub struct BinancePerpOrderRequest {
     pub symbol: String,
     pub side: String,
     #[serde(rename = "type")]
@@ -51,7 +51,7 @@ pub struct BinanceOrderRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceOrderResponse {
+pub struct BinancePerpOrderResponse {
     #[serde(rename = "orderId")]
     pub order_id: u64,
     #[serde(rename = "origClientOrderId")]
@@ -64,13 +64,13 @@ pub struct BinanceOrderResponse {
     pub quantity: String,
     pub price: String,
     pub status: String,
-    #[serde(rename = "transactTime")]
-    pub timestamp: i32,
+    #[serde(rename = "updateTime")]
+    pub timestamp: i64,
 }
 
-// WebSocket Types
+// WebSocket Types for Perpetual Futures
 #[derive(Debug, Deserialize)]
-pub struct BinanceWebSocketTicker {
+pub struct BinancePerpWebSocketTicker {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "c")]
@@ -96,13 +96,15 @@ pub struct BinanceWebSocketTicker {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceWebSocketOrderBook {
+pub struct BinancePerpWebSocketOrderBook {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "U")]
     pub first_update_id: i64,
     #[serde(rename = "u")]
     pub final_update_id: i64,
+    #[serde(rename = "pu")]
+    pub prev_final_update_id: i64,
     #[serde(rename = "b")]
     pub bids: Vec<[String; 2]>,
     #[serde(rename = "a")]
@@ -110,7 +112,7 @@ pub struct BinanceWebSocketOrderBook {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceWebSocketTrade {
+pub struct BinancePerpWebSocketTrade {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "t")]
@@ -126,15 +128,15 @@ pub struct BinanceWebSocketTrade {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceWebSocketKline {
+pub struct BinancePerpWebSocketKline {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "k")]
-    pub kline: BinanceKlineData,
+    pub kline: BinancePerpKlineData,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BinanceKlineData {
+pub struct BinancePerpKlineData {
     #[serde(rename = "t")]
     pub open_time: i64,
     #[serde(rename = "T")]

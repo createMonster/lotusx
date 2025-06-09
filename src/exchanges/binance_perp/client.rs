@@ -5,24 +5,25 @@ use crate::core::{
     types::*,
     websocket::{WebSocketManager, build_binance_stream_url},
 };
-use super::{auth, types as binance_types};
+use super::types as binance_perp_types;
+use crate::exchanges::binance::auth; // Reuse auth from spot Binance
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
 use tokio::sync::mpsc;
 
-pub struct BinanceConnector {
+pub struct BinancePerpConnector {
     client: Client,
     config: ExchangeConfig,
     base_url: String,
 }
 
-impl BinanceConnector {
+impl BinancePerpConnector {
     pub fn new(config: ExchangeConfig) -> Self {
         let base_url = if config.testnet {
-            "https://testnet.binance.vision".to_string()
+            "https://testnet.binancefuture.com".to_string()
         } else {
-            config.base_url.clone().unwrap_or_else(|| "https://api.binance.com".to_string())
+            config.base_url.clone().unwrap_or_else(|| "https://fapi.binance.com".to_string())
         };
 
         Self {
@@ -43,10 +44,10 @@ impl BinanceConnector {
         match order_type {
             OrderType::Market => "MARKET".to_string(),
             OrderType::Limit => "LIMIT".to_string(),
-            OrderType::StopLoss => "STOP_LOSS".to_string(),
-            OrderType::StopLossLimit => "STOP_LOSS_LIMIT".to_string(),
+            OrderType::StopLoss => "STOP".to_string(),
+            OrderType::StopLossLimit => "STOP_MARKET".to_string(),
             OrderType::TakeProfit => "TAKE_PROFIT".to_string(),
-            OrderType::TakeProfitLimit => "TAKE_PROFIT_LIMIT".to_string(),
+            OrderType::TakeProfitLimit => "TAKE_PROFIT_MARKET".to_string(),
         }
     }
 
@@ -58,7 +59,7 @@ impl BinanceConnector {
         }
     }
 
-    fn convert_binance_market(&self, binance_market: binance_types::BinanceMarket) -> Market {
+    fn convert_binance_perp_market(&self, binance_market: binance_perp_types::BinancePerpMarket) -> Market {
         let mut min_qty = None;
         let mut max_qty = None;
         let mut min_price = None;
@@ -98,7 +99,7 @@ impl BinanceConnector {
         if let Some(stream) = value.get("stream").and_then(|s| s.as_str()) {
             if let Some(data) = value.get("data") {
                 if stream.contains("@ticker") {
-                    if let Ok(ticker) = serde_json::from_value::<binance_types::BinanceWebSocketTicker>(data.clone()) {
+                    if let Ok(ticker) = serde_json::from_value::<binance_perp_types::BinancePerpWebSocketTicker>(data.clone()) {
                         return Some(MarketDataType::Ticker(Ticker {
                             symbol: ticker.symbol,
                             price: ticker.price,
@@ -114,7 +115,7 @@ impl BinanceConnector {
                         }));
                     }
                 } else if stream.contains("@depth") {
-                    if let Ok(depth) = serde_json::from_value::<binance_types::BinanceWebSocketOrderBook>(data.clone()) {
+                    if let Ok(depth) = serde_json::from_value::<binance_perp_types::BinancePerpWebSocketOrderBook>(data.clone()) {
                         let bids = depth.bids.into_iter()
                             .map(|b| OrderBookEntry { price: b[0].clone(), quantity: b[1].clone() })
                             .collect();
@@ -129,8 +130,8 @@ impl BinanceConnector {
                             last_update_id: depth.final_update_id,
                         }));
                     }
-                } else if stream.contains("@trade") {
-                    if let Ok(trade) = serde_json::from_value::<binance_types::BinanceWebSocketTrade>(data.clone()) {
+                } else if stream.contains("@aggTrade") {
+                    if let Ok(trade) = serde_json::from_value::<binance_perp_types::BinancePerpWebSocketTrade>(data.clone()) {
                         return Some(MarketDataType::Trade(Trade {
                             symbol: trade.symbol,
                             id: trade.id,
@@ -141,7 +142,7 @@ impl BinanceConnector {
                         }));
                     }
                 } else if stream.contains("@kline") {
-                    if let Ok(kline_data) = serde_json::from_value::<binance_types::BinanceWebSocketKline>(data.clone()) {
+                    if let Ok(kline_data) = serde_json::from_value::<binance_perp_types::BinancePerpWebSocketKline>(data.clone()) {
                         return Some(MarketDataType::Kline(Kline {
                             symbol: kline_data.symbol,
                             open_time: kline_data.kline.open_time,
@@ -164,9 +165,9 @@ impl BinanceConnector {
 }
 
 #[async_trait]
-impl ExchangeConnector for BinanceConnector {
+impl ExchangeConnector for BinancePerpConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let url = format!("{}/api/v3/exchangeInfo", self.base_url);
+        let url = format!("{}/fapi/v1/exchangeInfo", self.base_url);
         
         let response = self.client.get(&url).send().await?;
         
@@ -178,12 +179,12 @@ impl ExchangeConnector for BinanceConnector {
             )));
         }
 
-        let exchange_info: binance_types::BinanceExchangeInfo = response.json().await?;
+        let exchange_info: binance_perp_types::BinancePerpExchangeInfo = response.json().await?;
         
         let markets = exchange_info
             .symbols
             .into_iter()
-            .map(|market| self.convert_binance_market(market))
+            .map(|market| self.convert_binance_perp_market(market))
             .collect();
 
         Ok(markets)
@@ -192,7 +193,6 @@ impl ExchangeConnector for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let timestamp = auth::get_timestamp();
         
-        // Create longer-lived bindings for converted values
         let side_str = self.convert_order_side(&order.side);
         let type_str = self.convert_order_type(&order.order_type);
         let timestamp_str = timestamp.to_string();
@@ -205,7 +205,6 @@ impl ExchangeConnector for BinanceConnector {
             ("timestamp", timestamp_str.as_str()),
         ];
 
-        // Add optional parameters
         let price_str;
         if let Some(ref price) = order.price {
             price_str = price.clone();
@@ -229,7 +228,7 @@ impl ExchangeConnector for BinanceConnector {
         
         params.push(("signature", &signature));
 
-        let url = format!("{}/api/v3/order", self.base_url);
+        let url = format!("{}/fapi/v1/order", self.base_url);
         
         let response = self
             .client
@@ -258,7 +257,7 @@ impl ExchangeConnector for BinanceConnector {
             )));
         }
 
-        let binance_response: binance_types::BinanceOrderResponse = response.json().await?;
+        let binance_response: binance_perp_types::BinancePerpOrderResponse = response.json().await?;
 
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
@@ -272,10 +271,10 @@ impl ExchangeConnector for BinanceConnector {
             order_type: match binance_response.order_type.as_str() {
                 "MARKET" => OrderType::Market,
                 "LIMIT" => OrderType::Limit,
-                "STOP_LOSS" => OrderType::StopLoss,
-                "STOP_LOSS_LIMIT" => OrderType::StopLossLimit,
+                "STOP" => OrderType::StopLoss,
+                "STOP_MARKET" => OrderType::StopLossLimit,
                 "TAKE_PROFIT" => OrderType::TakeProfit,
-                "TAKE_PROFIT_LIMIT" => OrderType::TakeProfitLimit,
+                "TAKE_PROFIT_MARKET" => OrderType::TakeProfitLimit,
                 _ => return Err(ExchangeError::InvalidParameters("Invalid order type".to_string())),
             },
             quantity: binance_response.quantity,
@@ -285,7 +284,7 @@ impl ExchangeConnector for BinanceConnector {
                 Some(binance_response.price)
             },
             status: binance_response.status,
-            timestamp: binance_response.timestamp as i64,
+            timestamp: binance_response.timestamp,
         })
     }
 
@@ -313,7 +312,7 @@ impl ExchangeConnector for BinanceConnector {
                         }
                     }
                     SubscriptionType::Trades => {
-                        streams.push(format!("{}@trade", lower_symbol));
+                        streams.push(format!("{}@aggTrade", lower_symbol));
                     }
                     SubscriptionType::Klines { interval } => {
                         streams.push(format!("{}@kline_{}", lower_symbol, interval));
@@ -324,9 +323,9 @@ impl ExchangeConnector for BinanceConnector {
 
         // Build WebSocket URL using helper function
         let base_url = if self.config.testnet {
-            "wss://testnet.binance.vision"
+            "wss://stream.binancefuture.com"
         } else {
-            "wss://stream.binance.com:443"
+            "wss://fstream.binance.com"
         };
         
         let ws_url = build_binance_stream_url(base_url, &streams);
@@ -337,9 +336,9 @@ impl ExchangeConnector for BinanceConnector {
 
     fn get_websocket_url(&self) -> String {
         if self.config.testnet {
-            "wss://testnet.binance.vision".to_string()
+            "wss://stream.binancefuture.com".to_string()
         } else {
-            "wss://stream.binance.com:443".to_string()
+            "wss://fstream.binance.com".to_string()
         }
     }
 } 
