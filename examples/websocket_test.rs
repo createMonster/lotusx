@@ -1,24 +1,19 @@
-use lotusx::core::{
-    config::ExchangeConfig,
-    traits::ExchangeConnector,
-    types::*,
-};
+use lotusx::core::{config::ExchangeConfig, traits::ExchangeConnector, types::*};
 use lotusx::exchanges::binance::BinanceConnector;
-use tokio::time::{sleep, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Testing WebSocket Connection");
 
     let config = ExchangeConfig {
-        api_key: "test_key".to_string(), // Not needed for market data
+        api_key: "test_key".to_string(),       // Not needed for market data
         secret_key: "test_secret".to_string(), // Not needed for market data
         base_url: None,
         testnet: true, // Try testnet first
     };
 
     let binance = BinanceConnector::new(config);
-    
+
     // Test with just one symbol and one subscription type to simplify
     let symbols = vec!["BTCUSDT".to_string()];
     let subscription_types = vec![SubscriptionType::Ticker];
@@ -39,13 +34,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         count += 1;
         match data {
             MarketDataType::Ticker(ticker) => {
-                println!("📈 Ticker received: {} - Price: {}", ticker.symbol, ticker.price);
+                println!(
+                    "📈 Ticker received: {} - Price: {}",
+                    ticker.symbol, ticker.price
+                );
             }
             _ => {
                 println!("📊 Other data received: {:?}", data);
             }
         }
-        
+
         if count >= 5 {
             println!("✅ Successfully received {} messages", count);
             break;
@@ -54,4 +52,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🏁 Test completed successfully!");
     Ok(())
-} 
+}

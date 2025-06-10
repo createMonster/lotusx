@@ -1,11 +1,11 @@
+use super::{auth, types as binance_types};
 use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
     traits::ExchangeConnector,
     types::*,
-    websocket::{WebSocketManager, build_binance_stream_url},
+    websocket::{build_binance_stream_url, WebSocketManager},
 };
-use super::{auth, types as binance_types};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::Value;
@@ -22,7 +22,10 @@ impl BinanceConnector {
         let base_url = if config.testnet {
             "https://testnet.binance.vision".to_string()
         } else {
-            config.base_url.clone().unwrap_or_else(|| "https://api.binance.com".to_string())
+            config
+                .base_url
+                .clone()
+                .unwrap_or_else(|| "https://api.binance.com".to_string())
         };
 
         Self {
@@ -98,7 +101,10 @@ impl BinanceConnector {
         if let Some(stream) = value.get("stream").and_then(|s| s.as_str()) {
             if let Some(data) = value.get("data") {
                 if stream.contains("@ticker") {
-                    if let Ok(ticker) = serde_json::from_value::<binance_types::BinanceWebSocketTicker>(data.clone()) {
+                    if let Ok(ticker) = serde_json::from_value::<
+                        binance_types::BinanceWebSocketTicker,
+                    >(data.clone())
+                    {
                         return Some(MarketDataType::Ticker(Ticker {
                             symbol: ticker.symbol,
                             price: ticker.price,
@@ -114,14 +120,27 @@ impl BinanceConnector {
                         }));
                     }
                 } else if stream.contains("@depth") {
-                    if let Ok(depth) = serde_json::from_value::<binance_types::BinanceWebSocketOrderBook>(data.clone()) {
-                        let bids = depth.bids.into_iter()
-                            .map(|b| OrderBookEntry { price: b[0].clone(), quantity: b[1].clone() })
+                    if let Ok(depth) = serde_json::from_value::<
+                        binance_types::BinanceWebSocketOrderBook,
+                    >(data.clone())
+                    {
+                        let bids = depth
+                            .bids
+                            .into_iter()
+                            .map(|b| OrderBookEntry {
+                                price: b[0].clone(),
+                                quantity: b[1].clone(),
+                            })
                             .collect();
-                        let asks = depth.asks.into_iter()
-                            .map(|a| OrderBookEntry { price: a[0].clone(), quantity: a[1].clone() })
+                        let asks = depth
+                            .asks
+                            .into_iter()
+                            .map(|a| OrderBookEntry {
+                                price: a[0].clone(),
+                                quantity: a[1].clone(),
+                            })
                             .collect();
-                        
+
                         return Some(MarketDataType::OrderBook(OrderBook {
                             symbol: depth.symbol,
                             bids,
@@ -130,7 +149,9 @@ impl BinanceConnector {
                         }));
                     }
                 } else if stream.contains("@trade") {
-                    if let Ok(trade) = serde_json::from_value::<binance_types::BinanceWebSocketTrade>(data.clone()) {
+                    if let Ok(trade) =
+                        serde_json::from_value::<binance_types::BinanceWebSocketTrade>(data.clone())
+                    {
                         return Some(MarketDataType::Trade(Trade {
                             symbol: trade.symbol,
                             id: trade.id,
@@ -141,7 +162,9 @@ impl BinanceConnector {
                         }));
                     }
                 } else if stream.contains("@kline") {
-                    if let Ok(kline_data) = serde_json::from_value::<binance_types::BinanceWebSocketKline>(data.clone()) {
+                    if let Ok(kline_data) =
+                        serde_json::from_value::<binance_types::BinanceWebSocketKline>(data.clone())
+                    {
                         return Some(MarketDataType::Kline(Kline {
                             symbol: kline_data.symbol,
                             open_time: kline_data.kline.open_time,
@@ -167,9 +190,9 @@ impl BinanceConnector {
 impl ExchangeConnector for BinanceConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let url = format!("{}/api/v3/exchangeInfo", self.base_url);
-        
+
         let response = self.client.get(&url).send().await?;
-        
+
         if !response.status().is_success() {
             let error_text = response.text().await?;
             return Err(ExchangeError::NetworkError(format!(
@@ -179,7 +202,7 @@ impl ExchangeConnector for BinanceConnector {
         }
 
         let exchange_info: binance_types::BinanceExchangeInfo = response.json().await?;
-        
+
         let markets = exchange_info
             .symbols
             .into_iter()
@@ -191,12 +214,12 @@ impl ExchangeConnector for BinanceConnector {
 
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let timestamp = auth::get_timestamp();
-        
+
         // Create longer-lived bindings for converted values
         let side_str = self.convert_order_side(&order.side);
         let type_str = self.convert_order_type(&order.order_type);
         let timestamp_str = timestamp.to_string();
-        
+
         let mut params = vec![
             ("symbol", order.symbol.as_str()),
             ("side", side_str.as_str()),
@@ -226,11 +249,11 @@ impl ExchangeConnector for BinanceConnector {
 
         let query_string = auth::build_query_string(&params);
         let signature = auth::generate_signature(&self.config.secret_key, &query_string);
-        
+
         params.push(("signature", &signature));
 
         let url = format!("{}/api/v3/order", self.base_url);
-        
+
         let response = self
             .client
             .post(&url)
@@ -242,7 +265,7 @@ impl ExchangeConnector for BinanceConnector {
         if !response.status().is_success() {
             let error_text = response.text().await?;
             let error_json: Result<Value, _> = serde_json::from_str(&error_text);
-            
+
             if let Ok(json) = error_json {
                 if let (Some(code), Some(msg)) = (json["code"].as_i64(), json["msg"].as_str()) {
                     return Err(ExchangeError::ApiError {
@@ -251,7 +274,7 @@ impl ExchangeConnector for BinanceConnector {
                     });
                 }
             }
-            
+
             return Err(ExchangeError::NetworkError(format!(
                 "Failed to place order: {}",
                 error_text
@@ -267,7 +290,11 @@ impl ExchangeConnector for BinanceConnector {
             side: match binance_response.side.as_str() {
                 "BUY" => OrderSide::Buy,
                 "SELL" => OrderSide::Sell,
-                _ => return Err(ExchangeError::InvalidParameters("Invalid order side".to_string())),
+                _ => {
+                    return Err(ExchangeError::InvalidParameters(
+                        "Invalid order side".to_string(),
+                    ))
+                }
             },
             order_type: match binance_response.order_type.as_str() {
                 "MARKET" => OrderType::Market,
@@ -276,7 +303,11 @@ impl ExchangeConnector for BinanceConnector {
                 "STOP_LOSS_LIMIT" => OrderType::StopLossLimit,
                 "TAKE_PROFIT" => OrderType::TakeProfit,
                 "TAKE_PROFIT_LIMIT" => OrderType::TakeProfitLimit,
-                _ => return Err(ExchangeError::InvalidParameters("Invalid order type".to_string())),
+                _ => {
+                    return Err(ExchangeError::InvalidParameters(
+                        "Invalid order type".to_string(),
+                    ))
+                }
             },
             quantity: binance_response.quantity,
             price: if binance_response.price.is_empty() {
@@ -297,7 +328,7 @@ impl ExchangeConnector for BinanceConnector {
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
         // Build streams for combined stream format
         let mut streams = Vec::new();
-        
+
         for symbol in &symbols {
             let lower_symbol = symbol.to_lowercase();
             for sub_type in &subscription_types {
@@ -328,10 +359,10 @@ impl ExchangeConnector for BinanceConnector {
         } else {
             "wss://stream.binance.com:443"
         };
-        
+
         let ws_url = build_binance_stream_url(base_url, &streams);
         let ws_manager = WebSocketManager::new(ws_url);
-        
+
         ws_manager.start_stream(Self::parse_websocket_message).await
     }
 
@@ -342,4 +373,4 @@ impl ExchangeConnector for BinanceConnector {
             "wss://stream.binance.com:443".to_string()
         }
     }
-} 
+}

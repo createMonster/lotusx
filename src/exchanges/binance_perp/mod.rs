@@ -1,4 +1,4 @@
 pub mod client;
 pub mod types;
 
-pub use client::BinancePerpConnector; 
+pub use client::BinancePerpConnector;

@@ -157,4 +157,4 @@ pub struct BinancePerpKlineData {
     pub number_of_trades: i64,
     #[serde(rename = "x")]
     pub final_bar: bool,
-} 
+}

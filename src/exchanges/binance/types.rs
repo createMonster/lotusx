@@ -100,6 +100,7 @@ pub struct BinanceWebSocketOrderBook {
     #[serde(rename = "s")]
     pub symbol: String,
     #[serde(rename = "U")]
+    #[allow(dead_code)]
     pub first_update_id: i64,
     #[serde(rename = "u")]
     pub final_update_id: i64,
@@ -155,4 +156,4 @@ pub struct BinanceKlineData {
     pub number_of_trades: i64,
     #[serde(rename = "x")]
     pub final_bar: bool,
-} 
+}

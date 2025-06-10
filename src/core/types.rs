@@ -149,4 +149,4 @@ pub struct WebSocketConfig {
     pub auto_reconnect: bool,
     pub ping_interval: Option<u64>, // seconds
     pub max_reconnect_attempts: Option<u32>,
-} 
+}

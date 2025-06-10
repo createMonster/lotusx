@@ -29,7 +29,7 @@ impl WebSocketManager {
 
         tokio::spawn(async move {
             let mut reconnect_delay = 1;
-            
+
             loop {
                 match Self::connect_and_listen(&url, &message_parser, &tx).await {
                     Ok(_) => {
@@ -38,9 +38,10 @@ impl WebSocketManager {
                     Err(e) => {
                         eprintln!("WebSocket connection failed: {:?}", e);
                         eprintln!("Reconnecting in {} seconds...", reconnect_delay);
-                        
+
                         sleep(Duration::from_secs(reconnect_delay)).await;
-                        reconnect_delay = std::cmp::min(reconnect_delay * 2, 60); // Exponential backoff, max 60s
+                        reconnect_delay = std::cmp::min(reconnect_delay * 2, 60);
+                        // Exponential backoff, max 60s
                     }
                 }
             }
@@ -51,9 +52,9 @@ impl WebSocketManager {
 
     /// Subscribe to additional streams on an existing connection
     pub async fn subscribe_streams(&self, streams: Vec<String>) -> Result<(), ExchangeError> {
-        let (ws_stream, _) = connect_async(&self.url).await.map_err(|e| {
-            ExchangeError::NetworkError(format!("Failed to connect: {}", e))
-        })?;
+        let (ws_stream, _) = connect_async(&self.url)
+            .await
+            .map_err(|e| ExchangeError::NetworkError(format!("Failed to connect: {}", e)))?;
 
         let (mut write, _) = ws_stream.split();
 
@@ -63,18 +64,19 @@ impl WebSocketManager {
             "id": 1
         });
 
-        write.send(Message::Text(subscription.to_string())).await.map_err(|e| {
-            ExchangeError::NetworkError(format!("Failed to subscribe: {}", e))
-        })?;
+        write
+            .send(Message::Text(subscription.to_string()))
+            .await
+            .map_err(|e| ExchangeError::NetworkError(format!("Failed to subscribe: {}", e)))?;
 
         Ok(())
     }
 
     /// Unsubscribe from streams
     pub async fn unsubscribe_streams(&self, streams: Vec<String>) -> Result<(), ExchangeError> {
-        let (ws_stream, _) = connect_async(&self.url).await.map_err(|e| {
-            ExchangeError::NetworkError(format!("Failed to connect: {}", e))
-        })?;
+        let (ws_stream, _) = connect_async(&self.url)
+            .await
+            .map_err(|e| ExchangeError::NetworkError(format!("Failed to connect: {}", e)))?;
 
         let (mut write, _) = ws_stream.split();
 
@@ -84,9 +86,10 @@ impl WebSocketManager {
             "id": 1
         });
 
-        write.send(Message::Text(unsubscription.to_string())).await.map_err(|e| {
-            ExchangeError::NetworkError(format!("Failed to unsubscribe: {}", e))
-        })?;
+        write
+            .send(Message::Text(unsubscription.to_string()))
+            .await
+            .map_err(|e| ExchangeError::NetworkError(format!("Failed to unsubscribe: {}", e)))?;
 
         Ok(())
     }
@@ -128,7 +131,10 @@ impl WebSocketManager {
                     break;
                 }
                 Err(e) => {
-                    return Err(ExchangeError::NetworkError(format!("WebSocket error: {}", e)));
+                    return Err(ExchangeError::NetworkError(format!(
+                        "WebSocket error: {}",
+                        e
+                    )));
                 }
                 _ => {}
             }
@@ -143,7 +149,7 @@ pub fn build_binance_stream_url(base_url: &str, streams: &[String]) -> String {
     if streams.is_empty() {
         return base_url.to_string();
     }
-    
+
     format!("{}/stream?streams={}", base_url, streams.join("/"))
 }
 
@@ -167,7 +173,10 @@ mod tests {
         let base_url = "wss://stream.binance.com:9443";
         let streams = vec!["btcusdt@ticker".to_string(), "ethusdt@ticker".to_string()];
         let url = build_binance_stream_url(base_url, &streams);
-        assert_eq!(url, "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker");
+        assert_eq!(
+            url,
+            "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker"
+        );
     }
 
     #[test]
@@ -194,7 +203,10 @@ mod tests {
                 return stream_name.as_str().map(|s| s.to_string());
             }
             // Handle raw stream format: direct data
-            value.get("s").and_then(|v| v.as_str()).map(|s| s.to_string())
+            value
+                .get("s")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
         };
 
         // Test combined stream format
@@ -205,4 +217,4 @@ mod tests {
         let raw_json = json!({"s": "BTCUSDT", "c": "50000"});
         assert_eq!(parser(raw_json), Some("BTCUSDT".to_string()));
     }
-} 
+}

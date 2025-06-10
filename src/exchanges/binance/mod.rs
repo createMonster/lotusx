@@ -1,5 +1,5 @@
+pub mod auth;
 mod client;
 mod types;
-pub mod auth;
 
-pub use client::BinanceConnector; 
+pub use client::BinanceConnector;

@@ -17,14 +17,14 @@ impl ExchangeConfig {
             base_url: None,
         }
     }
-    
+
     pub fn testnet(mut self, testnet: bool) -> Self {
         self.testnet = testnet;
         self
     }
-    
+
     pub fn base_url(mut self, base_url: String) -> Self {
         self.base_url = Some(base_url);
         self
     }
-} 
+}

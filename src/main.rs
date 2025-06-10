@@ -1,13 +1,11 @@
-use lotusx::{BinanceConnector, ExchangeConnector, OrderRequest, OrderSide, OrderType};
 use lotusx::core::config::ExchangeConfig;
+use lotusx::{BinanceConnector, ExchangeConnector};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example usage - replace with your actual API credentials
-    let config = ExchangeConfig::new(
-        "your_api_key".to_string(),
-        "your_secret_key".to_string(),
-    ).testnet(true); // Use testnet for safety
+    let config = ExchangeConfig::new("your_api_key".to_string(), "your_secret_key".to_string())
+        .testnet(true); // Use testnet for safety
 
     let binance = BinanceConnector::new(config);
 
@@ -18,11 +16,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Found {} markets", markets.len());
             // Print first 5 markets as example
             for market in markets.iter().take(5) {
-                println!("Market: {} ({}->{}), Status: {}", 
-                    market.symbol.symbol, 
-                    market.symbol.base, 
-                    market.symbol.quote,
-                    market.status
+                println!(
+                    "Market: {} ({}->{}), Status: {}",
+                    market.symbol.symbol, market.symbol.base, market.symbol.quote, market.status
                 );
             }
         }

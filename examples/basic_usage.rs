@@ -1,5 +1,5 @@
-use lotusx::{BinanceConnector, ExchangeConnector, OrderRequest, OrderSide, OrderType, TimeInForce};
 use lotusx::core::config::ExchangeConfig;
+use lotusx::{BinanceConnector, ExchangeConnector};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,7 +8,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ExchangeConfig::new(
         std::env::var("BINANCE_API_KEY").unwrap_or_else(|_| "your_api_key".to_string()),
         std::env::var("BINANCE_SECRET_KEY").unwrap_or_else(|_| "your_secret_key".to_string()),
-    ).testnet(true);
+    )
+    .testnet(true);
 
     let binance = BinanceConnector::new(config);
 
@@ -17,15 +18,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match binance.get_markets().await {
         Ok(markets) => {
             println!("Successfully fetched {} markets", markets.len());
-            
+
             // Show some example markets
             println!("\nFirst 10 markets:");
             for market in markets.iter().take(10) {
-                println!("  {} ({} -> {}) - Status: {}", 
-                    market.symbol.symbol,
-                    market.symbol.base,
-                    market.symbol.quote,
-                    market.status
+                println!(
+                    "  {} ({} -> {}) - Status: {}",
+                    market.symbol.symbol, market.symbol.base, market.symbol.quote, market.status
                 );
             }
 
@@ -82,4 +81,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== Example completed ===");
     Ok(())
-} 
+}

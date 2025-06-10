@@ -1,12 +1,5 @@
-use lotusx::core::{
-    config::ExchangeConfig,
-    traits::ExchangeConnector,
-    types::*,
-};
-use lotusx::exchanges::{
-    binance::BinanceConnector,
-    binance_perp::BinancePerpConnector,
-};
+use lotusx::core::{config::ExchangeConfig, traits::ExchangeConnector, types::*};
+use lotusx::exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector};
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
@@ -18,19 +11,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         api_key: "your_api_key".to_string(),
         secret_key: "your_secret_key".to_string(),
         base_url: None,
-        testnet: false
+        testnet: false,
     };
 
     // Example 1: Binance Spot WebSocket
     println!("\n📊 Setting up Binance Spot WebSocket...");
     let binance_spot = BinanceConnector::new(config.clone());
-    
+
     let symbols = vec!["BTCUSDT".to_string(), "ETHUSDT".to_string()];
     let subscription_types = vec![
         SubscriptionType::Ticker,
         SubscriptionType::OrderBook { depth: Some(5) },
         SubscriptionType::Trades,
-        SubscriptionType::Klines { interval: "1m".to_string() },
+        SubscriptionType::Klines {
+            interval: "1m".to_string(),
+        },
     ];
 
     let ws_config = WebSocketConfig {
@@ -40,13 +35,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut spot_receiver = binance_spot
-        .subscribe_market_data(symbols.clone(), subscription_types.clone(), Some(ws_config.clone()))
+        .subscribe_market_data(
+            symbols.clone(),
+            subscription_types.clone(),
+            Some(ws_config.clone()),
+        )
         .await?;
 
     // Example 2: Binance Perpetual Futures WebSocket
     println!("📈 Setting up Binance Perpetual Futures WebSocket...");
     let binance_perp = BinancePerpConnector::new(config.clone());
-    
+
     let mut perp_receiver = binance_perp
         .subscribe_market_data(symbols, subscription_types, Some(ws_config))
         .await?;
@@ -59,27 +58,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             count += 1;
             match data {
                 MarketDataType::Ticker(ticker) => {
-                    println!("📊 [SPOT] Ticker: {} - Price: {} ({}%)", 
-                        ticker.symbol, ticker.price, ticker.price_change_percent);
+                    println!(
+                        "📊 [SPOT] Ticker: {} - Price: {} ({}%)",
+                        ticker.symbol, ticker.price, ticker.price_change_percent
+                    );
                 }
                 MarketDataType::OrderBook(orderbook) => {
-                    println!("📖 [SPOT] OrderBook: {} - Best Bid: {}, Best Ask: {}", 
+                    println!(
+                        "📖 [SPOT] OrderBook: {} - Best Bid: {}, Best Ask: {}",
                         orderbook.symbol,
-                        orderbook.bids.first().map(|b| &b.price).unwrap_or(&"N/A".to_string()),
-                        orderbook.asks.first().map(|a| &a.price).unwrap_or(&"N/A".to_string())
+                        orderbook
+                            .bids
+                            .first()
+                            .map(|b| &b.price)
+                            .unwrap_or(&"N/A".to_string()),
+                        orderbook
+                            .asks
+                            .first()
+                            .map(|a| &a.price)
+                            .unwrap_or(&"N/A".to_string())
                     );
                 }
                 MarketDataType::Trade(trade) => {
-                    println!("💰 [SPOT] Trade: {} - Price: {}, Qty: {}, Buyer Maker: {}", 
-                        trade.symbol, trade.price, trade.quantity, trade.is_buyer_maker);
+                    println!(
+                        "💰 [SPOT] Trade: {} - Price: {}, Qty: {}, Buyer Maker: {}",
+                        trade.symbol, trade.price, trade.quantity, trade.is_buyer_maker
+                    );
                 }
                 MarketDataType::Kline(kline) => {
-                    println!("📈 [SPOT] Kline: {} - O: {}, H: {}, L: {}, C: {}, Final: {}", 
-                        kline.symbol, kline.open_price, kline.high_price, 
-                        kline.low_price, kline.close_price, kline.final_bar);
+                    println!(
+                        "📈 [SPOT] Kline: {} - O: {}, H: {}, L: {}, C: {}, Final: {}",
+                        kline.symbol,
+                        kline.open_price,
+                        kline.high_price,
+                        kline.low_price,
+                        kline.close_price,
+                        kline.final_bar
+                    );
                 }
             }
-            
+
             // Stop after receiving 50 messages for demo purposes
             if count >= 50 {
                 println!("🛑 [SPOT] Received {} messages, stopping...", count);
@@ -95,27 +113,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             count += 1;
             match data {
                 MarketDataType::Ticker(ticker) => {
-                    println!("📊 [PERP] Ticker: {} - Price: {} ({}%)", 
-                        ticker.symbol, ticker.price, ticker.price_change_percent);
+                    println!(
+                        "📊 [PERP] Ticker: {} - Price: {} ({}%)",
+                        ticker.symbol, ticker.price, ticker.price_change_percent
+                    );
                 }
                 MarketDataType::OrderBook(orderbook) => {
-                    println!("📖 [PERP] OrderBook: {} - Best Bid: {}, Best Ask: {}", 
+                    println!(
+                        "📖 [PERP] OrderBook: {} - Best Bid: {}, Best Ask: {}",
                         orderbook.symbol,
-                        orderbook.bids.first().map(|b| &b.price).unwrap_or(&"N/A".to_string()),
-                        orderbook.asks.first().map(|a| &a.price).unwrap_or(&"N/A".to_string())
+                        orderbook
+                            .bids
+                            .first()
+                            .map(|b| &b.price)
+                            .unwrap_or(&"N/A".to_string()),
+                        orderbook
+                            .asks
+                            .first()
+                            .map(|a| &a.price)
+                            .unwrap_or(&"N/A".to_string())
                     );
                 }
                 MarketDataType::Trade(trade) => {
-                    println!("💰 [PERP] Trade: {} - Price: {}, Qty: {}, Buyer Maker: {}", 
-                        trade.symbol, trade.price, trade.quantity, trade.is_buyer_maker);
+                    println!(
+                        "💰 [PERP] Trade: {} - Price: {}, Qty: {}, Buyer Maker: {}",
+                        trade.symbol, trade.price, trade.quantity, trade.is_buyer_maker
+                    );
                 }
                 MarketDataType::Kline(kline) => {
-                    println!("📈 [PERP] Kline: {} - O: {}, H: {}, L: {}, C: {}, Final: {}", 
-                        kline.symbol, kline.open_price, kline.high_price, 
-                        kline.low_price, kline.close_price, kline.final_bar);
+                    println!(
+                        "📈 [PERP] Kline: {} - O: {}, H: {}, L: {}, C: {}, Final: {}",
+                        kline.symbol,
+                        kline.open_price,
+                        kline.high_price,
+                        kline.low_price,
+                        kline.close_price,
+                        kline.final_bar
+                    );
                 }
             }
-            
+
             // Stop after receiving 50 messages for demo purposes
             if count >= 50 {
                 println!("🛑 [PERP] Received {} messages, stopping...", count);
@@ -137,4 +174,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🏁 WebSocket example completed!");
     Ok(())
-} 
+}

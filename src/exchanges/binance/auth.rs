@@ -5,8 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 type HmacSha256 = Hmac<Sha256>;
 
 pub fn generate_signature(secret: &str, query_string: &str) -> String {
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC can take key of any size");
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
     mac.update(query_string.as_bytes());
     hex::encode(mac.finalize().into_bytes())
 }
@@ -24,4 +24,4 @@ pub fn build_query_string(params: &[(&str, &str)]) -> String {
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<_>>()
         .join("&")
-} 
+}
