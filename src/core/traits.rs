@@ -1,4 +1,9 @@
-use crate::core::{errors::ExchangeError, types::*};
+use crate::core::{
+    errors::ExchangeError,
+    types::{
+        Market, MarketDataType, OrderRequest, OrderResponse, SubscriptionType, WebSocketConfig,
+    },
+};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 

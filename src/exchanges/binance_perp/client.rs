@@ -3,7 +3,11 @@ use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
     traits::ExchangeConnector,
-    types::*,
+    types::{
+        Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest, OrderResponse,
+        OrderSide, OrderType, SubscriptionType, Symbol, Ticker, TimeInForce, Trade,
+        WebSocketConfig,
+    },
     websocket::{build_binance_stream_url, WebSocketManager},
 };
 use crate::exchanges::binance::auth; // Reuse auth from spot Binance

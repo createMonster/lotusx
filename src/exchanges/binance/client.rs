@@ -3,7 +3,11 @@ use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
     traits::ExchangeConnector,
-    types::*,
+    types::{
+        Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest, OrderResponse,
+        OrderSide, OrderType, SubscriptionType, Symbol, Ticker, TimeInForce, Trade,
+        WebSocketConfig,
+    },
     websocket::{build_binance_stream_url, WebSocketManager},
 };
 use async_trait::async_trait;
@@ -18,6 +22,7 @@ pub struct BinanceConnector {
 }
 
 impl BinanceConnector {
+    #[must_use]
     pub fn new(config: ExchangeConfig) -> Self {
         let base_url = if config.testnet {
             "https://testnet.binance.vision".to_string()
@@ -35,14 +40,14 @@ impl BinanceConnector {
         }
     }
 
-    fn convert_order_side(&self, side: &OrderSide) -> String {
+    fn convert_order_side(side: &OrderSide) -> String {
         match side {
             OrderSide::Buy => "BUY".to_string(),
             OrderSide::Sell => "SELL".to_string(),
         }
     }
 
-    fn convert_order_type(&self, order_type: &OrderType) -> String {
+    fn convert_order_type(order_type: &OrderType) -> String {
         match order_type {
             OrderType::Market => "MARKET".to_string(),
             OrderType::Limit => "LIMIT".to_string(),
@@ -53,7 +58,7 @@ impl BinanceConnector {
         }
     }
 
-    fn convert_time_in_force(&self, tif: &TimeInForce) -> String {
+    fn convert_time_in_force(tif: &TimeInForce) -> String {
         match tif {
             TimeInForce::GTC => "GTC".to_string(),
             TimeInForce::IOC => "IOC".to_string(),
@@ -61,7 +66,7 @@ impl BinanceConnector {
         }
     }
 
-    fn convert_binance_market(&self, binance_market: binance_types::BinanceMarket) -> Market {
+    fn convert_binance_market(binance_market: binance_types::BinanceMarket) -> Market {
         let mut min_qty = None;
         let mut max_qty = None;
         let mut min_price = None;
@@ -196,8 +201,7 @@ impl ExchangeConnector for BinanceConnector {
         if !response.status().is_success() {
             let error_text = response.text().await?;
             return Err(ExchangeError::NetworkError(format!(
-                "Failed to get markets: {}",
-                error_text
+                "Failed to get markets: {error_text}"
             )));
         }
 
@@ -206,7 +210,7 @@ impl ExchangeConnector for BinanceConnector {
         let markets = exchange_info
             .symbols
             .into_iter()
-            .map(|market| self.convert_binance_market(market))
+            .map(Self::convert_binance_market)
             .collect();
 
         Ok(markets)
@@ -216,8 +220,8 @@ impl ExchangeConnector for BinanceConnector {
         let timestamp = auth::get_timestamp();
 
         // Create longer-lived bindings for converted values
-        let side_str = self.convert_order_side(&order.side);
-        let type_str = self.convert_order_type(&order.order_type);
+        let side_str = Self::convert_order_side(&order.side);
+        let type_str = Self::convert_order_type(&order.order_type);
         let timestamp_str = timestamp.to_string();
 
         let mut params = vec![
@@ -237,7 +241,7 @@ impl ExchangeConnector for BinanceConnector {
 
         let tif_str;
         if let Some(ref tif) = order.time_in_force {
-            tif_str = self.convert_time_in_force(tif);
+            tif_str = Self::convert_time_in_force(tif);
             params.push(("timeInForce", &tif_str));
         }
 

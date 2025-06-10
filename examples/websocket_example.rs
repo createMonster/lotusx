@@ -1,8 +1,13 @@
-use lotusx::core::{config::ExchangeConfig, traits::ExchangeConnector, types::*};
+use lotusx::core::{
+    config::ExchangeConfig,
+    traits::ExchangeConnector,
+    types::{MarketDataType, SubscriptionType, WebSocketConfig},
+};
 use lotusx::exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector};
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Starting WebSocket Market Data Example");
 
@@ -70,13 +75,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         orderbook
                             .bids
                             .first()
-                            .map(|b| &b.price)
-                            .unwrap_or(&"N/A".to_string()),
+                            .map_or(&"N/A".to_string(), |b| &b.price),
                         orderbook
                             .asks
                             .first()
-                            .map(|a| &a.price)
-                            .unwrap_or(&"N/A".to_string())
+                            .map_or(&"N/A".to_string(), |a| &a.price)
                     );
                 }
                 MarketDataType::Trade(trade) => {
@@ -125,13 +128,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         orderbook
                             .bids
                             .first()
-                            .map(|b| &b.price)
-                            .unwrap_or(&"N/A".to_string()),
+                            .map_or(&"N/A".to_string(), |b| &b.price),
                         orderbook
                             .asks
                             .first()
-                            .map(|a| &a.price)
-                            .unwrap_or(&"N/A".to_string())
+                            .map_or(&"N/A".to_string(), |a| &a.price)
                     );
                 }
                 MarketDataType::Trade(trade) => {

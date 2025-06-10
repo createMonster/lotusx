@@ -4,6 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 type HmacSha256 = Hmac<Sha256>;
 
+#[must_use]
 pub fn generate_signature(secret: &str, query_string: &str) -> String {
     let mut mac =
         HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
@@ -11,6 +12,8 @@ pub fn generate_signature(secret: &str, query_string: &str) -> String {
     hex::encode(mac.finalize().into_bytes())
 }
 
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
 pub fn get_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -18,10 +21,11 @@ pub fn get_timestamp() -> u64 {
         .as_millis() as u64
 }
 
+#[must_use]
 pub fn build_query_string(params: &[(&str, &str)]) -> String {
     params
         .iter()
-        .map(|(k, v)| format!("{}={}", k, v))
+        .map(|(k, v)| format!("{k}={v}"))
         .collect::<Vec<_>>()
         .join("&")
 }

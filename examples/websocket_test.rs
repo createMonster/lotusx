@@ -1,4 +1,8 @@
-use lotusx::core::{config::ExchangeConfig, traits::ExchangeConnector, types::*};
+use lotusx::core::{
+    config::ExchangeConfig,
+    traits::ExchangeConnector,
+    types::{MarketDataType, SubscriptionType},
+};
 use lotusx::exchanges::binance::BinanceConnector;
 
 #[tokio::main]

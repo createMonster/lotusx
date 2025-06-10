@@ -9,7 +9,8 @@ pub struct ExchangeConfig {
 }
 
 impl ExchangeConfig {
-    pub fn new(api_key: String, secret_key: String) -> Self {
+    #[must_use]
+    pub const fn new(api_key: String, secret_key: String) -> Self {
         Self {
             api_key,
             secret_key,
@@ -18,11 +19,13 @@ impl ExchangeConfig {
         }
     }
 
-    pub fn testnet(mut self, testnet: bool) -> Self {
+    #[must_use]
+    pub const fn testnet(mut self, testnet: bool) -> Self {
         self.testnet = testnet;
         self
     }
 
+    #[must_use]
     pub fn base_url(mut self, base_url: String) -> Self {
         self.base_url = Some(base_url);
         self

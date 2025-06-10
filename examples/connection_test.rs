@@ -48,7 +48,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Err(e) => {
                 println!("❌ Connection failed: {}", e);
-                continue;
             }
         }
     }
