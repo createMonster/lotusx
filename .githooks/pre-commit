@@ -1,0 +1,24 @@
+#!/bin/sh
+# .githooks/pre-commit
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Check formatting
+echo "Checking code formatting..."
+cargo fmt --all -- --check
+
+# Run clippy
+echo "Running clippy..."
+cargo clippy --all-targets --all-features -- -D warnings
+
+# Run tests
+echo "Running tests..."
+cargo test --all-features
+
+# Run audit
+echo "Running security audit..."
+cargo audit
+
+echo "All checks passed!"

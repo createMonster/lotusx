@@ -1,0 +1,3 @@
+# .clippy.toml
+avoid-breaking-exported-api = true
+msrv = "1.70.0"  # Adjust based on your minimum supported Rust version

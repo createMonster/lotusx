@@ -18,3 +18,14 @@ chrono = { version = "0.4", features = ["serde"] }
 async-trait = "0.1"
 tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
 futures-util = "0.3"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+# Allow some pedantic lints that might be too strict
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"

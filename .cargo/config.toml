@@ -1,0 +1,9 @@
+[alias]
+# Convenient aliases for quality checks
+check-all = "check --all-targets --all-features"
+clippy-all = "clippy --all-targets --all-features -- -D warnings"
+fmt-check = "fmt --all -- --check"
+audit-check = "audit"
+
+[build]
+rustflags = ["-D", "warnings"]

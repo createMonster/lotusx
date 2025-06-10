@@ -23,6 +23,11 @@ Thumbs.db
 # Log files
 *.log
 
+# project specific files
+PRODUCT_REQUIREMENTS_CN.md
+PRODUCT_REQUIREMENTS_EN.md
+LOTUSX_PROJECT_PLAN.md
+
 # Don't ignore assets (explicitly include them)
 !assets/
 !assets/**
