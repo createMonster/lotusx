@@ -22,6 +22,11 @@ tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
 futures-util = "0.3"
 zeroize = { version = "1.7", features = ["derive"] }
 secrecy = { version = "0.8", features = ["serde"] }
+rand = "0.8"
+tracing = "0.1"
+governor = "0.6"
+tokio-retry = "0.3"
+nonzero_ext = "0.3"
 
 # Optional dependencies
 dotenv = { version = "0.15", optional = true }
