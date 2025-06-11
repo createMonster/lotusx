@@ -2,7 +2,7 @@ use super::{auth, types as binance_types};
 use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
-    traits::ExchangeConnector,
+    traits::{AccountInfo, ExchangeConnector, MarketDataSource, OrderPlacer},
     types::{
         Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest, OrderResponse,
         OrderSide, OrderType, SubscriptionType, Symbol, Ticker, TimeInForce, Trade,
@@ -192,7 +192,7 @@ impl BinanceConnector {
 }
 
 #[async_trait]
-impl ExchangeConnector for BinanceConnector {
+impl MarketDataSource for BinanceConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let url = format!("{}/api/v3/exchangeInfo", self.base_url);
 
@@ -216,6 +216,63 @@ impl ExchangeConnector for BinanceConnector {
         Ok(markets)
     }
 
+    async fn subscribe_market_data(
+        &self,
+        symbols: Vec<String>,
+        subscription_types: Vec<SubscriptionType>,
+        _config: Option<WebSocketConfig>,
+    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
+        // Build streams for combined stream format
+        let mut streams = Vec::new();
+
+        for symbol in &symbols {
+            let lower_symbol = symbol.to_lowercase();
+            for sub_type in &subscription_types {
+                match sub_type {
+                    SubscriptionType::Ticker => {
+                        streams.push(format!("{}@ticker", lower_symbol));
+                    }
+                    SubscriptionType::OrderBook { depth } => {
+                        if let Some(d) = depth {
+                            streams.push(format!("{}@depth{}@100ms", lower_symbol, d));
+                        } else {
+                            streams.push(format!("{}@depth@100ms", lower_symbol));
+                        }
+                    }
+                    SubscriptionType::Trades => {
+                        streams.push(format!("{}@trade", lower_symbol));
+                    }
+                    SubscriptionType::Klines { interval } => {
+                        streams.push(format!("{}@kline_{}", lower_symbol, interval));
+                    }
+                }
+            }
+        }
+
+        // Build WebSocket URL using helper function
+        let base_url = if self.config.testnet {
+            "wss://testnet.binance.vision"
+        } else {
+            "wss://stream.binance.com:443"
+        };
+
+        let ws_url = build_binance_stream_url(base_url, &streams);
+        let ws_manager = WebSocketManager::new(ws_url);
+
+        ws_manager.start_stream(Self::parse_websocket_message).await
+    }
+
+    fn get_websocket_url(&self) -> String {
+        if self.config.testnet {
+            "wss://testnet.binance.vision".to_string()
+        } else {
+            "wss://stream.binance.com:443".to_string()
+        }
+    }
+}
+
+#[async_trait]
+impl OrderPlacer for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let timestamp = auth::get_timestamp();
 
@@ -323,58 +380,10 @@ impl ExchangeConnector for BinanceConnector {
             timestamp: binance_response.timestamp as i64,
         })
     }
-
-    async fn subscribe_market_data(
-        &self,
-        symbols: Vec<String>,
-        subscription_types: Vec<SubscriptionType>,
-        _config: Option<WebSocketConfig>,
-    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // Build streams for combined stream format
-        let mut streams = Vec::new();
-
-        for symbol in &symbols {
-            let lower_symbol = symbol.to_lowercase();
-            for sub_type in &subscription_types {
-                match sub_type {
-                    SubscriptionType::Ticker => {
-                        streams.push(format!("{}@ticker", lower_symbol));
-                    }
-                    SubscriptionType::OrderBook { depth } => {
-                        if let Some(d) = depth {
-                            streams.push(format!("{}@depth{}@100ms", lower_symbol, d));
-                        } else {
-                            streams.push(format!("{}@depth@100ms", lower_symbol));
-                        }
-                    }
-                    SubscriptionType::Trades => {
-                        streams.push(format!("{}@trade", lower_symbol));
-                    }
-                    SubscriptionType::Klines { interval } => {
-                        streams.push(format!("{}@kline_{}", lower_symbol, interval));
-                    }
-                }
-            }
-        }
-
-        // Build WebSocket URL using helper function
-        let base_url = if self.config.testnet {
-            "wss://testnet.binance.vision"
-        } else {
-            "wss://stream.binance.com:443"
-        };
-
-        let ws_url = build_binance_stream_url(base_url, &streams);
-        let ws_manager = WebSocketManager::new(ws_url);
-
-        ws_manager.start_stream(Self::parse_websocket_message).await
-    }
-
-    fn get_websocket_url(&self) -> String {
-        if self.config.testnet {
-            "wss://testnet.binance.vision".to_string()
-        } else {
-            "wss://stream.binance.com:443".to_string()
-        }
-    }
 }
+
+#[async_trait]
+impl AccountInfo for BinanceConnector {}
+
+// This provides ExchangeConnector automatically
+impl ExchangeConnector for BinanceConnector {}

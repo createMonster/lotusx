@@ -1,8 +1,9 @@
 use lotusx::core::config::ExchangeConfig;
+use lotusx::core::traits::MarketDataSource;
 
 #[cfg(feature = "env-file")]
 use lotusx::{
-    core::{config::ConfigError, traits::ExchangeConnector},
+    core::{config::ConfigError},
     exchanges::binance::BinanceConnector,
 };
 

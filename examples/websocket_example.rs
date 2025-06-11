@@ -1,6 +1,6 @@
 use lotusx::core::{
     config::ExchangeConfig,
-    traits::ExchangeConnector,
+    traits::MarketDataSource,
     types::{MarketDataType, SubscriptionType, WebSocketConfig},
 };
 use lotusx::exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector};
