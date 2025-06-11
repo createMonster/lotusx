@@ -19,4 +19,7 @@ pub enum ExchangeError {
 
     #[error("Network error: {0}")]
     NetworkError(String),
+
+    #[error("Configuration error: {0}")]
+    ConfigError(#[from] crate::core::config::ConfigError),
 }

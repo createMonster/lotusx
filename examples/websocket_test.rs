@@ -4,14 +4,15 @@ use lotusx::core::{
     types::{MarketDataType, SubscriptionType},
 };
 use lotusx::exchanges::binance::BinanceConnector;
+use secrecy::Secret;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Testing WebSocket Connection");
 
     let config = ExchangeConfig {
-        api_key: "test_key".to_string(),       // Not needed for market data
-        secret_key: "test_secret".to_string(), // Not needed for market data
+        api_key: Secret::new("test_key".to_string()), // Not needed for market data
+        secret_key: Secret::new("test_secret".to_string()), // Not needed for market data
         base_url: None,
         testnet: true, // Try testnet first
     };

@@ -4,6 +4,7 @@ use lotusx::core::{
     types::{MarketDataType, SubscriptionType, WebSocketConfig},
 };
 use lotusx::exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector};
+use secrecy::Secret;
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
@@ -13,8 +14,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configuration for Binance (you would normally load these from environment variables)
     let config = ExchangeConfig {
-        api_key: "your_api_key".to_string(),
-        secret_key: "your_secret_key".to_string(),
+        api_key: Secret::new("your_api_key".to_string()),
+        secret_key: Secret::new("your_secret_key".to_string()),
         base_url: None,
         testnet: false,
     };

@@ -256,7 +256,7 @@ impl ExchangeConnector for BinancePerpConnector {
         }
 
         let query_string = auth::build_query_string(&params);
-        let signature = auth::generate_signature(&self.config.secret_key, &query_string);
+        let signature = auth::generate_signature(self.config.secret_key(), &query_string);
 
         params.push(("signature", &signature));
 
@@ -265,7 +265,7 @@ impl ExchangeConnector for BinancePerpConnector {
         let response = self
             .client
             .post(&url)
-            .header("X-MBX-APIKEY", &self.config.api_key)
+            .header("X-MBX-APIKEY", self.config.api_key())
             .form(&params)
             .send()
             .await?;

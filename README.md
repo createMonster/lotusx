@@ -3,7 +3,7 @@
   
   # LotusX - Crypto Exchange Connectors
   
-  <p><em>A Rust library for connecting to cryptocurrency exchanges for API trading and real-time market data</em></p>
+  <p><em>A secure, async Rust library for cryptocurrency exchange APIs and real-time market data</em></p>
   
   [![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
   [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -13,177 +13,62 @@
 
 ---
 
-A Rust library for connecting to cryptocurrency exchanges for API trading and real-time market data streaming. Currently supports Binance Spot and Binance Perpetual Futures with a minimal but extensible architecture.
+## 🚀 **Quick Start**
 
-## Features
-
-- ✅ **Binance Spot Integration**: Get markets, place orders, and stream market data
-- ✅ **Binance Perpetual Futures**: Full support for futures trading and data streaming
-- ✅ **Real-time WebSocket Streaming**: Live market data with auto-reconnection
-- ✅ **Async/Await Support**: Built with tokio for high performance
-- ✅ **Type Safety**: Strong typing for all API responses
-- ✅ **Error Handling**: Comprehensive error types
-- ✅ **Testnet Support**: Safe testing environment
-- 🔄 **Extensible**: Easy to add more exchanges
-
-## Quick Start
-
-### Add to Cargo.toml
+### Add to your project
 
 ```toml
 [dependencies]
-lotusx = { path = "." }
+lotusx = { path = ".", features = ["env-file"] }
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-### Basic Trading Usage
+### Basic usage
 
 ```rust
-use lotusx::{BinanceConnector, ExchangeConnector, OrderRequest, OrderSide, OrderType};
+use lotusx::{BinanceConnector, ExchangeConnector};
 use lotusx::core::config::ExchangeConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Configure with your API credentials
-    let config = ExchangeConfig::new(
-        "your_api_key".to_string(),
-        "your_secret_key".to_string(),
-    ).testnet(true); // Use testnet for safety
-
+    // Load from .env file or environment variables
+    let config = ExchangeConfig::from_env_file("BINANCE")?;
     let binance = BinanceConnector::new(config);
 
-    // Get all available markets
+    // Get markets
     let markets = binance.get_markets().await?;
     println!("Found {} markets", markets.len());
 
-    // Place a limit order
-    let order = OrderRequest {
-        symbol: "BTCUSDT".to_string(),
-        side: OrderSide::Buy,
-        order_type: OrderType::Limit,
-        quantity: "0.001".to_string(),
-        price: Some("30000.0".to_string()),
-        time_in_force: Some(TimeInForce::GTC),
-        stop_price: None,
-    };
-
-    let response = binance.place_order(order).await?;
-    println!("Order placed: {}", response.order_id);
-
     Ok(())
 }
 ```
 
-### WebSocket Market Data Streaming
+### Configuration
 
-```rust
-use lotusx::core::{
-    config::ExchangeConfig,
-    traits::ExchangeConnector,
-    types::*,
-};
-use lotusx::exchanges::{
-    binance::BinanceConnector,
-    binance_perp::BinancePerpConnector,
-};
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = ExchangeConfig {
-        api_key: "your_api_key".to_string(),
-        secret_key: "your_secret_key".to_string(),
-        base_url: None,
-        testnet: true,
-    };
-
-    // Create connectors
-    let binance_spot = BinanceConnector::new(config.clone());
-    let binance_perp = BinancePerpConnector::new(config);
-
-    // Configure what data to stream
-    let symbols = vec!["BTCUSDT".to_string(), "ETHUSDT".to_string()];
-    let subscription_types = vec![
-        SubscriptionType::Ticker,
-        SubscriptionType::OrderBook { depth: Some(5) },
-        SubscriptionType::Trades,
-        SubscriptionType::Klines { interval: "1m".to_string() },
-    ];
-
-    // WebSocket configuration
-    let ws_config = WebSocketConfig {
-        auto_reconnect: true,
-        ping_interval: Some(30),
-        max_reconnect_attempts: Some(5),
-    };
-
-    // Start streaming market data
-    let mut receiver = binance_spot
-        .subscribe_market_data(symbols, subscription_types, Some(ws_config))
-        .await?;
-
-    // Process incoming data
-    while let Some(data) = receiver.recv().await {
-        match data {
-            MarketDataType::Ticker(ticker) => {
-                println!("Ticker: {} - Price: {} ({}%)", 
-                    ticker.symbol, ticker.price, ticker.price_change_percent);
-            }
-            MarketDataType::OrderBook(orderbook) => {
-                println!("OrderBook: {} - Best Bid: {}, Best Ask: {}", 
-                    orderbook.symbol,
-                    orderbook.bids.first().map(|b| &b.price).unwrap_or(&"N/A".to_string()),
-                    orderbook.asks.first().map(|a| &a.price).unwrap_or(&"N/A".to_string())
-                );
-            }
-            MarketDataType::Trade(trade) => {
-                println!("Trade: {} - Price: {}, Qty: {}", 
-                    trade.symbol, trade.price, trade.quantity);
-            }
-            MarketDataType::Kline(kline) => {
-                println!("Kline: {} - OHLC: {}/{}/{}/{}", 
-                    kline.symbol, kline.open_price, kline.high_price, 
-                    kline.low_price, kline.close_price);
-            }
-        }
-    }
-
-    Ok(())
-}
-```
-
-## Configuration
-
-### Environment Variables
-
-You can set your API credentials using environment variables:
+Create a `.env` file:
 
 ```bash
-export BINANCE_API_KEY="your_api_key"
-export BINANCE_SECRET_KEY="your_secret_key"
+BINANCE_API_KEY=your_api_key_here
+BINANCE_SECRET_KEY=your_secret_key_here
+BINANCE_TESTNET=true
 ```
 
-### Testnet
+## ✨ **Features**
 
-Always use testnet when testing:
+- **🔒 Secure**: Memory-protected credentials with automatic redaction
+- **⚡ Async**: Built with tokio for high performance
+- **🔗 WebSocket**: Real-time market data streaming with auto-reconnection
+- **🛡️ Type Safe**: Strong typing for all API responses
+- **🧪 Testnet**: Full testnet support for safe development
+- **📊 Multi-Exchange**: Binance Spot & Futures (more coming soon)
 
-```rust
-let config = ExchangeConfig::new(api_key, secret_key).testnet(true);
-```
+## 📖 **Examples**
 
-## Supported Operations
-
-### Get Markets
-
-```rust
-let markets = binance.get_markets().await?;
-for market in markets {
-    println!("Symbol: {}, Status: {}", market.symbol.symbol, market.status);
-}
-```
-
-### Place Orders
+### Trading
 
 ```rust
+use lotusx::core::types::*;
+
 let order = OrderRequest {
     symbol: "BTCUSDT".to_string(),
     side: OrderSide::Buy,
@@ -197,80 +82,63 @@ let order = OrderRequest {
 let response = binance.place_order(order).await?;
 ```
 
-### WebSocket Market Data
-
-The library supports real-time market data streaming with the following features:
-
-#### Subscription Types
-
-- **Ticker**: 24hr ticker statistics
-- **OrderBook**: Real-time order book updates with configurable depth
-- **Trades**: Individual trade executions
-- **Klines**: Candlestick/OHLC data with configurable intervals
-
-#### WebSocket Configuration
+### Real-time Data Streaming
 
 ```rust
-let ws_config = WebSocketConfig {
-    auto_reconnect: true,           // Automatically reconnect on disconnection
-    ping_interval: Some(30),        // Send ping every 30 seconds
-    max_reconnect_attempts: Some(5), // Maximum reconnection attempts
-};
+let symbols = vec!["BTCUSDT".to_string()];
+let subscription_types = vec![
+    SubscriptionType::Ticker,
+    SubscriptionType::OrderBook { depth: Some(5) },
+    SubscriptionType::Trades,
+];
+
+let mut receiver = binance
+    .subscribe_market_data(symbols, subscription_types, None)
+    .await?;
+
+while let Some(data) = receiver.recv().await {
+    match data {
+        MarketDataType::Ticker(ticker) => {
+            println!("{}@{} ({}%)", ticker.symbol, ticker.price, ticker.price_change_percent);
+        }
+        MarketDataType::Trade(trade) => {
+            println!("Trade: {} @ {}", trade.quantity, trade.price);
+        }
+        _ => {}
+    }
+}
 ```
 
-#### Supported Exchanges
-
-- **Binance Spot**: `BinanceConnector`
-- **Binance Perpetual Futures**: `BinancePerpConnector`
-
-## Running Examples
+## 🏃 **Run Examples**
 
 ```bash
-# Run the basic trading example
+# Basic trading example
 cargo run --example basic_usage
 
-# Run the WebSocket streaming example
+# WebSocket streaming
 cargo run --example websocket_example
 
-# Run the main example
-cargo run
+# Configuration examples
+cargo run --example secure_config_example --features env-file
 ```
 
-## Architecture
+## 📚 **Documentation**
 
-The library is designed with extensibility in mind:
+- **[Security Guide](docs/SECURITY_GUIDE.md)** - Credential handling best practices
+- **[Technical Progress](docs/TECHNICAL_PROGRESS.md)** - Implementation status and roadmap
+- **[Examples](examples/)** - Working code examples
 
-- **Core Traits**: `ExchangeConnector` trait for unified interface
-- **WebSocket Manager**: Reusable WebSocket handling with auto-reconnection
-- **Type Safety**: Strong typing for all data structures
-- **Error Handling**: Comprehensive error types with proper error propagation
-- **Async First**: All operations are async for better performance
+## ⚠️ **Safety First**
 
-### WebSocket Features
-
-- **Auto-reconnection**: Automatically reconnects on connection loss
-- **Ping/Pong Handling**: Built-in heartbeat mechanism
-- **Message Parsing**: Type-safe parsing of exchange-specific messages
-- **Error Recovery**: Robust error handling and recovery mechanisms
-- **Configurable**: Flexible configuration for different use cases
-
-## Safety Notes
-
-⚠️ **Important**: 
-- Always test with testnet first
-- Double-check all order parameters
+- Always test with testnet first: `BINANCE_TESTNET=true`
 - Start with small amounts
-- The library handles API authentication and signatures automatically
-- WebSocket connections are automatically managed but monitor for any connection issues
+- Review all order parameters carefully
+- Keep your API keys secure
 
-## Contributing
+## 🤝 **Contributing**
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions welcome! Please see our [technical progress](docs/TECHNICAL_PROGRESS.md) for current status and planned features.
 
-## License
+## 📄 **License**
 
-This project is open source. Please review the code before using in production. 
+Open source project. Please review the code before using in production. 

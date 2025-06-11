@@ -10,19 +10,21 @@ categories = ["api-bindings", "finance", "cryptocurrency"]
 
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.11", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+async-trait = "0.1"
+thiserror = "1.0"
 hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
-url = "2.5"
-thiserror = "1.0"
-anyhow = "1.0"
-chrono = { version = "0.4", features = ["serde"] }
-async-trait = "0.1"
 tokio-tungstenite = { version = "0.20", features = ["native-tls"] }
 futures-util = "0.3"
+zeroize = { version = "1.7", features = ["derive"] }
+secrecy = { version = "0.8", features = ["serde"] }
+
+# Optional dependencies
+dotenv = { version = "0.15", optional = true }
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
@@ -49,3 +51,7 @@ redundant_closure_for_method_calls = "allow"
 unused_async = "allow"
 cargo_common_metadata = "allow"
 multiple_crate_versions = "allow"
+
+[features]
+default = ["env-file"]
+env-file = ["dotenv"]
