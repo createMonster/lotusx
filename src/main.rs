@@ -1,6 +1,6 @@
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::MarketDataSource;
-use lotusx::{BinanceConnector};
+use lotusx::BinanceConnector;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

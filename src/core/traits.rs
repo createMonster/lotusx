@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 pub trait MarketDataSource {
     /// Get all available markets/trading pairs
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError>;
-    
+
     /// Subscribe to market data via WebSocket
     async fn subscribe_market_data(
         &self,
