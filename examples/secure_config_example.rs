@@ -1,7 +1,7 @@
 use lotusx::{
     core::{
         config::{ConfigError, ExchangeConfig},
-        traits::ExchangeConnector,
+        traits::MarketDataSource,
     },
     exchanges::binance::BinanceConnector,
 };

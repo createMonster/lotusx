@@ -105,37 +105,38 @@ dotenv = "0.15"         # .env support (optional)
 
 ### 🚧 **In Progress**
 
-#### **Enhanced Features**
-- [ ] **Rate Limiting**: Built-in rate limiting to prevent API throttling
-- [ ] **Order Management**: Order status tracking and management utilities
-- [ ] **Portfolio Tracking**: Account balance and position tracking
-- [ ] **Advanced Streaming**: Filtered and aggregated data streams
+#### **Exchange Integrations (Phase 2)**
+- [ ] **Hyperliquid Integration**: Full API integration for perpetual futures (Task 2.2)
+  - [ ] Research Hyperliquid API & plan implementation
+  - [ ] Implement REST client with EIP-712 signatures
+  - [ ] Implement WebSocket for market and user data streams
+- [ ] **Bybit Integration**: V5 API Integration for USDT and Inverse perpetuals (Task 2.3)
+  - [ ] Implement REST API client
+  - [ ] Implement WebSocket stream integration
+  - [ ] Perform multi-exchange validation testing
 
-#### **Additional Exchanges**
-- [ ] **Coinbase Pro**: Full API integration
-- [ ] **Kraken**: Spot and futures support
-- [ ] **OKX**: Comprehensive exchange support
-- [ ] **Bybit**: Derivatives trading support
+#### **Advanced Features (Phase 3)**
+- [ ] **Exchange Management**: Implement exchange factory and multi-exchange coordinator (Task 3.1)
+- [ ] **Performance & Reliability**: Implement connection pooling, error recovery, and caching (Task 3.2)
+- [ ] **Rate Limiting**: Implement client-side rate limiting to prevent API bans
 
 ### 📋 **Planned Features**
 
-#### **Advanced Trading Features**
-- [ ] **Algorithmic Trading**: Built-in trading strategies
-- [ ] **Risk Management**: Position sizing and risk controls
-- [ ] **Backtesting**: Historical data testing framework
-- [ ] **Paper Trading**: Virtual trading environment
+#### **Extended Exchange Support (Phase 4)**
+- [ ] **OKX Integration**: Implement REST API and WebSocket streams (Task 4.1.1)
+- [ ] **Deribit Integration**: Support for options and futures contracts (Task 4.1.2)
+- [ ] **Gate.io Integration**: Implement REST API and WebSocket streams (Task 4.1.3)
+- [ ] **Standardized Integration Process**: Document templates for community contributions (Task 4.1.4)
 
-#### **Enhanced Data Management**
-- [ ] **Historical Data**: Historical price and volume data
-- [ ] **Data Persistence**: Local data storage and caching
-- [ ] **Data Analytics**: Built-in technical analysis tools
-- [ ] **Market Metrics**: Advanced market statistics
+#### **Developer Experience & Tooling (Phase 5)**
+- [ ] **CLI Tool**: Create comprehensive CLI for testing, configuration, and data management (Task 5.1.1)
+- [ ] **Development & Validation Tools**: Build API explorer, data monitor, and mock exchange server (Task 5.1.2, 5.1.3)
+- [ ] **Language Bindings**: Develop Python (PyO3) and Node.js (napi-rs) bindings (Task 5.2.3)
 
-#### **Infrastructure Improvements**
-- [ ] **Load Balancing**: Multiple API endpoint support
-- [ ] **Health Monitoring**: Connection and API health checks
-- [ ] **Metrics Collection**: Performance and usage metrics
-- [ ] **Configuration Management**: Dynamic configuration updates
+#### **Long-Term Goals**
+- [ ] **Advanced Trading**: Algorithmic strategies, backtesting, and paper trading
+- [ ] **Enhanced Data Management**: Historical data aggregation, persistence, and analytics
+- [ ] **Infrastructure Hardening**: Load balancing, health monitoring, and dynamic configuration
 
 ### 🔍 **Testing Status**
 
@@ -237,23 +238,22 @@ examples/           # Usage examples
 
 ### 📈 **Future Roadmap**
 
-#### **Q1 2024 Goals**
-- [ ] Complete Coinbase Pro integration
-- [ ] Advanced order management features
-- [ ] Performance optimizations
-- [ ] Enhanced testing coverage
+The development roadmap is aligned with the phased approach from the official project plan.
 
-#### **Q2 2024 Goals**  
-- [ ] Multi-exchange portfolio management
-- [ ] Built-in technical analysis
-- [ ] Advanced streaming features
-- [ ] Production readiness improvements
+#### **Immediate Focus (Current Phases: 2-3)**
+- **Exchange Integration**: Complete Hyperliquid and Bybit connectors.
+- **Advanced Features**: Implement the exchange management factory, optimize performance, and enhance error recovery.
+- **Production Readiness**: Solidify the core library for reliable use.
+
+#### **Mid-term Goals (Phases: 4-5)**  
+- **Expand Exchange Support**: Integrate OKX, Deribit, and Gate.io.
+- **Developer Tooling**: Build the CLI, supporting development tools, and language bindings (Python, Node.js).
+- **Documentation**: Finalize comprehensive guides and tutorials.
 
 #### **Long-term Vision**
-- **Comprehensive Exchange Support**: Support for all major cryptocurrency exchanges
-- **Advanced Trading Tools**: Full algorithmic trading platform
-- **Enterprise Features**: High-availability, scalable architecture
-- **Community Ecosystem**: Plugin system for community-contributed exchanges
+- **Comprehensive Exchange Coverage**: Become the go-to connector for all major perpetual futures exchanges.
+- **Full-Featured Trading Platform**: Evolve into a complete platform for algorithmic trading, backtesting, and risk management.
+- **Thriving Open-Source Ecosystem**: Foster a community with a plugin system for new exchanges and strategies.
 
 ---
 

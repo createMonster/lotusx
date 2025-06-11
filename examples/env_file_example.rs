@@ -1,10 +1,8 @@
 use lotusx::core::config::ExchangeConfig;
+use lotusx::core::traits::MarketDataSource;
 
 #[cfg(feature = "env-file")]
-use lotusx::{
-    core::{config::ConfigError, traits::ExchangeConnector},
-    exchanges::binance::BinanceConnector,
-};
+use lotusx::{core::config::ConfigError, exchanges::binance::BinanceConnector};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

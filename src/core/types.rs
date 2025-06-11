@@ -150,3 +150,29 @@ pub struct WebSocketConfig {
     pub ping_interval: Option<u64>, // seconds
     pub max_reconnect_attempts: Option<u32>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Balance {
+    pub asset: String,
+    pub free: String,
+    pub locked: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum PositionSide {
+    Long,
+    Short,
+    Both,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Position {
+    pub symbol: String,
+    pub position_side: PositionSide,
+    pub entry_price: String,
+    pub position_amount: String,
+    pub unrealized_pnl: String,
+    pub liquidation_price: Option<String>,
+    pub leverage: String,
+}

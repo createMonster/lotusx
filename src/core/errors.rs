@@ -22,4 +22,7 @@ pub enum ExchangeError {
 
     #[error("Configuration error: {0}")]
     ConfigError(#[from] crate::core::config::ConfigError),
+
+    #[error("Other error: {0}")]
+    Other(String),
 }

@@ -158,3 +158,26 @@ pub struct BinancePerpKlineData {
     #[serde(rename = "x")]
     pub final_bar: bool,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinancePerpBalance {
+    pub asset: String,
+    pub balance: String,
+    #[serde(rename = "availableBalance")]
+    pub available_balance: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinancePerpPosition {
+    pub symbol: String,
+    #[serde(rename = "positionAmt")]
+    pub position_amount: String,
+    pub entry_price: String,
+    #[serde(rename = "unRealizedProfit")]
+    pub un_realized_profit: String,
+    pub liquidation_price: String,
+    pub leverage: String,
+    pub position_side: crate::core::types::PositionSide,
+}

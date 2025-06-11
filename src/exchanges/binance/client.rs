@@ -2,16 +2,17 @@ use super::{auth, types as binance_types};
 use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
-    traits::ExchangeConnector,
+    traits::{AccountInfo, ExchangeConnector, MarketDataSource, OrderPlacer},
     types::{
-        Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest, OrderResponse,
-        OrderSide, OrderType, SubscriptionType, Symbol, Ticker, TimeInForce, Trade,
-        WebSocketConfig,
+        Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest,
+        OrderResponse, OrderSide, OrderType, Position, SubscriptionType, Symbol, Ticker,
+        TimeInForce, Trade, WebSocketConfig,
     },
     websocket::{build_binance_stream_url, WebSocketManager},
 };
 use async_trait::async_trait;
 use reqwest::Client;
+use secrecy::ExposeSecret;
 use serde_json::Value;
 use tokio::sync::mpsc;
 
@@ -192,7 +193,7 @@ impl BinanceConnector {
 }
 
 #[async_trait]
-impl ExchangeConnector for BinanceConnector {
+impl MarketDataSource for BinanceConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let url = format!("{}/api/v3/exchangeInfo", self.base_url);
 
@@ -216,6 +217,63 @@ impl ExchangeConnector for BinanceConnector {
         Ok(markets)
     }
 
+    async fn subscribe_market_data(
+        &self,
+        symbols: Vec<String>,
+        subscription_types: Vec<SubscriptionType>,
+        _config: Option<WebSocketConfig>,
+    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
+        // Build streams for combined stream format
+        let mut streams = Vec::new();
+
+        for symbol in &symbols {
+            let lower_symbol = symbol.to_lowercase();
+            for sub_type in &subscription_types {
+                match sub_type {
+                    SubscriptionType::Ticker => {
+                        streams.push(format!("{}@ticker", lower_symbol));
+                    }
+                    SubscriptionType::OrderBook { depth } => {
+                        if let Some(d) = depth {
+                            streams.push(format!("{}@depth{}@100ms", lower_symbol, d));
+                        } else {
+                            streams.push(format!("{}@depth@100ms", lower_symbol));
+                        }
+                    }
+                    SubscriptionType::Trades => {
+                        streams.push(format!("{}@trade", lower_symbol));
+                    }
+                    SubscriptionType::Klines { interval } => {
+                        streams.push(format!("{}@kline_{}", lower_symbol, interval));
+                    }
+                }
+            }
+        }
+
+        // Build WebSocket URL using helper function
+        let base_url = if self.config.testnet {
+            "wss://testnet.binance.vision"
+        } else {
+            "wss://stream.binance.com:443"
+        };
+
+        let ws_url = build_binance_stream_url(base_url, &streams);
+        let ws_manager = WebSocketManager::new(ws_url);
+
+        ws_manager.start_stream(Self::parse_websocket_message).await
+    }
+
+    fn get_websocket_url(&self) -> String {
+        if self.config.testnet {
+            "wss://testnet.binance.vision".to_string()
+        } else {
+            "wss://stream.binance.com:443".to_string()
+        }
+    }
+}
+
+#[async_trait]
+impl OrderPlacer for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let timestamp = auth::get_timestamp();
 
@@ -323,58 +381,58 @@ impl ExchangeConnector for BinanceConnector {
             timestamp: binance_response.timestamp as i64,
         })
     }
+}
 
-    async fn subscribe_market_data(
-        &self,
-        symbols: Vec<String>,
-        subscription_types: Vec<SubscriptionType>,
-        _config: Option<WebSocketConfig>,
-    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // Build streams for combined stream format
-        let mut streams = Vec::new();
+#[async_trait]
+impl AccountInfo for BinanceConnector {
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
+        let timestamp = auth::get_timestamp();
+        let query_string = auth::build_query_string(&[("timestamp", &timestamp.to_string())]);
+        let signature =
+            auth::generate_signature(self.config.secret_key.expose_secret(), &query_string);
 
-        for symbol in &symbols {
-            let lower_symbol = symbol.to_lowercase();
-            for sub_type in &subscription_types {
-                match sub_type {
-                    SubscriptionType::Ticker => {
-                        streams.push(format!("{}@ticker", lower_symbol));
-                    }
-                    SubscriptionType::OrderBook { depth } => {
-                        if let Some(d) = depth {
-                            streams.push(format!("{}@depth{}@100ms", lower_symbol, d));
-                        } else {
-                            streams.push(format!("{}@depth@100ms", lower_symbol));
-                        }
-                    }
-                    SubscriptionType::Trades => {
-                        streams.push(format!("{}@trade", lower_symbol));
-                    }
-                    SubscriptionType::Klines { interval } => {
-                        streams.push(format!("{}@kline_{}", lower_symbol, interval));
-                    }
-                }
-            }
+        let url = format!(
+            "{}/api/v3/account?{}&signature={}",
+            self.base_url, query_string, signature
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-MBX-APIKEY", self.config.api_key.expose_secret())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(ExchangeError::NetworkError(format!(
+                "Failed to get account balance: {}",
+                error_text
+            )));
         }
 
-        // Build WebSocket URL using helper function
-        let base_url = if self.config.testnet {
-            "wss://testnet.binance.vision"
-        } else {
-            "wss://stream.binance.com:443"
-        };
+        let account_info: binance_types::BinanceAccountInfo = response.json().await?;
 
-        let ws_url = build_binance_stream_url(base_url, &streams);
-        let ws_manager = WebSocketManager::new(ws_url);
+        let balances = account_info
+            .balances
+            .into_iter()
+            .map(|b| Balance {
+                asset: b.asset,
+                free: b.free,
+                locked: b.locked,
+            })
+            .collect();
 
-        ws_manager.start_stream(Self::parse_websocket_message).await
+        Ok(balances)
     }
 
-    fn get_websocket_url(&self) -> String {
-        if self.config.testnet {
-            "wss://testnet.binance.vision".to_string()
-        } else {
-            "wss://stream.binance.com:443".to_string()
-        }
+    async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        // Binance SPOT API does not have a concept of positions in the same way as futures.
+        // This method would be more applicable to a futures connector.
+        // For a spot connector, it's appropriate to return an empty list.
+        Ok(vec![])
     }
 }
+
+// This provides ExchangeConnector automatically
+impl ExchangeConnector for BinanceConnector {}
