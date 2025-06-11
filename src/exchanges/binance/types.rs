@@ -157,3 +157,16 @@ pub struct BinanceKlineData {
     #[serde(rename = "x")]
     pub final_bar: bool,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceBalance {
+    pub asset: String,
+    pub free: String,
+    pub locked: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinanceAccountInfo {
+    pub balances: Vec<BinanceBalance>,
+}

@@ -4,14 +4,15 @@ use crate::core::{
     errors::ExchangeError,
     traits::{AccountInfo, ExchangeConnector, MarketDataSource, OrderPlacer},
     types::{
-        Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest, OrderResponse,
-        OrderSide, OrderType, SubscriptionType, Symbol, Ticker, TimeInForce, Trade,
-        WebSocketConfig,
+        Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderRequest,
+        OrderResponse, OrderSide, OrderType, Position, SubscriptionType, Symbol, Ticker,
+        TimeInForce, Trade, WebSocketConfig,
     },
     websocket::{build_binance_stream_url, WebSocketManager},
 };
 use async_trait::async_trait;
 use reqwest::Client;
+use secrecy::ExposeSecret;
 use serde_json::Value;
 use tokio::sync::mpsc;
 
@@ -383,7 +384,55 @@ impl OrderPlacer for BinanceConnector {
 }
 
 #[async_trait]
-impl AccountInfo for BinanceConnector {}
+impl AccountInfo for BinanceConnector {
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
+        let timestamp = auth::get_timestamp();
+        let query_string = auth::build_query_string(&[("timestamp", &timestamp.to_string())]);
+        let signature =
+            auth::generate_signature(self.config.secret_key.expose_secret(), &query_string);
+
+        let url = format!(
+            "{}/api/v3/account?{}&signature={}",
+            self.base_url, query_string, signature
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("X-MBX-APIKEY", self.config.api_key.expose_secret())
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await?;
+            return Err(ExchangeError::NetworkError(format!(
+                "Failed to get account balance: {}",
+                error_text
+            )));
+        }
+
+        let account_info: binance_types::BinanceAccountInfo = response.json().await?;
+
+        let balances = account_info
+            .balances
+            .into_iter()
+            .map(|b| Balance {
+                asset: b.asset,
+                free: b.free,
+                locked: b.locked,
+            })
+            .collect();
+
+        Ok(balances)
+    }
+
+    async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        // Binance SPOT API does not have a concept of positions in the same way as futures.
+        // This method would be more applicable to a futures connector.
+        // For a spot connector, it's appropriate to return an empty list.
+        Ok(vec![])
+    }
+}
 
 // This provides ExchangeConnector automatically
 impl ExchangeConnector for BinanceConnector {}

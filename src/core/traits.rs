@@ -1,7 +1,8 @@
 use crate::core::{
     errors::ExchangeError,
     types::{
-        Market, MarketDataType, OrderRequest, OrderResponse, SubscriptionType, WebSocketConfig,
+        Balance, Market, MarketDataType, OrderRequest, OrderResponse, Position, SubscriptionType,
+        WebSocketConfig,
     },
 };
 use async_trait::async_trait;
@@ -33,9 +34,9 @@ pub trait OrderPlacer {
 #[async_trait]
 pub trait AccountInfo {
     // Account-related methods can be added here as needed
-    // For example:
-    // async fn get_account_balance(&self) -> Result<Balance, ExchangeError>;
-    // async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError>;
+
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError>;
+    async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError>;
 }
 
 // Optional: Keep a composite trait for convenience when you need all functionality
