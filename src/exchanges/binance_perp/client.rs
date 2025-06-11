@@ -373,11 +373,7 @@ impl OrderPlacer for BinancePerpConnector {
         })
     }
 
-    async fn cancel_order(
-        &self,
-        symbol: String,
-        order_id: String,
-    ) -> Result<(), ExchangeError> {
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let timestamp = auth::get_timestamp();
         let mut params: Vec<(&str, String)> =
             vec![("symbol", symbol), ("timestamp", timestamp.to_string())];

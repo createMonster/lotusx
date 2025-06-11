@@ -304,10 +304,8 @@ impl OrderPlacer for BinanceConnector {
             .collect::<Vec<String>>()
             .join("&");
 
-        let signature = auth::generate_signature(
-            self.config.secret_key.expose_secret(),
-            &query_string,
-        );
+        let signature =
+            auth::generate_signature(self.config.secret_key.expose_secret(), &query_string);
 
         let url = format!(
             "{}/api/v3/order?{}&signature={}",
@@ -367,11 +365,7 @@ impl OrderPlacer for BinanceConnector {
         })
     }
 
-    async fn cancel_order(
-        &self,
-        symbol: String,
-        order_id: String,
-    ) -> Result<(), ExchangeError> {
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let timestamp = auth::get_timestamp();
         let mut params: Vec<(&str, String)> =
             vec![("symbol", symbol), ("timestamp", timestamp.to_string())];

@@ -31,11 +31,7 @@ pub trait OrderPlacer {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError>;
 
     /// Cancel an existing order
-    async fn cancel_order(
-        &self,
-        symbol: String,
-        order_id: String,
-    ) -> Result<(), ExchangeError>;
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError>;
 }
 
 #[async_trait]
