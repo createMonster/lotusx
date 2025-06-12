@@ -1,7 +1,8 @@
 use lotusx::core::traits::{AccountInfo, MarketDataSource, OrderPlacer};
-use lotusx::core::types::{OrderRequest, OrderSide, OrderType, TimeInForce};
+use lotusx::core::types::{OrderRequest, OrderSide, OrderType, TimeInForce, SubscriptionType, WebSocketConfig};
 use lotusx::exchanges::hyperliquid::HyperliquidClient;
 use std::error::Error;
+use tokio::time::{timeout, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -113,8 +114,70 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Err(e) => println!("Authentication failed: {}", e),
     }
 
+    // Example 3: WebSocket Market Data Subscription
+    println!("\n=== WebSocket Market Data Example ===");
+    
+    let ws_client = HyperliquidClient::read_only(true);
+    let symbols = vec!["BTC".to_string(), "ETH".to_string()];
+    let subscription_types = vec![
+        SubscriptionType::Ticker,
+        SubscriptionType::OrderBook { depth: Some(10) },
+        SubscriptionType::Trades,
+        SubscriptionType::Klines { interval: "1m".to_string() },
+    ];
+    
+    let ws_config = WebSocketConfig {
+        auto_reconnect: true,
+        max_reconnect_attempts: Some(3),
+        ping_interval: Some(30),
+    };
+
+    println!("Subscribing to WebSocket market data for BTC and ETH...");
+    match ws_client.subscribe_market_data(symbols, subscription_types, Some(ws_config)).await {
+        Ok(mut receiver) => {
+            println!("✓ WebSocket connection established!");
+            println!("Listening for market data (will timeout after 10 seconds)...");
+            
+            let mut message_count = 0;
+            let listen_duration = Duration::from_secs(10);
+            
+            match timeout(listen_duration, async {
+                while let Some(market_data) = receiver.recv().await {
+                    message_count += 1;
+                    match market_data {
+                        lotusx::core::types::MarketDataType::Ticker(ticker) => {
+                            println!("📊 Ticker - {}: ${}", ticker.symbol, ticker.price);
+                        }
+                        lotusx::core::types::MarketDataType::OrderBook(book) => {
+                            println!("📖 OrderBook - {}: {} bids, {} asks", 
+                                book.symbol, book.bids.len(), book.asks.len());
+                        }
+                        lotusx::core::types::MarketDataType::Trade(trade) => {
+                            println!("💱 Trade - {}: {} @ ${}", 
+                                trade.symbol, trade.quantity, trade.price);
+                        }
+                        lotusx::core::types::MarketDataType::Kline(kline) => {
+                            println!("📈 Kline - {}: O=${} H=${} L=${} C=${}", 
+                                kline.symbol, kline.open_price, kline.high_price, 
+                                kline.low_price, kline.close_price);
+                        }
+                    }
+                    
+                    // Stop after receiving 5 messages to keep example short
+                    if message_count >= 5 {
+                        break;
+                    }
+                }
+            }).await {
+                Ok(_) => println!("✓ Received {} market data messages", message_count),
+                Err(_) => println!("⏰ WebSocket listening timed out after 10 seconds"),
+            }
+        }
+        Err(e) => println!("❌ WebSocket connection failed: {}", e),
+    }
+
     println!("\n=== Trait Implementation Demo ===");
-    println!("✓ MarketDataSource trait implemented");
+    println!("✓ MarketDataSource trait implemented (including WebSocket)");
     println!("✓ OrderPlacer trait implemented");
     println!("✓ AccountInfo trait implemented");
     println!("✓ ExchangeConnector trait implemented (composite)");
