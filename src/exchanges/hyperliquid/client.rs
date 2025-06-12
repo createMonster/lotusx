@@ -3,9 +3,9 @@ use super::auth::HyperliquidAuth;
 use super::types::*;
 use crate::core::config::ExchangeConfig;
 use crate::core::errors::ExchangeError;
-use reqwest::Client;
 use crate::core::traits::ExchangeConnector;
 use async_trait::async_trait;
+use reqwest::Client;
 
 const MAINNET_API_URL: &str = "https://api.hyperliquid.xyz";
 const TESTNET_API_URL: &str = "https://api.hyperliquid-testnet.xyz";
@@ -116,7 +116,10 @@ impl HyperliquidClient {
     }
 
     // Internal helper methods for HTTP requests
-    pub(crate) async fn post_info_request<T>(&self, request: &InfoRequest) -> Result<T, ExchangeError>
+    pub(crate) async fn post_info_request<T>(
+        &self,
+        request: &InfoRequest,
+    ) -> Result<T, ExchangeError>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -136,7 +139,10 @@ impl HyperliquidClient {
         Ok(result)
     }
 
-    pub(crate) async fn post_exchange_request<T>(&self, request: &ExchangeRequest) -> Result<T, ExchangeError>
+    pub(crate) async fn post_exchange_request<T>(
+        &self,
+        request: &ExchangeRequest,
+    ) -> Result<T, ExchangeError>
     where
         T: serde::de::DeserializeOwned,
     {

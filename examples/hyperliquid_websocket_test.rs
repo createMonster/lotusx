@@ -5,7 +5,6 @@ use tokio::time::{timeout, Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     println!("🚀 Testing refactored Hyperliquid WebSocket implementation...");
 
     // Create a read-only client for testing
@@ -49,12 +48,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                     }
                     MarketDataType::Trade(trade) => {
-                        println!("💰 Trade - {}: {} @ ${}", trade.symbol, trade.quantity, trade.price);
+                        println!(
+                            "💰 Trade - {}: {} @ ${}",
+                            trade.symbol, trade.quantity, trade.price
+                        );
                     }
                     MarketDataType::Kline(kline) => {
-                        println!("📈 Kline - {}: O:{} H:{} L:{} C:{}", 
-                            kline.symbol, kline.open_price, kline.high_price, 
-                            kline.low_price, kline.close_price);
+                        println!(
+                            "📈 Kline - {}: O:{} H:{} L:{} C:{}",
+                            kline.symbol,
+                            kline.open_price,
+                            kline.high_price,
+                            kline.low_price,
+                            kline.close_price
+                        );
                     }
                 }
             }
@@ -73,4 +80,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎉 Refactored WebSocket implementation is working correctly!");
 
     Ok(())
-} 
+}

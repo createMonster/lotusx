@@ -1,8 +1,8 @@
 use super::client::HyperliquidClient;
 use crate::core::errors::ExchangeError;
 use crate::core::types::{
-    MarketDataType, SubscriptionType, WebSocketConfig, 
-    Ticker, OrderBook, OrderBookEntry, Trade, Kline,
+    Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
+    WebSocketConfig,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -10,7 +10,7 @@ use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 /// Public function to handle WebSocket market data subscription
-/// This is called by the MarketDataSource trait implementation
+/// This is called by the `MarketDataSource` trait implementation
 pub async fn subscribe_market_data_impl(
     client: &HyperliquidClient,
     symbols: Vec<String>,
@@ -18,7 +18,8 @@ pub async fn subscribe_market_data_impl(
     config: Option<WebSocketConfig>,
 ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
     let ws_url = client.get_websocket_url();
-    let (ws_stream, _) = connect_async(&ws_url).await
+    let (ws_stream, _) = connect_async(&ws_url)
+        .await
         .map_err(|e| ExchangeError::NetworkError(format!("WebSocket connection failed: {}", e)))?;
 
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
@@ -26,7 +27,10 @@ pub async fn subscribe_market_data_impl(
 
     // Handle auto-reconnection if configured
     let auto_reconnect = config.as_ref().map_or(true, |c| c.auto_reconnect);
-    let _max_reconnect_attempts = config.as_ref().and_then(|c| c.max_reconnect_attempts).unwrap_or(5);
+    let _max_reconnect_attempts = config
+        .as_ref()
+        .and_then(|c| c.max_reconnect_attempts)
+        .unwrap_or(5);
 
     // Send all subscriptions using a flattened approach
     send_subscriptions(&mut ws_sender, &symbols, &subscription_types).await?;
@@ -34,10 +38,10 @@ pub async fn subscribe_market_data_impl(
     // Spawn task to handle incoming messages
     let tx_clone = tx.clone();
     let symbols_clone = symbols.clone();
-    
+
     tokio::spawn(async move {
         let mut heartbeat_interval = tokio::time::interval(tokio::time::Duration::from_secs(30));
-        
+
         loop {
             tokio::select! {
                 // Handle incoming WebSocket messages
@@ -61,14 +65,22 @@ pub async fn subscribe_market_data_impl(
 
 // Helper function to send all WebSocket subscriptions
 async fn send_subscriptions(
-    ws_sender: &mut futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>,
+    ws_sender: &mut futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
     symbols: &[String],
     subscription_types: &[SubscriptionType],
 ) -> Result<(), ExchangeError> {
     // Create all subscription combinations using iterator chains to avoid nested loops
-    let subscriptions: Vec<_> = symbols.iter()
+    let subscriptions: Vec<_> = symbols
+        .iter()
         .flat_map(|symbol| {
-            subscription_types.iter().map(|sub_type| (symbol.as_str(), sub_type))
+            subscription_types
+                .iter()
+                .map(|sub_type| (symbol.as_str(), sub_type))
         })
         .map(|(symbol, sub_type)| create_subscription_message(symbol, sub_type))
         .collect();
@@ -76,10 +88,11 @@ async fn send_subscriptions(
     // Send all subscriptions
     for subscription in subscriptions {
         let msg = Message::Text(subscription.to_string());
-        ws_sender.send(msg).await
-            .map_err(|e| ExchangeError::NetworkError(format!("Failed to send subscription: {}", e)))?;
+        ws_sender.send(msg).await.map_err(|e| {
+            ExchangeError::NetworkError(format!("Failed to send subscription: {}", e))
+        })?;
     }
-    
+
     Ok(())
 }
 
@@ -133,28 +146,14 @@ async fn handle_websocket_message(
     auto_reconnect: bool,
 ) -> bool {
     match msg {
-        Some(Ok(Message::Text(text))) => {
-            process_text_message(&text, tx, symbols).await
-        }
-        Some(Ok(Message::Binary(_))) => {
-            // Handle binary messages if needed
-            false
-        }
-        Some(Ok(Message::Ping(_))) => {
-            // Ping handling is done automatically by the library
-            false
-        }
-        Some(Ok(Message::Pong(_))) => {
-            // Handle pong messages
+        Some(Ok(Message::Text(text))) => process_text_message(&text, tx, symbols).await,
+        Some(Ok(Message::Binary(_) | Message::Ping(_) | Message::Pong(_) | Message::Frame(_))) => {
+            // Handle binary, ping, pong, and frame messages - all return false to continue
             false
         }
         Some(Ok(Message::Close(_))) => {
             tracing::info!("WebSocket connection closed by server");
             true
-        }
-        Some(Ok(Message::Frame(_))) => {
-            // Handle frame messages
-            false
         }
         Some(Err(e)) => {
             tracing::error!("WebSocket error: {}", e);
@@ -176,19 +175,16 @@ async fn process_text_message(
     tx: &mpsc::Sender<MarketDataType>,
     symbols: &[String],
 ) -> bool {
-    let parsed = match serde_json::from_str::<Value>(text) {
-        Ok(parsed) => parsed,
-        Err(_) => return false,
+    let Ok(parsed) = serde_json::from_str::<Value>(text) else {
+        return false;
     };
 
-    let channel = match parsed.get("channel").and_then(|c| c.as_str()) {
-        Some(channel) => channel,
-        None => return false,
+    let Some(channel) = parsed.get("channel").and_then(|c| c.as_str()) else {
+        return false;
     };
 
-    let data = match parsed.get("data") {
-        Some(data) => data,
-        None => return false,
+    let Some(data) = parsed.get("data") else {
+        return false;
     };
 
     // Process data for each subscribed symbol using iterator to avoid nested loops
@@ -200,13 +196,18 @@ async fn process_text_message(
             }
         }
     }
-    
+
     false
 }
 
 // Helper function to send heartbeat
 async fn send_heartbeat(
-    ws_sender: &mut futures_util::stream::SplitSink<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>, Message>,
+    ws_sender: &mut futures_util::stream::SplitSink<
+        tokio_tungstenite::WebSocketStream<
+            tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+        >,
+        Message,
+    >,
 ) -> bool {
     let ping_msg = Message::Ping(vec![]);
     if let Err(e) = ws_sender.send(ping_msg).await {
@@ -231,7 +232,7 @@ fn convert_ws_data_static(channel: &str, data: &Value, symbol: &str) -> Option<M
 fn convert_all_mids_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let mids = data.get("mids")?.as_object()?;
     let price = mids.get(symbol)?.as_str()?;
-    
+
     Some(MarketDataType::Ticker(Ticker {
         symbol: symbol.to_string(),
         price: price.to_string(),
@@ -257,7 +258,7 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
         return None;
     }
 
-    let bids = extract_order_book_levels(levels.get(0)?)?;
+    let bids = extract_order_book_levels(levels.first()?)?;
     let asks = extract_order_book_levels(levels.get(1)?)?;
 
     Some(MarketDataType::OrderBook(OrderBook {
@@ -288,7 +289,7 @@ fn extract_order_book_levels(level_data: &Value) -> Option<Vec<OrderBookEntry>> 
 // Helper function to convert trades data
 fn convert_trades_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let trades = data.as_array()?;
-    
+
     for trade in trades {
         let coin = trade.get("coin")?.as_str()?;
         if coin != symbol {
@@ -310,14 +311,14 @@ fn convert_trades_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
             is_buyer_maker: side == "B",
         }));
     }
-    
+
     None
 }
 
 // Helper function to convert candle data
 fn convert_candle_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let candles = data.as_array()?;
-    
+
     for candle in candles {
         let coin = candle.get("s")?.as_str()?;
         if coin != symbol {
@@ -346,6 +347,6 @@ fn convert_candle_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
             final_bar: true,
         }));
     }
-    
+
     None
-} 
+}

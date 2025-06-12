@@ -1,7 +1,7 @@
 use super::auth::generate_nonce;
 use super::client::HyperliquidClient;
-use super::converters::{convert_to_hyperliquid_order, convert_from_hyperliquid_response};
-use super::types::{CancelRequest};
+use super::converters::{convert_from_hyperliquid_response, convert_to_hyperliquid_order};
+use super::types::CancelRequest;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
 use crate::core::types::{OrderRequest, OrderResponse};
@@ -26,16 +26,13 @@ impl OrderPlacer for HyperliquidClient {
             "orders": [hyperliquid_order]
         });
 
-        let signed_request = self.auth.sign_l1_action(
-            action, 
-            self.vault_address.clone(), 
-            Some(generate_nonce())
-        )?;
+        let signed_request =
+            self.auth
+                .sign_l1_action(action, self.vault_address.clone(), Some(generate_nonce()))?;
 
-        let response: super::types::OrderResponse = self
-            .post_exchange_request(&signed_request)
-            .await?;
-            
+        let response: super::types::OrderResponse =
+            self.post_exchange_request(&signed_request).await?;
+
         Ok(convert_from_hyperliquid_response(&response, &order))
     }
 
@@ -62,16 +59,13 @@ impl OrderPlacer for HyperliquidClient {
             "cancels": [cancel_request]
         });
 
-        let signed_request = self.auth.sign_l1_action(
-            action,
-            self.vault_address.clone(),
-            Some(generate_nonce())
-        )?;
+        let signed_request =
+            self.auth
+                .sign_l1_action(action, self.vault_address.clone(), Some(generate_nonce()))?;
 
-        let _response: super::types::OrderResponse = self
-            .post_exchange_request(&signed_request)
-            .await?;
-            
+        let _response: super::types::OrderResponse =
+            self.post_exchange_request(&signed_request).await?;
+
         Ok(())
     }
-} 
+}

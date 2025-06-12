@@ -1,10 +1,8 @@
 use super::client::HyperliquidClient;
-use super::types::{InfoRequest, AssetInfo};
+use super::types::{AssetInfo, InfoRequest};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{
-    Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig,
-};
+use crate::core::types::{Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
@@ -44,10 +42,11 @@ impl MarketDataSource for HyperliquidClient {
         config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
         // Delegate to the websocket module
-        super::websocket::subscribe_market_data_impl(self, symbols, subscription_types, config).await
+        super::websocket::subscribe_market_data_impl(self, symbols, subscription_types, config)
+            .await
     }
 
     fn get_websocket_url(&self) -> String {
         self.get_websocket_url()
     }
-} 
+}

@@ -1,7 +1,7 @@
-use crate::core::types::{OrderRequest, OrderResponse, OrderSide, TimeInForce};
 use super::types::{LimitOrder, OrderType, TimeInForce as HLTimeInForce};
+use crate::core::types::{OrderRequest, OrderResponse, OrderSide, TimeInForce};
 
-/// Convert core OrderRequest to Hyperliquid OrderRequest
+/// Convert core `OrderRequest` to Hyperliquid `OrderRequest`
 /// This is a hot path function for trading, so it's marked inline
 #[inline]
 pub fn convert_to_hyperliquid_order(order: &OrderRequest) -> super::types::OrderRequest {
@@ -9,13 +9,13 @@ pub fn convert_to_hyperliquid_order(order: &OrderRequest) -> super::types::Order
     let order_type = match order.order_type {
         crate::core::types::OrderType::Limit => OrderType::Limit {
             limit: LimitOrder {
-                tif: order.time_in_force.as_ref().map_or(
-                    HLTimeInForce::Gtc,
-                    |tif| match tif {
+                tif: order
+                    .time_in_force
+                    .as_ref()
+                    .map_or(HLTimeInForce::Gtc, |tif| match tif {
                         TimeInForce::GTC => HLTimeInForce::Gtc,
                         TimeInForce::IOC | TimeInForce::FOK => HLTimeInForce::Ioc,
-                    },
-                ),
+                    }),
             },
         },
         crate::core::types::OrderType::Market => OrderType::Limit {
@@ -51,7 +51,7 @@ pub fn convert_to_hyperliquid_order(order: &OrderRequest) -> super::types::Order
     }
 }
 
-/// Convert Hyperliquid OrderResponse to core OrderResponse
+/// Convert Hyperliquid `OrderResponse` to core `OrderResponse`
 /// This is also a hot path function, so it's marked inline
 #[inline]
 pub fn convert_from_hyperliquid_response(
@@ -73,4 +73,4 @@ pub fn convert_from_hyperliquid_response(
         },
         timestamp: chrono::Utc::now().timestamp_millis(),
     }
-} 
+}

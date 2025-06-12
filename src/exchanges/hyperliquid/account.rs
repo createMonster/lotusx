@@ -69,4 +69,4 @@ impl AccountInfo for HyperliquidClient {
 
         Ok(positions)
     }
-} 
+}
