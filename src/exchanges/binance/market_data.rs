@@ -72,4 +72,4 @@ impl MarketDataSource for BinanceConnector {
             "wss://stream.binance.com:9443/ws".to_string()
         }
     }
-} 
+}

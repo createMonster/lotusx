@@ -10,16 +10,12 @@ use async_trait::async_trait;
 impl AccountInfo for BinanceConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
         let url = format!("{}/api/v3/account", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let params = vec![("timestamp", timestamp.to_string())];
 
-        let signature = auth::sign_request(
-            &params,
-            self.config.secret_key(),
-            "GET",
-            "/api/v3/account",
-        )?;
+        let signature =
+            auth::sign_request(&params, self.config.secret_key(), "GET", "/api/v3/account")?;
 
         let mut query_params = params;
         query_params.push(("signature", signature));
@@ -65,4 +61,4 @@ impl AccountInfo for BinanceConnector {
         // Return empty positions as this is spot trading
         Ok(vec![])
     }
-} 
+}

@@ -11,7 +11,7 @@ use async_trait::async_trait;
 impl OrderPlacer for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = format!("{}/api/v3/order", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let mut params = vec![
             ("symbol", order.symbol.clone()),
@@ -42,12 +42,8 @@ impl OrderPlacer for BinanceConnector {
             params.push(("stopPrice", stop_price.clone()));
         }
 
-        let signature = auth::sign_request(
-            &params,
-            self.config.secret_key(),
-            "POST",
-            "/api/v3/order",
-        )?;
+        let signature =
+            auth::sign_request(&params, self.config.secret_key(), "POST", "/api/v3/order")?;
         params.push(("signature", signature));
 
         let response = self
@@ -83,7 +79,7 @@ impl OrderPlacer for BinanceConnector {
 
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let url = format!("{}/api/v3/order", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let params = vec![
             ("symbol", symbol),
@@ -91,12 +87,8 @@ impl OrderPlacer for BinanceConnector {
             ("timestamp", timestamp.to_string()),
         ];
 
-        let signature = auth::sign_request(
-            &params,
-            self.config.secret_key(),
-            "DELETE",
-            "/api/v3/order",
-        )?;
+        let signature =
+            auth::sign_request(&params, self.config.secret_key(), "DELETE", "/api/v3/order")?;
 
         let mut form_params = params;
         form_params.push(("signature", signature));
@@ -119,4 +111,4 @@ impl OrderPlacer for BinanceConnector {
 
         Ok(())
     }
-} 
+}

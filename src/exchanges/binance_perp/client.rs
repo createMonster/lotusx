@@ -1,7 +1,4 @@
-use crate::core::{
-    config::ExchangeConfig,
-    traits::ExchangeConnector,
-};
+use crate::core::{config::ExchangeConfig, traits::ExchangeConnector};
 use reqwest::Client;
 
 pub struct BinancePerpConnector {

@@ -1,7 +1,7 @@
 use super::types as binance_types;
 use crate::core::types::{
-    Market, MarketDataType, Kline, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol,
-    Ticker, TimeInForce, Trade,
+    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
+    TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -76,9 +76,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
     if let Some(stream) = value.get("stream").and_then(|s| s.as_str()) {
         if let Some(data) = value.get("data") {
             if stream.contains("@ticker") {
-                if let Ok(ticker) = serde_json::from_value::<binance_types::BinanceWebSocketTicker>(
-                    data.clone(),
-                ) {
+                if let Ok(ticker) =
+                    serde_json::from_value::<binance_types::BinanceWebSocketTicker>(data.clone())
+                {
                     return Some(MarketDataType::Ticker(Ticker {
                         symbol: ticker.symbol,
                         price: ticker.price,
@@ -156,4 +156,4 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         }
     }
     None
-} 
+}

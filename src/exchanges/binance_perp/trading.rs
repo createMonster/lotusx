@@ -11,7 +11,7 @@ use async_trait::async_trait;
 impl OrderPlacer for BinancePerpConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = format!("{}/fapi/v1/order", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let mut params = vec![
             ("symbol", order.symbol.clone()),
@@ -42,12 +42,8 @@ impl OrderPlacer for BinancePerpConnector {
             params.push(("stopPrice", stop_price.clone()));
         }
 
-        let signature = auth::sign_request(
-            &params,
-            self.config.secret_key(),
-            "POST",
-            "/fapi/v1/order",
-        )?;
+        let signature =
+            auth::sign_request(&params, self.config.secret_key(), "POST", "/fapi/v1/order")?;
         params.push(("signature", signature));
 
         let response = self
@@ -66,7 +62,8 @@ impl OrderPlacer for BinancePerpConnector {
             )));
         }
 
-        let binance_response: binance_perp_types::BinancePerpOrderResponse = response.json().await?;
+        let binance_response: binance_perp_types::BinancePerpOrderResponse =
+            response.json().await?;
 
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
@@ -77,13 +74,13 @@ impl OrderPlacer for BinancePerpConnector {
             quantity: binance_response.orig_qty,
             price: Some(binance_response.price),
             status: binance_response.status,
-            timestamp: binance_response.update_time.into(),
+            timestamp: binance_response.update_time,
         })
     }
 
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let url = format!("{}/fapi/v1/order", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let params = vec![
             ("symbol", symbol),
@@ -119,4 +116,4 @@ impl OrderPlacer for BinancePerpConnector {
 
         Ok(())
     }
-} 
+}

@@ -72,4 +72,4 @@ impl MarketDataSource for BinancePerpConnector {
             "wss://fstream.binance.com/ws".to_string()
         }
     }
-} 
+}

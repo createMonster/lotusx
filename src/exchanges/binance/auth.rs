@@ -42,6 +42,6 @@ pub fn sign_request(
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<String>>()
         .join("&");
-    
+
     Ok(generate_signature(secret, &query_string))
 }

@@ -1,12 +1,14 @@
 use super::types as binance_perp_types;
 use crate::core::types::{
-    Market, MarketDataType, Kline, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol,
-    Ticker, TimeInForce, Trade,
+    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
+    TimeInForce, Trade,
 };
 use serde_json::Value;
 
 /// Convert binance perp market to core market type
-pub fn convert_binance_perp_market(binance_market: binance_perp_types::BinancePerpMarket) -> Market {
+pub fn convert_binance_perp_market(
+    binance_market: binance_perp_types::BinancePerpMarket,
+) -> Market {
     let mut min_qty = None;
     let mut max_qty = None;
     let mut min_price = None;
@@ -76,9 +78,10 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
     if let Some(stream) = value.get("stream").and_then(|s| s.as_str()) {
         if let Some(data) = value.get("data") {
             if stream.contains("@ticker") {
-                if let Ok(ticker) = serde_json::from_value::<binance_perp_types::BinancePerpWebSocketTicker>(
-                    data.clone(),
-                ) {
+                if let Ok(ticker) = serde_json::from_value::<
+                    binance_perp_types::BinancePerpWebSocketTicker,
+                >(data.clone())
+                {
                     return Some(MarketDataType::Ticker(Ticker {
                         symbol: ticker.symbol,
                         price: ticker.price,
@@ -94,8 +97,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                     }));
                 }
             } else if stream.contains("@depth") {
-                if let Ok(depth) =
-                    serde_json::from_value::<binance_perp_types::BinancePerpWebSocketOrderBook>(data.clone())
+                if let Ok(depth) = serde_json::from_value::<
+                    binance_perp_types::BinancePerpWebSocketOrderBook,
+                >(data.clone())
                 {
                     let bids = depth
                         .bids
@@ -122,8 +126,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                     }));
                 }
             } else if stream.contains("@aggTrade") {
-                if let Ok(trade) =
-                    serde_json::from_value::<binance_perp_types::BinancePerpWebSocketTrade>(data.clone())
+                if let Ok(trade) = serde_json::from_value::<
+                    binance_perp_types::BinancePerpWebSocketTrade,
+                >(data.clone())
                 {
                     return Some(MarketDataType::Trade(Trade {
                         symbol: trade.symbol,
@@ -135,8 +140,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                     }));
                 }
             } else if stream.contains("@kline") {
-                if let Ok(kline_data) =
-                    serde_json::from_value::<binance_perp_types::BinancePerpWebSocketKline>(data.clone())
+                if let Ok(kline_data) = serde_json::from_value::<
+                    binance_perp_types::BinancePerpWebSocketKline,
+                >(data.clone())
                 {
                     return Some(MarketDataType::Kline(Kline {
                         symbol: kline_data.symbol,
@@ -156,4 +162,4 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         }
     }
     None
-} 
+}

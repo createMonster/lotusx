@@ -10,16 +10,12 @@ use async_trait::async_trait;
 impl AccountInfo for BinancePerpConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
         let url = format!("{}/fapi/v2/balance", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let params = vec![("timestamp", timestamp.to_string())];
 
-        let signature = auth::sign_request(
-            &params,
-            self.config.secret_key(),
-            "GET",
-            "/fapi/v2/balance",
-        )?;
+        let signature =
+            auth::sign_request(&params, self.config.secret_key(), "GET", "/fapi/v2/balance")?;
 
         let mut query_params = params;
         query_params.push(("signature", signature));
@@ -40,7 +36,8 @@ impl AccountInfo for BinancePerpConnector {
             )));
         }
 
-        let balances_response: Vec<binance_perp_types::BinancePerpBalance> = response.json().await?;
+        let balances_response: Vec<binance_perp_types::BinancePerpBalance> =
+            response.json().await?;
 
         let balances = balances_response
             .into_iter()
@@ -61,7 +58,7 @@ impl AccountInfo for BinancePerpConnector {
 
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
         let url = format!("{}/fapi/v2/positionRisk", self.base_url);
-        let timestamp = chrono::Utc::now().timestamp_millis() as u64;
+        let timestamp = auth::get_timestamp();
 
         let params = vec![("timestamp", timestamp.to_string())];
 
@@ -91,7 +88,8 @@ impl AccountInfo for BinancePerpConnector {
             )));
         }
 
-        let positions_response: Vec<binance_perp_types::BinancePerpPosition> = response.json().await?;
+        let positions_response: Vec<binance_perp_types::BinancePerpPosition> =
+            response.json().await?;
 
         let positions = positions_response
             .into_iter()
@@ -121,4 +119,4 @@ impl AccountInfo for BinancePerpConnector {
 
         Ok(positions)
     }
-} 
+}
