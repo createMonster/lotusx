@@ -29,3 +29,19 @@ pub fn build_query_string(params: &[(&str, &str)]) -> String {
         .collect::<Vec<_>>()
         .join("&")
 }
+
+/// Sign a request with the given parameters
+pub fn sign_request(
+    params: &[(&str, String)],
+    secret: &str,
+    _method: &str,
+    _endpoint: &str,
+) -> Result<String, crate::core::errors::ExchangeError> {
+    let query_string = params
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<String>>()
+        .join("&");
+
+    Ok(generate_signature(secret, &query_string))
+}

@@ -61,11 +61,11 @@ pub struct BinancePerpOrderResponse {
     #[serde(rename = "type")]
     pub order_type: String,
     #[serde(rename = "origQty")]
-    pub quantity: String,
+    pub orig_qty: String,
     pub price: String,
     pub status: String,
     #[serde(rename = "updateTime")]
-    pub timestamp: i64,
+    pub update_time: i64,
 }
 
 // WebSocket Types for Perpetual Futures
@@ -173,11 +173,12 @@ pub struct BinancePerpBalance {
 pub struct BinancePerpPosition {
     pub symbol: String,
     #[serde(rename = "positionAmt")]
-    pub position_amount: String,
+    pub position_amt: String,
+    #[serde(rename = "entryPrice")]
     pub entry_price: String,
-    #[serde(rename = "unRealizedProfit")]
-    pub un_realized_profit: String,
+    #[serde(rename = "unRealizedPnl")]
+    pub un_realized_pnl: String,
+    #[serde(rename = "liquidationPrice")]
     pub liquidation_price: String,
     pub leverage: String,
-    pub position_side: crate::core::types::PositionSide,
 }
