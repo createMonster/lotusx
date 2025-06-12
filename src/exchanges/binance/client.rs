@@ -277,69 +277,52 @@ impl OrderPlacer for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let timestamp = auth::get_timestamp();
 
-        // Create longer-lived bindings for converted values
-        let side_str = Self::convert_order_side(&order.side);
-        let type_str = Self::convert_order_type(&order.order_type);
-        let timestamp_str = timestamp.to_string();
-
-        let mut params = vec![
-            ("symbol", order.symbol.as_str()),
-            ("side", side_str.as_str()),
-            ("type", type_str.as_str()),
-            ("quantity", order.quantity.as_str()),
-            ("timestamp", timestamp_str.as_str()),
+        let mut params: Vec<(&str, String)> = vec![
+            ("symbol", order.symbol.clone()),
+            ("side", Self::convert_order_side(&order.side)),
+            ("type", Self::convert_order_type(&order.order_type)),
+            ("quantity", order.quantity.clone()),
         ];
 
-        // Add optional parameters
-        let price_str;
-        if let Some(ref price) = order.price {
-            price_str = price.clone();
-            params.push(("price", &price_str));
+        if let Some(price) = &order.price {
+            params.push(("price", price.clone()));
         }
 
-        let tif_str;
-        if let Some(ref tif) = order.time_in_force {
-            tif_str = Self::convert_time_in_force(tif);
-            params.push(("timeInForce", &tif_str));
+        if let Some(tif) = &order.time_in_force {
+            params.push(("timeInForce", Self::convert_time_in_force(tif)));
         }
 
-        let stop_price_str;
-        if let Some(ref stop_price) = order.stop_price {
-            stop_price_str = stop_price.clone();
-            params.push(("stopPrice", &stop_price_str));
+        if let Some(stop_price) = &order.stop_price {
+            params.push(("stopPrice", stop_price.clone()));
         }
 
-        let query_string = auth::build_query_string(&params);
-        let signature = auth::generate_signature(self.config.secret_key(), &query_string);
+        params.push(("timestamp", timestamp.to_string()));
 
-        params.push(("signature", &signature));
+        let query_string = params
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<String>>()
+            .join("&");
 
-        let url = format!("{}/api/v3/order", self.base_url);
+        let signature =
+            auth::generate_signature(self.config.secret_key.expose_secret(), &query_string);
+
+        let url = format!(
+            "{}/api/v3/order?{}&signature={}",
+            self.base_url, query_string, signature
+        );
 
         let response = self
             .client
             .post(&url)
-            .header("X-MBX-APIKEY", self.config.api_key())
-            .form(&params)
+            .header("X-MBX-APIKEY", self.config.api_key.expose_secret())
             .send()
             .await?;
 
         if !response.status().is_success() {
             let error_text = response.text().await?;
-            let error_json: Result<Value, _> = serde_json::from_str(&error_text);
-
-            if let Ok(json) = error_json {
-                if let (Some(code), Some(msg)) = (json["code"].as_i64(), json["msg"].as_str()) {
-                    return Err(ExchangeError::ApiError {
-                        code: code as i32,
-                        message: msg.to_string(),
-                    });
-                }
-            }
-
             return Err(ExchangeError::NetworkError(format!(
-                "Failed to place order: {}",
-                error_text
+                "Failed to place order: {error_text}"
             )));
         }
 
@@ -378,8 +361,53 @@ impl OrderPlacer for BinanceConnector {
                 Some(binance_response.price)
             },
             status: binance_response.status,
-            timestamp: binance_response.timestamp as i64,
+            timestamp: binance_response.timestamp.into(),
         })
+    }
+
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
+        let timestamp = auth::get_timestamp();
+        let mut params: Vec<(&str, String)> =
+            vec![("symbol", symbol), ("timestamp", timestamp.to_string())];
+
+        // Binance allows cancelling by either orderId or origClientOrderId.
+        // We'll try to parse the order_id as a number. If it works, we use orderId.
+        // Otherwise, we use origClientOrderId.
+        if let Ok(id) = order_id.parse::<i64>() {
+            params.push(("orderId", id.to_string()));
+        } else {
+            params.push(("origClientOrderId", order_id));
+        }
+
+        let query_string = params
+            .iter()
+            .map(|(k, v)| format!("{k}={v}"))
+            .collect::<Vec<String>>()
+            .join("&");
+
+        let signature =
+            auth::generate_signature(self.config.secret_key.expose_secret(), &query_string);
+
+        let url = format!(
+            "{}/api/v3/order?{}&signature={}",
+            self.base_url, query_string, signature
+        );
+
+        let response = self
+            .client
+            .delete(&url)
+            .header("X-MBX-APIKEY", self.config.api_key.expose_secret())
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let error_text = response.text().await?;
+            Err(ExchangeError::NetworkError(format!(
+                "Failed to cancel order: {error_text}"
+            )))
+        }
     }
 }
 

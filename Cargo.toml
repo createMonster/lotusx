@@ -24,9 +24,13 @@ zeroize = { version = "1.7", features = ["derive"] }
 secrecy = { version = "0.8", features = ["serde"] }
 rand = "0.8"
 tracing = "0.1"
+tracing-subscriber = "0.3"
 governor = "0.6"
 tokio-retry = "0.3"
 nonzero_ext = "0.3"
+secp256k1 = { version = "0.28", features = ["rand-std"] }
+sha3 = "0.10"
+chrono = "0.4"
 
 # Optional dependencies
 dotenv = { version = "0.15", optional = true }

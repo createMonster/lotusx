@@ -29,6 +29,9 @@ pub trait MarketDataSource {
 pub trait OrderPlacer {
     /// Place a new order
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError>;
+
+    /// Cancel an existing order
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError>;
 }
 
 #[async_trait]
