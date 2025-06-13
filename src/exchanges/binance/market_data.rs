@@ -69,7 +69,7 @@ impl MarketDataSource for BinanceConnector {
         if self.config.testnet {
             "wss://testnet.binance.vision/ws".to_string()
         } else {
-            "wss://stream.binance.com:9443/ws".to_string()
+            "wss://stream.binance.com:443/ws".to_string()
         }
     }
 
