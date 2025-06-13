@@ -152,11 +152,9 @@ pub fn build_binance_stream_url(base_url: &str, streams: &[String]) -> String {
 
     // For combined streams, Binance expects /stream?streams=...
     // If base_url ends with /ws, strip it
-    let base = if base_url.ends_with("/ws") {
-        &base_url[..base_url.len() - 3]
-    } else {
-        base_url
-    };
+    let base = base_url
+        .strip_suffix("/ws")
+        .map_or(base_url, |stripped| stripped);
     format!("{}/stream?streams={}", base, streams.join("/"))
 }
 
