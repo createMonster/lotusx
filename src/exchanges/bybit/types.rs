@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+// API response wrapper for V5 API
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitApiResponse<T> {
     #[serde(rename = "retCode")]
     pub ret_code: i32,
@@ -9,24 +10,52 @@ pub struct BybitApiResponse<T> {
     pub result: T,
 }
 
+// Market data types
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitMarket {
+    pub symbol: String,
+    pub status: String,
+    #[serde(rename = "baseCoin")]
+    pub base_coin: String,
+    #[serde(rename = "quoteCoin")]
+    pub quote_coin: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitMarketsResult {
+    pub list: Vec<BybitMarket>,
+}
+
+// Account balance types for UNIFIED account
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitCoinBalance {
+    pub coin: String,
+    #[serde(rename = "walletBalance")]
+    pub wallet_balance: String,
+    pub locked: String,
+    pub equity: String,
+    #[serde(rename = "usdValue")]
+    pub usd_value: String,
+    #[serde(rename = "availableToWithdraw")]
+    pub available_to_withdraw: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitAccountList {
+    #[serde(rename = "accountType")]
+    pub account_type: String,
+    pub coin: Vec<BybitCoinBalance>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitAccountResult {
+    pub list: Vec<BybitAccountList>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct BybitExchangeInfo {
     pub category: String,
     pub list: Vec<BybitMarket>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BybitMarket {
-    pub symbol: String,
-    #[serde(rename = "baseCoin")]
-    pub base_currency: String,
-    #[serde(rename = "quoteCoin")]
-    pub quote_currency: String,
-    pub status: String,
-    #[serde(rename = "lotSizeFilter")]
-    pub lot_size_filter: BybitLotSizeFilter,
-    #[serde(rename = "priceFilter")]
-    pub price_filter: BybitPriceFilter,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,31 +87,6 @@ pub struct BybitAccountInfo {
     #[serde(rename = "retMsg")]
     pub ret_msg: String,
     pub result: BybitAccountResult,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BybitAccountResult {
-    pub list: Vec<BybitAccountList>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BybitAccountList {
-    pub coin: Vec<BybitBalance>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BybitBalance {
-    pub coin: String,
-    #[serde(rename = "walletBalance")]
-    pub wallet_balance: String,
-    #[serde(rename = "availableBalance")]
-    pub available_balance: String,
-    #[serde(rename = "locked", default = "default_zero")]
-    pub frozen_balance: String,
-}
-
-fn default_zero() -> String {
-    "0".to_string()
 }
 
 #[derive(Debug, Deserialize)]

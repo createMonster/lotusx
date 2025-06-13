@@ -9,10 +9,13 @@ use async_trait::async_trait;
 #[async_trait]
 impl AccountInfo for BybitConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
-        let url = format!("{}/v5/account/wallet-balance?accountType=SPOT", self.base_url);
+        let url = format!("{}/v5/account/wallet-balance", self.base_url);
         let timestamp = auth::get_timestamp();
-
-        let params = vec![("timestamp".to_string(), timestamp.to_string())];
+        
+        let params = vec![
+            ("accountType".to_string(), "UNIFIED".to_string()),
+            ("timestamp".to_string(), timestamp.to_string()),
+        ];
 
         let signature = auth::sign_request(
             &params,
@@ -22,14 +25,16 @@ impl AccountInfo for BybitConnector {
             "/v5/account/wallet-balance",
         )?;
 
-        let mut query_params = params;
-        query_params.push(("sign".to_string(), signature));
+        // Only include non-auth parameters in query
+        let query_params = vec![("accountType", "UNIFIED")];
 
         let response = self
             .client
             .get(&url)
             .header("X-BAPI-API-KEY", self.config.api_key())
             .header("X-BAPI-TIMESTAMP", timestamp.to_string())
+            .header("X-BAPI-RECV-WINDOW", "5000")
+            .header("X-BAPI-SIGN", &signature)
             .query(&query_params)
             .send()
             .await?;
@@ -42,29 +47,35 @@ impl AccountInfo for BybitConnector {
             )));
         }
 
-        let account_info: bybit_types::BybitAccountInfo = response.json().await?;
+        let response_text = response.text().await?;
+        
+        let api_response: bybit_types::BybitApiResponse<bybit_types::BybitAccountResult> = 
+            serde_json::from_str(&response_text).map_err(|e| {
+                ExchangeError::NetworkError(format!("Failed to parse Bybit response: {}. Response was: {}", e, response_text))
+            })?;
 
-        if account_info.ret_code != 0 {
+        if api_response.ret_code != 0 {
             return Err(ExchangeError::NetworkError(format!(
-                "Bybit API error: {}",
-                account_info.ret_msg
+                "Bybit API error ({}): {}",
+                api_response.ret_code,
+                api_response.ret_msg
             )));
         }
 
-        let balances = account_info
+        let balances = api_response
             .result
             .list
             .into_iter()
             .flat_map(|account_list| account_list.coin.into_iter())
             .filter(|balance| {
-                let available: f64 = balance.available_balance.parse().unwrap_or(0.0);
-                let wallet: f64 = balance.wallet_balance.parse().unwrap_or(0.0);
-                available > 0.0 || wallet > 0.0
+                let wallet_balance: f64 = balance.wallet_balance.parse().unwrap_or(0.0);
+                let equity: f64 = balance.equity.parse().unwrap_or(0.0);
+                wallet_balance > 0.0 || equity > 0.0
             })
             .map(|balance| Balance {
                 asset: balance.coin,
-                free: balance.available_balance,
-                locked: balance.frozen_balance,
+                free: balance.equity, // Use equity as available balance (after margin)
+                locked: balance.locked,
             })
             .collect();
 

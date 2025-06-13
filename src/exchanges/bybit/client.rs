@@ -1,30 +1,29 @@
-use crate::core::{config::ExchangeConfig, traits::ExchangeConnector};
+use crate::core::config::ExchangeConfig;
 use reqwest::Client;
 
 pub struct BybitConnector {
-    pub(crate) client: Client,
-    pub(crate) config: ExchangeConfig,
-    pub(crate) base_url: String,
+    pub client: Client,
+    pub config: ExchangeConfig,
+    pub base_url: String,
 }
 
 impl BybitConnector {
-    #[must_use]
     pub fn new(config: ExchangeConfig) -> Self {
+        let client = Client::new();
         let base_url = if config.testnet {
             "https://api-testnet.bybit.com".to_string()
         } else {
-            config
-                .base_url
-                .clone()
-                .unwrap_or_else(|| "https://api.bybit.com".to_string())
+            "https://api.bybit.com".to_string()
         };
 
         Self {
-            client: Client::new(),
+            client,
             config,
             base_url,
         }
     }
-}
 
-impl ExchangeConnector for BybitConnector {} 
+    pub fn get_config(&self) -> &ExchangeConfig {
+        &self.config
+    }
+} 

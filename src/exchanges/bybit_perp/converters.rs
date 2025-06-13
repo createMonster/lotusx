@@ -1,4 +1,5 @@
 use super::types as bybit_perp_types;
+use super::types::{BybitPerpMarket, BybitPerpKlineData};
 use crate::core::types::{
     Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
     TimeInForce, Trade,
@@ -20,8 +21,8 @@ pub fn convert_bybit_perp_market(bybit_perp_market: bybit_perp_types::BybitPerpM
 
     Market {
         symbol: Symbol {
-            base: bybit_perp_market.base_currency,
-            quote: bybit_perp_market.quote_currency,
+            base: bybit_perp_market.base_coin,
+            quote: bybit_perp_market.quote_coin,
             symbol: bybit_perp_market.symbol,
         },
         status: bybit_perp_market.status,
@@ -157,4 +158,28 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
     }
 
     None
+}
+
+pub fn convert_bybit_perp_market_to_symbol(bybit_perp_market: &BybitPerpMarket) -> Symbol {
+    Symbol {
+        symbol: bybit_perp_market.symbol.clone(),
+        base: bybit_perp_market.base_coin.clone(),
+        quote: bybit_perp_market.quote_coin.clone(),
+    }
+}
+
+pub fn convert_bybit_perp_kline_to_kline(symbol: String, interval: String, bybit_kline: &BybitPerpKlineData) -> Kline {
+    Kline {
+        symbol,
+        open_time: bybit_kline.start_time,
+        close_time: bybit_kline.end_time,
+        interval,
+        open_price: bybit_kline.open_price.clone(),
+        high_price: bybit_kline.high_price.clone(),
+        low_price: bybit_kline.low_price.clone(),
+        close_price: bybit_kline.close_price.clone(),
+        volume: bybit_kline.volume.clone(),
+        number_of_trades: 0, // Bybit doesn't provide this
+        final_bar: true,
+    }
 } 

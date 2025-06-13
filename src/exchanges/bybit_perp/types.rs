@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitPerpApiResponse<T> {
     #[serde(rename = "retCode")]
     pub ret_code: i32,
@@ -15,14 +15,16 @@ pub struct BybitPerpExchangeInfo {
     pub list: Vec<BybitPerpMarket>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitPerpMarket {
     pub symbol: String,
-    #[serde(rename = "baseCoin")]
-    pub base_currency: String,
-    #[serde(rename = "quoteCoin")]
-    pub quote_currency: String,
     pub status: String,
+    #[serde(rename = "baseCoin")]
+    pub base_coin: String,
+    #[serde(rename = "quoteCoin")]
+    pub quote_coin: String,
+    #[serde(rename = "settleCoin")]
+    pub settle_coin: String,
     #[serde(rename = "priceScale")]
     pub price_scale: String, // V5 API returns this as string
     #[serde(rename = "lotSizeFilter")]
@@ -31,7 +33,7 @@ pub struct BybitPerpMarket {
     pub price_filter: BybitPerpPriceFilter,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitPerpLotSizeFilter {
     #[serde(rename = "minOrderQty")]
     pub min_order_qty: String,
@@ -43,7 +45,7 @@ pub struct BybitPerpLotSizeFilter {
     pub min_notional_value: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitPerpPriceFilter {
     #[serde(rename = "minPrice")]
     pub min_price: String,
@@ -63,7 +65,54 @@ pub struct BybitPerpLeverageFilter {
     pub leverage_step: String,
 }
 
+// Account balance response structures
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpCoinBalance {
+    pub coin: String,
+    #[serde(rename = "walletBalance")]
+    pub wallet_balance: String,
+    pub locked: String,
+    pub equity: String,
+    #[serde(rename = "usdValue")]
+    pub usd_value: String,
+    #[serde(rename = "availableToWithdraw")]
+    pub available_to_withdraw: String,
+}
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpAccountList {
+    #[serde(rename = "accountType")]
+    pub account_type: String,
+    pub coin: Vec<BybitPerpCoinBalance>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpAccountResult {
+    pub list: Vec<BybitPerpAccountList>,
+}
+
+// Position response structures
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpPosition {
+    pub symbol: String,
+    pub side: String,
+    pub size: String,
+    #[serde(rename = "avgPrice")]
+    pub entry_price: String,
+    #[serde(rename = "unrealisedPnl")]
+    pub unrealised_pnl: String,
+    #[serde(rename = "liqPrice")]
+    pub liquidation_price: String,
+    pub leverage: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpPositionResult {
+    pub list: Vec<BybitPerpPosition>,
+    pub category: String,
+    #[serde(rename = "nextPageCursor")]
+    pub next_page_cursor: String,
+}
 
 #[derive(Debug, Serialize)]
 pub struct BybitPerpOrderRequest {
@@ -162,24 +211,8 @@ pub struct BybitPerpKlineData {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct BybitPerpBalance {
-    pub coin: String,
-    pub wallet_balance: String,
-    pub available_balance: String,
-    pub frozen_balance: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BybitPerpPosition {
-    pub symbol: String,
-    pub side: String,
-    pub size: String,
-    pub entry_price: String,
-    pub unrealised_pnl: String,
-    pub liquidation_price: String,
-    pub leverage: String,
-    pub margin_mode: String,
-    pub position_value: String,
+pub struct BybitPerpMarketsResult {
+    pub list: Vec<BybitPerpMarket>,
 }
 
 // REST API K-line Types
