@@ -11,10 +11,15 @@ use tokio::sync::mpsc;
 #[async_trait]
 impl MarketDataSource for BybitPerpConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let url = format!("{}/v5/market/instruments-info?category=linear", self.base_url);
+        let url = format!(
+            "{}/v5/market/instruments-info?category=linear",
+            self.base_url
+        );
 
         let response = self.client.get(&url).send().await?;
-        let api_response: bybit_perp_types::BybitPerpApiResponse<bybit_perp_types::BybitPerpExchangeInfo> = response.json().await?;
+        let api_response: bybit_perp_types::BybitPerpApiResponse<
+            bybit_perp_types::BybitPerpExchangeInfo,
+        > = response.json().await?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::NetworkError(format!(
@@ -88,8 +93,10 @@ impl MarketDataSource for BybitPerpConnector {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        let url = format!("{}/v5/market/kline?category=linear&symbol={}&interval={}", 
-            self.base_url, symbol, interval);
+        let url = format!(
+            "{}/v5/market/kline?category=linear&symbol={}&interval={}",
+            self.base_url, symbol, interval
+        );
 
         let mut query_params = vec![];
 
@@ -122,7 +129,7 @@ impl MarketDataSource for BybitPerpConnector {
             .map(|kline_vec| {
                 let start_time: i64 = kline_vec[0].as_str().unwrap_or("0").parse().unwrap_or(0);
                 let end_time = start_time + 60000; // Assuming 1 minute interval, adjust as needed
-                
+
                 Kline {
                     symbol: symbol.clone(),
                     open_time: start_time,
@@ -141,4 +148,4 @@ impl MarketDataSource for BybitPerpConnector {
 
         Ok(klines)
     }
-} 
+}

@@ -16,7 +16,10 @@ impl OrderPlacer for BybitPerpConnector {
         let mut params = vec![
             ("symbol".to_string(), order.symbol.clone()),
             ("side".to_string(), convert_order_side(&order.side)),
-            ("order_type".to_string(), convert_order_type(&order.order_type)),
+            (
+                "order_type".to_string(),
+                convert_order_type(&order.order_type),
+            ),
             ("qty".to_string(), order.quantity.clone()),
             ("timestamp".to_string(), timestamp.to_string()),
         ];
@@ -130,4 +133,4 @@ impl OrderPlacer for BybitPerpConnector {
 
         Ok(())
     }
-} 
+}

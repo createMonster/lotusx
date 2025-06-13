@@ -8,7 +8,7 @@ pub mod types;
 // Re-export main types for easier importing
 pub use client::BybitPerpConnector;
 pub use types::{
-    BybitPerpCoinBalance, BybitPerpExchangeInfo, BybitPerpKlineData,
-    BybitPerpLotSizeFilter, BybitPerpMarket, BybitPerpOrderRequest, BybitPerpOrderResponse,
-    BybitPerpPriceFilter, BybitPerpRestKline,
-}; 
+    BybitPerpCoinBalance, BybitPerpExchangeInfo, BybitPerpKlineData, BybitPerpLotSizeFilter,
+    BybitPerpMarket, BybitPerpOrderRequest, BybitPerpOrderResponse, BybitPerpPriceFilter,
+    BybitPerpRestKline,
+};

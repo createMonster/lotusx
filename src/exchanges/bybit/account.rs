@@ -11,7 +11,7 @@ impl AccountInfo for BybitConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
         let url = format!("{}/v5/account/wallet-balance", self.base_url);
         let timestamp = auth::get_timestamp();
-        
+
         let params = vec![
             ("accountType".to_string(), "UNIFIED".to_string()),
             ("timestamp".to_string(), timestamp.to_string()),
@@ -48,17 +48,19 @@ impl AccountInfo for BybitConnector {
         }
 
         let response_text = response.text().await?;
-        
-        let api_response: bybit_types::BybitApiResponse<bybit_types::BybitAccountResult> = 
+
+        let api_response: bybit_types::BybitApiResponse<bybit_types::BybitAccountResult> =
             serde_json::from_str(&response_text).map_err(|e| {
-                ExchangeError::NetworkError(format!("Failed to parse Bybit response: {}. Response was: {}", e, response_text))
+                ExchangeError::NetworkError(format!(
+                    "Failed to parse Bybit response: {}. Response was: {}",
+                    e, response_text
+                ))
             })?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::NetworkError(format!(
                 "Bybit API error ({}): {}",
-                api_response.ret_code,
-                api_response.ret_msg
+                api_response.ret_code, api_response.ret_msg
             )));
         }
 
@@ -87,4 +89,4 @@ impl AccountInfo for BybitConnector {
         // Return empty positions as this is spot trading
         Ok(vec![])
     }
-} 
+}

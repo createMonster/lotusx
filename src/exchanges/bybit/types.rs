@@ -201,4 +201,4 @@ pub struct BybitRestKline {
     pub close_price: String,
     pub volume: String,
     pub turnover: String,
-} 
+}

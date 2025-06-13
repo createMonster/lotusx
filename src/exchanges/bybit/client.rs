@@ -26,4 +26,4 @@ impl BybitConnector {
     pub fn get_config(&self) -> &ExchangeConfig {
         &self.config
     }
-} 
+}

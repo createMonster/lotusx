@@ -1,5 +1,5 @@
+use super::types::{BybitKlineData, BybitMarket};
 use crate::core::types::{Kline, Symbol};
-use super::types::{BybitMarket, BybitKlineData};
 
 pub fn convert_bybit_market_to_symbol(bybit_market: &BybitMarket) -> Symbol {
     Symbol {
@@ -9,7 +9,11 @@ pub fn convert_bybit_market_to_symbol(bybit_market: &BybitMarket) -> Symbol {
     }
 }
 
-pub fn convert_bybit_kline_to_kline(symbol: String, interval: String, bybit_kline: &BybitKlineData) -> Kline {
+pub fn convert_bybit_kline_to_kline(
+    symbol: String,
+    interval: String,
+    bybit_kline: &BybitKlineData,
+) -> Kline {
     Kline {
         symbol,
         open_time: bybit_kline.start_time,

@@ -227,4 +227,4 @@ pub struct BybitPerpRestKline {
     pub close_price: String,
     pub volume: String,
     pub turnover: String,
-} 
+}

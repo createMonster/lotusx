@@ -1,5 +1,5 @@
 use super::types as bybit_perp_types;
-use super::types::{BybitPerpMarket, BybitPerpKlineData};
+use super::types::{BybitPerpKlineData, BybitPerpMarket};
 use crate::core::types::{
     Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
     TimeInForce, Trade,
@@ -9,12 +9,12 @@ use serde_json::Value;
 /// Convert bybit perp market to core market type
 pub fn convert_bybit_perp_market(bybit_perp_market: bybit_perp_types::BybitPerpMarket) -> Market {
     // Parse precision from price scale string
-    let price_precision = bybit_perp_market.price_scale
-        .parse::<i32>()
-        .unwrap_or(2);
-    
+    let price_precision = bybit_perp_market.price_scale.parse::<i32>().unwrap_or(2);
+
     // For perpetuals, qty step indicates base precision
-    let base_precision = bybit_perp_market.lot_size_filter.qty_step
+    let base_precision = bybit_perp_market
+        .lot_size_filter
+        .qty_step
         .parse::<f64>()
         .map(|p| (-p.log10()).ceil() as i32)
         .unwrap_or(3);
@@ -85,14 +85,16 @@ pub fn convert_bybit_perp_kline(
     }
 }
 
-/// Parse WebSocket message and convert to MarketDataType
+/// Parse WebSocket message and convert to `MarketDataType`
 pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
     // Extract topic and data from Bybit WebSocket message
     let topic = value["topic"].as_str().unwrap_or("");
     let data = &value["data"];
 
     if topic.contains("ticker") {
-        if let Ok(ticker) = serde_json::from_value::<bybit_perp_types::BybitPerpTickerData>(data.clone()) {
+        if let Ok(ticker) =
+            serde_json::from_value::<bybit_perp_types::BybitPerpTickerData>(data.clone())
+        {
             return Some(MarketDataType::Ticker(Ticker {
                 symbol: ticker.symbol,
                 price: ticker.last_price,
@@ -102,23 +104,31 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 low_price: ticker.low_price_24h,
                 volume: ticker.volume_24h,
                 quote_volume: ticker.turnover_24h,
-                open_time: 0, // Not provided in Bybit ticker
+                open_time: 0,  // Not provided in Bybit ticker
                 close_time: 0, // Not provided in Bybit ticker
                 count: 0,      // Not provided in Bybit ticker
             }));
         }
     } else if topic.contains("orderbook") {
-        if let Ok(orderbook) = serde_json::from_value::<bybit_perp_types::BybitPerpOrderBookData>(data.clone()) {
+        if let Ok(orderbook) =
+            serde_json::from_value::<bybit_perp_types::BybitPerpOrderBookData>(data.clone())
+        {
             let bids = orderbook
                 .bids
                 .into_iter()
-                .map(|[price, qty]| OrderBookEntry { price, quantity: qty })
+                .map(|[price, qty]| OrderBookEntry {
+                    price,
+                    quantity: qty,
+                })
                 .collect();
 
             let asks = orderbook
                 .asks
                 .into_iter()
-                .map(|[price, qty]| OrderBookEntry { price, quantity: qty })
+                .map(|[price, qty]| OrderBookEntry {
+                    price,
+                    quantity: qty,
+                })
                 .collect();
 
             return Some(MarketDataType::OrderBook(OrderBook {
@@ -129,7 +139,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
             }));
         }
     } else if topic.contains("trade") {
-        if let Ok(trade) = serde_json::from_value::<bybit_perp_types::BybitPerpTradeData>(data.clone()) {
+        if let Ok(trade) =
+            serde_json::from_value::<bybit_perp_types::BybitPerpTradeData>(data.clone())
+        {
             return Some(MarketDataType::Trade(Trade {
                 symbol: trade.symbol,
                 id: trade.trade_id.parse().unwrap_or(0),
@@ -140,9 +152,11 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
             }));
         }
     } else if topic.contains("kline") {
-        if let Ok(kline) = serde_json::from_value::<bybit_perp_types::BybitPerpKlineData>(data.clone()) {
+        if let Ok(kline) =
+            serde_json::from_value::<bybit_perp_types::BybitPerpKlineData>(data.clone())
+        {
             return Some(MarketDataType::Kline(Kline {
-                symbol: "".to_string(), // Extract from topic
+                symbol: String::new(), // Extract from topic
                 open_time: kline.start_time,
                 close_time: kline.end_time,
                 interval: kline.interval,
@@ -168,7 +182,11 @@ pub fn convert_bybit_perp_market_to_symbol(bybit_perp_market: &BybitPerpMarket) 
     }
 }
 
-pub fn convert_bybit_perp_kline_to_kline(symbol: String, interval: String, bybit_kline: &BybitPerpKlineData) -> Kline {
+pub fn convert_bybit_perp_kline_to_kline(
+    symbol: String,
+    interval: String,
+    bybit_kline: &BybitPerpKlineData,
+) -> Kline {
     Kline {
         symbol,
         open_time: bybit_kline.start_time,
@@ -182,4 +200,4 @@ pub fn convert_bybit_perp_kline_to_kline(symbol: String, interval: String, bybit
         number_of_trades: 0, // Bybit doesn't provide this
         final_bar: true,
     }
-} 
+}

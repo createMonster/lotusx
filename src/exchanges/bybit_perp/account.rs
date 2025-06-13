@@ -49,16 +49,19 @@ impl AccountInfo for BybitPerpConnector {
 
         let response_text = response.text().await?;
 
-        let api_response: bybit_perp_types::BybitPerpApiResponse<bybit_perp_types::BybitPerpAccountResult> = 
-            serde_json::from_str(&response_text).map_err(|e| {
-                ExchangeError::NetworkError(format!("Failed to parse Bybit response: {}. Response was: {}", e, response_text))
-            })?;
+        let api_response: bybit_perp_types::BybitPerpApiResponse<
+            bybit_perp_types::BybitPerpAccountResult,
+        > = serde_json::from_str(&response_text).map_err(|e| {
+            ExchangeError::NetworkError(format!(
+                "Failed to parse Bybit response: {}. Response was: {}",
+                e, response_text
+            ))
+        })?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::NetworkError(format!(
                 "Bybit API error ({}): {}",
-                api_response.ret_code,
-                api_response.ret_msg
+                api_response.ret_code, api_response.ret_msg
             )));
         }
 
@@ -124,16 +127,19 @@ impl AccountInfo for BybitPerpConnector {
 
         let response_text = response.text().await?;
 
-        let api_response: bybit_perp_types::BybitPerpApiResponse<bybit_perp_types::BybitPerpPositionResult> = 
-            serde_json::from_str(&response_text).map_err(|e| {
-                ExchangeError::NetworkError(format!("Failed to parse Bybit response: {}. Response was: {}", e, response_text))
-            })?;
+        let api_response: bybit_perp_types::BybitPerpApiResponse<
+            bybit_perp_types::BybitPerpPositionResult,
+        > = serde_json::from_str(&response_text).map_err(|e| {
+            ExchangeError::NetworkError(format!(
+                "Failed to parse Bybit response: {}. Response was: {}",
+                e, response_text
+            ))
+        })?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::NetworkError(format!(
                 "Bybit API error ({}): {}",
-                api_response.ret_code,
-                api_response.ret_msg
+                api_response.ret_code, api_response.ret_msg
             )));
         }
 
@@ -147,7 +153,6 @@ impl AccountInfo for BybitPerpConnector {
             })
             .map(|position| {
                 let position_side = match position.side.as_str() {
-                    "Buy" => PositionSide::Long,
                     "Sell" => PositionSide::Short,
                     _ => PositionSide::Long,
                 };
@@ -166,4 +171,4 @@ impl AccountInfo for BybitPerpConnector {
 
         Ok(positions)
     }
-} 
+}

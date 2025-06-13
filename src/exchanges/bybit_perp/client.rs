@@ -26,4 +26,4 @@ impl BybitPerpConnector {
     }
 }
 
-impl ExchangeConnector for BybitPerpConnector {} 
+impl ExchangeConnector for BybitPerpConnector {}
