@@ -74,7 +74,7 @@ impl MarketDataSource for BackpackConnector {
         subscription_types: Vec<SubscriptionType>,
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        let ws_url = "wss://ws.backpack.exchange/";
+        let ws_url = "wss://ws.backpack.exchange";
         
         let (ws_stream, _) = connect_async(ws_url)
             .await
@@ -82,7 +82,7 @@ impl MarketDataSource for BackpackConnector {
 
         let (mut write, read) = ws_stream.split();
 
-        // Create subscription requests according to new API format
+        // Create subscription requests according to Backpack API format
         let mut subscription_params = Vec::new();
         
         for symbol in &symbols {
@@ -92,8 +92,11 @@ impl MarketDataSource for BackpackConnector {
                         subscription_params.push(format!("ticker.{}", symbol));
                     }
                     SubscriptionType::OrderBook { depth } => {
-                        let depth_str = depth.map(|d| d.to_string()).unwrap_or_else(|| "20".to_string());
-                        subscription_params.push(format!("depth.{}.{}", depth_str, symbol));
+                        if let Some(_d) = depth {
+                            subscription_params.push(format!("depth.{}", symbol));
+                        } else {
+                            subscription_params.push(format!("depth.{}", symbol));
+                        }
                     }
                     SubscriptionType::Trades => {
                         subscription_params.push(format!("trade.{}", symbol));
@@ -211,7 +214,7 @@ impl MarketDataSource for BackpackConnector {
     }
 
     fn get_websocket_url(&self) -> String {
-        "wss://ws.backpack.exchange/".to_string()
+        "wss://ws.backpack.exchange".to_string()
     }
 
     async fn get_klines(

@@ -29,9 +29,11 @@ impl AccountInfo for BackpackConnector {
             .map_err(ExchangeError::HttpError)?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_else(|_| "Unable to read error body".to_string());
             return Err(ExchangeError::ApiError {
-                code: response.status().as_u16() as i32,
-                message: format!("Failed to get account balance: {}", response.status()),
+                code: status.as_u16() as i32,
+                message: format!("Failed to get account balance: {} - {}", status, error_body),
             });
         }
 
@@ -82,9 +84,11 @@ impl AccountInfo for BackpackConnector {
             .map_err(ExchangeError::HttpError)?;
 
         if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response.text().await.unwrap_or_else(|_| "Unable to read error body".to_string());
             return Err(ExchangeError::ApiError {
-                code: response.status().as_u16() as i32,
-                message: format!("Failed to get positions: {}", response.status()),
+                code: status.as_u16() as i32,
+                message: format!("Failed to get positions: {} - {}", status, error_body),
             });
         }
 

@@ -135,7 +135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting positions: {}", e),
     }
 
-    // Example 8: WebSocket market data (commented out to avoid long-running example)
+    // Example 8: WebSocket market data (commented out due to connection requirements)
     /*
     println!("\n🔄 Starting WebSocket market data stream...");
     let symbols = vec!["SOL_USDC".to_string()];
@@ -151,13 +151,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut count = 0;
             while let Some(data) = receiver.recv().await {
                 match data {
-                    crate::core::types::MarketDataType::Ticker(ticker) => {
+                    MarketDataType::Ticker(ticker) => {
                         println!("📊 Ticker: {} @ ${}", ticker.symbol, ticker.price);
                     }
-                    crate::core::types::MarketDataType::Trade(trade) => {
+                    MarketDataType::Trade(trade) => {
                         println!("🔄 Trade: {} {} @ ${}", trade.symbol, trade.quantity, trade.price);
                     }
-                    crate::core::types::MarketDataType::OrderBook(orderbook) => {
+                    MarketDataType::OrderBook(orderbook) => {
                         println!("📖 OrderBook: {} (bids: {}, asks: {})", 
                             orderbook.symbol, orderbook.bids.len(), orderbook.asks.len());
                     }

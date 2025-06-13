@@ -64,10 +64,11 @@ impl BackpackConnector {
             .ok_or_else(|| ExchangeError::AuthError("No signing key available".to_string()))?;
 
         // Create the signing string according to Backpack's specification
-        let signing_string = format!(
-            "instruction={}&{}&timestamp={}&window={}",
-            instruction, params, timestamp, window
-        );
+        let signing_string = if params.is_empty() {
+            format!("instruction={}&timestamp={}&window={}", instruction, timestamp, window)
+        } else {
+            format!("instruction={}&{}&timestamp={}&window={}", instruction, params, timestamp, window)
+        };
 
         // Sign the message
         let signature = signing_key.sign(signing_string.as_bytes());
