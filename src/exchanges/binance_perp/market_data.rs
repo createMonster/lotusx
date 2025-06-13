@@ -69,7 +69,7 @@ impl MarketDataSource for BinancePerpConnector {
         if self.config.testnet {
             "wss://stream.binancefuture.com/ws".to_string()
         } else {
-            "wss://fstream.binance.com/ws".to_string()
+            "wss://fstream.binance.com:443/ws".to_string()
         }
     }
 

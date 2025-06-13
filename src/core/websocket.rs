@@ -150,7 +150,14 @@ pub fn build_binance_stream_url(base_url: &str, streams: &[String]) -> String {
         return base_url.to_string();
     }
 
-    format!("{}/stream?streams={}", base_url, streams.join("/"))
+    // For combined streams, Binance expects /stream?streams=...
+    // If base_url ends with /ws, strip it
+    let base = if base_url.ends_with("/ws") {
+        &base_url[..base_url.len() - 3]
+    } else {
+        base_url
+    };
+    format!("{}/stream?streams={}", base, streams.join("/"))
 }
 
 /// Helper function to build Binance WebSocket URL for a single raw stream
@@ -170,12 +177,23 @@ mod tests {
 
     #[test]
     fn test_build_combined_stream_url() {
+        let base_url = "wss://stream.binance.com:9443/ws";
+        let streams = vec!["btcusdt@ticker".to_string(), "ethusdt@ticker".to_string()];
+        let url = build_binance_stream_url(base_url, &streams);
+        assert_eq!(
+            url,
+            "wss://stream.binance.com:9443/ws/stream?streams=btcusdt@ticker/ethusdt@ticker"
+        );
+    }
+
+    #[test]
+    fn test_build_combined_stream_url_without_ws() {
         let base_url = "wss://stream.binance.com:9443";
         let streams = vec!["btcusdt@ticker".to_string(), "ethusdt@ticker".to_string()];
         let url = build_binance_stream_url(base_url, &streams);
         assert_eq!(
             url,
-            "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker"
+            "wss://stream.binance.com:9443/ws/stream?streams=btcusdt@ticker/ethusdt@ticker"
         );
     }
 

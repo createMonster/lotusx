@@ -17,14 +17,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "Binance Spot",
             Box::new(BinanceConnector::new(
                 ExchangeConfig::new("your_api_key".to_string(), "your_secret_key".to_string())
-                    .testnet(true),
+                    .testnet(false),
             )),
         ),
         (
             "Binance Perp",
             Box::new(BinancePerpConnector::new(
                 ExchangeConfig::new("your_api_key".to_string(), "your_secret_key".to_string())
-                    .testnet(true),
+                    .testnet(false),
             )),
         ),
         ("Hyperliquid", Box::new(HyperliquidClient::read_only(false))),
