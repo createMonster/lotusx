@@ -182,3 +182,32 @@ pub struct BinancePerpPosition {
     pub liquidation_price: String,
     pub leverage: String,
 }
+
+// REST API K-line Types
+#[derive(Debug, Deserialize)]
+pub struct BinancePerpRestKline {
+    #[serde(rename = "0")]
+    pub open_time: i64,
+    #[serde(rename = "1")]
+    pub open_price: String,
+    #[serde(rename = "2")]
+    pub high_price: String,
+    #[serde(rename = "3")]
+    pub low_price: String,
+    #[serde(rename = "4")]
+    pub close_price: String,
+    #[serde(rename = "5")]
+    pub volume: String,
+    #[serde(rename = "6")]
+    pub close_time: i64,
+    #[serde(rename = "7")]
+    pub quote_asset_volume: String,
+    #[serde(rename = "8")]
+    pub number_of_trades: i64,
+    #[serde(rename = "9")]
+    pub taker_buy_base_asset_volume: String,
+    #[serde(rename = "10")]
+    pub taker_buy_quote_asset_volume: String,
+    #[serde(rename = "11")]
+    pub ignore: String,
+}

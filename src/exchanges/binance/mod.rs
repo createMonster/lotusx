@@ -10,6 +10,6 @@ pub mod types;
 pub use client::BinanceConnector;
 pub use types::{
     BinanceAccountInfo, BinanceBalance, BinanceExchangeInfo, BinanceFilter, BinanceKlineData,
-    BinanceMarket, BinanceOrderRequest, BinanceOrderResponse, BinanceWebSocketKline,
-    BinanceWebSocketOrderBook, BinanceWebSocketTicker, BinanceWebSocketTrade,
+    BinanceMarket, BinanceOrderRequest, BinanceOrderResponse, BinanceRestKline,
+    BinanceWebSocketKline, BinanceWebSocketOrderBook, BinanceWebSocketTicker, BinanceWebSocketTrade,
 };

@@ -10,7 +10,7 @@ pub struct AssetInfo {
     #[serde(rename = "maxLeverage")]
     pub max_leverage: u32,
     #[serde(rename = "onlyIsolated")]
-    pub only_isolated: bool,
+    pub only_isolated: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
