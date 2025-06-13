@@ -69,7 +69,7 @@ pub fn convert_ticker(backpack_ticker: BackpackTicker) -> Ticker {
     }
 }
 
-/// Convert Backpack order book to core OrderBook type
+/// Convert Backpack order book to core `OrderBook` type
 pub fn convert_order_book(backpack_order_book: BackpackOrderBook) -> OrderBook {
     OrderBook {
         symbol: backpack_order_book.symbol,
@@ -96,7 +96,7 @@ pub fn convert_order_book(backpack_order_book: BackpackOrderBook) -> OrderBook {
 /// Convert Backpack trade to core Trade type
 pub fn convert_trade(backpack_trade: BackpackTrade) -> Trade {
     Trade {
-        symbol: "".to_string(), // Symbol not available in trade data
+        symbol: String::new(), // Symbol not available in trade data
         id: backpack_trade.id,
         price: backpack_trade.price,
         quantity: backpack_trade.quantity,
@@ -143,7 +143,7 @@ pub fn convert_ws_ticker(backpack_ws_ticker: BackpackWebSocketTicker) -> Ticker 
     }
 }
 
-/// Convert Backpack WebSocket order book to core OrderBook type
+/// Convert Backpack WebSocket order book to core `OrderBook` type
 pub fn convert_ws_order_book(backpack_ws_order_book: BackpackWebSocketOrderBook) -> OrderBook {
     OrderBook {
         symbol: backpack_ws_order_book.s,
@@ -180,10 +180,7 @@ pub fn convert_ws_trade(backpack_ws_trade: BackpackWebSocketTrade) -> Trade {
 }
 
 /// Convert Backpack WebSocket kline to core Kline type
-pub fn convert_ws_kline(
-    backpack_ws_kline: BackpackWebSocketKline,
-    interval: String,
-) -> Kline {
+pub fn convert_ws_kline(backpack_ws_kline: BackpackWebSocketKline, interval: String) -> Kline {
     Kline {
         symbol: backpack_ws_kline.s,
         open_time: backpack_ws_kline.t,
@@ -199,7 +196,7 @@ pub fn convert_ws_kline(
     }
 }
 
-/// Convert Backpack WebSocket message to core MarketDataType
+/// Convert Backpack WebSocket message to core `MarketDataType`
 pub fn convert_ws_message(
     backpack_ws_message: crate::exchanges::backpack::types::BackpackWebSocketMessage,
 ) -> Option<MarketDataType> {
@@ -213,9 +210,9 @@ pub fn convert_ws_message(
         crate::exchanges::backpack::types::BackpackWebSocketMessage::Trade(trade) => {
             Some(MarketDataType::Trade(convert_ws_trade(trade)))
         }
-        crate::exchanges::backpack::types::BackpackWebSocketMessage::Kline(kline) => {
-            Some(MarketDataType::Kline(convert_ws_kline(kline, "1m".to_string())))
-        }
+        crate::exchanges::backpack::types::BackpackWebSocketMessage::Kline(kline) => Some(
+            MarketDataType::Kline(convert_ws_kline(kline, "1m".to_string())),
+        ),
         _ => None, // Ignore other message types
     }
-} 
+}

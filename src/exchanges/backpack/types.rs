@@ -214,14 +214,14 @@ pub struct BackpackWebSocketTicker {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct BackpackWebSocketOrderBook {
-    pub e: String, // Event type
-    pub E: i64,    // Event time
-    pub s: String, // Symbol
+    pub e: String,           // Event type
+    pub E: i64,              // Event time
+    pub s: String,           // Symbol
     pub a: Vec<Vec<String>>, // Asks [price, quantity]
     pub b: Vec<Vec<String>>, // Bids [price, quantity]
-    pub U: i64,    // First update ID
-    pub u: i64,    // Last update ID
-    pub T: i64,    // Engine timestamp
+    pub U: i64,              // First update ID
+    pub u: i64,              // Last update ID
+    pub T: i64,              // Engine timestamp
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -307,37 +307,37 @@ pub struct BackpackWebSocketBookTicker {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct BackpackWebSocketRFQ {
-    pub e: String, // Event type
-    pub E: i64,    // Event time
-    pub R: i64,    // RFQ ID
-    pub C: String, // Client ID
-    pub s: String, // Symbol
-    pub S: String, // Side
+    pub e: String,         // Event type
+    pub E: i64,            // Event time
+    pub R: i64,            // RFQ ID
+    pub C: String,         // Client ID
+    pub s: String,         // Symbol
+    pub S: String,         // Side
     pub q: Option<String>, // Quantity (base asset)
     pub Q: Option<String>, // Quote quantity (quote asset)
-    pub w: i64,    // Submission time
-    pub W: i64,    // Expiry time
-    pub X: String, // Status
-    pub T: i64,    // Engine timestamp
+    pub w: i64,            // Submission time
+    pub W: i64,            // Expiry time
+    pub X: String,         // Status
+    pub T: i64,            // Engine timestamp
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(non_snake_case)]
 pub struct BackpackWebSocketRFQUpdate {
-    pub e: String, // Event type
-    pub E: i64,    // Event time
-    pub R: i64,    // RFQ ID
-    pub u: Option<i64>, // Quote ID
-    pub C: String, // Client ID
-    pub s: String, // Symbol
+    pub e: String,         // Event type
+    pub E: i64,            // Event time
+    pub R: i64,            // RFQ ID
+    pub u: Option<i64>,    // Quote ID
+    pub C: String,         // Client ID
+    pub s: String,         // Symbol
     pub S: Option<String>, // Side
     pub q: Option<String>, // Quantity
     pub Q: Option<String>, // Quote quantity
     pub p: Option<String>, // Price
     pub w: Option<i64>,    // Submission time
     pub W: Option<i64>,    // Expiry time
-    pub X: String, // Status
-    pub T: i64,    // Engine timestamp
+    pub X: String,         // Status
+    pub T: i64,            // Engine timestamp
 }
 
 // Response Types
@@ -556,4 +556,4 @@ pub struct BackpackTradingFee {
     pub symbol: String,
     pub maker_fee: String,
     pub taker_fee: String,
-} 
+}

@@ -6,8 +6,8 @@ use crate::core::{
 use crate::exchanges::backpack::{
     client::BackpackConnector,
     types::{
-        BackpackMarketResponse, BackpackDepthResponse, BackpackTickerResponse, 
-        BackpackTradeResponse, BackpackKlineResponse, BackpackWebSocketMessage,
+        BackpackDepthResponse, BackpackKlineResponse, BackpackMarketResponse,
+        BackpackTickerResponse, BackpackTradeResponse, BackpackWebSocketMessage,
         BackpackWebSocketSubscription,
     },
 };
@@ -20,8 +20,9 @@ use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 impl MarketDataSource for BackpackConnector {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let url = format!("{}/api/v1/markets", self.base_url);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -35,39 +36,50 @@ impl MarketDataSource for BackpackConnector {
         }
 
         // Backpack API returns markets directly as an array, not wrapped
-        let markets: Vec<BackpackMarketResponse> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse markets response: {}", e)))?;
+        let markets: Vec<BackpackMarketResponse> = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse markets response: {}", e))
+        })?;
 
-        Ok(markets.into_iter().map(|m| Market {
-            symbol: crate::core::types::Symbol {
-                base: m.base_symbol,
-                quote: m.quote_symbol,
-                symbol: m.symbol,
-            },
-            status: m.order_book_state,
-            base_precision: 8, // Default precision
-            quote_precision: 8, // Default precision
-            min_qty: m.filters.as_ref()
-                .and_then(|f| f.quantity.as_ref())
-                .and_then(|q| q.min_quantity.clone())
-                .or_else(|| Some("0".to_string())),
-            max_qty: m.filters.as_ref()
-                .and_then(|f| f.quantity.as_ref())
-                .and_then(|q| q.max_quantity.clone())
-                .or_else(|| Some("999999999".to_string())),
-            min_price: m.filters.as_ref()
-                .and_then(|f| f.price.as_ref())
-                .and_then(|p| p.min_price.clone())
-                .or_else(|| Some("0".to_string())),
-            max_price: m.filters.as_ref()
-                .and_then(|f| f.price.as_ref())
-                .and_then(|p| p.max_price.clone())
-                .or_else(|| Some("999999999".to_string())),
-        }).collect())
+        Ok(markets
+            .into_iter()
+            .map(|m| Market {
+                symbol: crate::core::types::Symbol {
+                    base: m.base_symbol,
+                    quote: m.quote_symbol,
+                    symbol: m.symbol,
+                },
+                status: m.order_book_state,
+                base_precision: 8,  // Default precision
+                quote_precision: 8, // Default precision
+                min_qty: m
+                    .filters
+                    .as_ref()
+                    .and_then(|f| f.quantity.as_ref())
+                    .and_then(|q| q.min_quantity.clone())
+                    .or_else(|| Some("0".to_string())),
+                max_qty: m
+                    .filters
+                    .as_ref()
+                    .and_then(|f| f.quantity.as_ref())
+                    .and_then(|q| q.max_quantity.clone())
+                    .or_else(|| Some("999999999".to_string())),
+                min_price: m
+                    .filters
+                    .as_ref()
+                    .and_then(|f| f.price.as_ref())
+                    .and_then(|p| p.min_price.clone())
+                    .or_else(|| Some("0".to_string())),
+                max_price: m
+                    .filters
+                    .as_ref()
+                    .and_then(|f| f.price.as_ref())
+                    .and_then(|p| p.max_price.clone())
+                    .or_else(|| Some("999999999".to_string())),
+            })
+            .collect())
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn subscribe_market_data(
         &self,
         symbols: Vec<String>,
@@ -75,28 +87,24 @@ impl MarketDataSource for BackpackConnector {
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
         let ws_url = "wss://ws.backpack.exchange";
-        
-        let (ws_stream, _) = connect_async(ws_url)
-            .await
-            .map_err(|e| ExchangeError::NetworkError(format!("WebSocket connection failed: {}", e)))?;
+
+        let (ws_stream, _) = connect_async(ws_url).await.map_err(|e| {
+            ExchangeError::NetworkError(format!("WebSocket connection failed: {}", e))
+        })?;
 
         let (mut write, read) = ws_stream.split();
 
         // Create subscription requests according to Backpack API format
         let mut subscription_params = Vec::new();
-        
+
         for symbol in &symbols {
             for sub_type in &subscription_types {
                 match sub_type {
                     SubscriptionType::Ticker => {
                         subscription_params.push(format!("ticker.{}", symbol));
                     }
-                    SubscriptionType::OrderBook { depth } => {
-                        if let Some(_d) = depth {
-                            subscription_params.push(format!("depth.{}", symbol));
-                        } else {
-                            subscription_params.push(format!("depth.{}", symbol));
-                        }
+                    SubscriptionType::OrderBook { depth: _ } => {
+                        subscription_params.push(format!("depth.{}", symbol));
                     }
                     SubscriptionType::Trades => {
                         subscription_params.push(format!("trade.{}", symbol));
@@ -115,12 +123,16 @@ impl MarketDataSource for BackpackConnector {
             id: 1,
         };
 
-        let subscription_msg = serde_json::to_string(&subscription)
-            .map_err(|e| ExchangeError::Other(format!("Failed to serialize subscription: {}", e)))?;
+        let subscription_msg = serde_json::to_string(&subscription).map_err(|e| {
+            ExchangeError::Other(format!("Failed to serialize subscription: {}", e))
+        })?;
 
-        write.send(Message::Text(subscription_msg))
+        write
+            .send(Message::Text(subscription_msg))
             .await
-            .map_err(|e| ExchangeError::NetworkError(format!("Failed to send subscription: {}", e)))?;
+            .map_err(|e| {
+                ExchangeError::NetworkError(format!("Failed to send subscription: {}", e))
+            })?;
 
         // Create channel for market data
         let (tx, rx) = mpsc::channel(1000);
@@ -128,11 +140,13 @@ impl MarketDataSource for BackpackConnector {
         // Spawn task to handle WebSocket messages
         tokio::spawn(async move {
             let mut read = read;
-            
+
             while let Some(msg) = read.next().await {
                 match msg {
                     Ok(Message::Text(text)) => {
-                        if let Ok(ws_message) = serde_json::from_str::<BackpackWebSocketMessage>(&text) {
+                        if let Ok(ws_message) =
+                            serde_json::from_str::<BackpackWebSocketMessage>(&text)
+                        {
                             let market_data = match ws_message {
                                 BackpackWebSocketMessage::Ticker(ticker) => {
                                     Some(MarketDataType::Ticker(crate::core::types::Ticker {
@@ -152,14 +166,22 @@ impl MarketDataSource for BackpackConnector {
                                 BackpackWebSocketMessage::OrderBook(orderbook) => {
                                     Some(MarketDataType::OrderBook(crate::core::types::OrderBook {
                                         symbol: orderbook.s,
-                                        bids: orderbook.b.iter().map(|b| crate::core::types::OrderBookEntry {
-                                            price: b[0].clone(),
-                                            quantity: b[1].clone(),
-                                        }).collect(),
-                                        asks: orderbook.a.iter().map(|a| crate::core::types::OrderBookEntry {
-                                            price: a[0].clone(),
-                                            quantity: a[1].clone(),
-                                        }).collect(),
+                                        bids: orderbook
+                                            .b
+                                            .iter()
+                                            .map(|b| crate::core::types::OrderBookEntry {
+                                                price: b[0].clone(),
+                                                quantity: b[1].clone(),
+                                            })
+                                            .collect(),
+                                        asks: orderbook
+                                            .a
+                                            .iter()
+                                            .map(|a| crate::core::types::OrderBookEntry {
+                                                price: a[0].clone(),
+                                                quantity: a[1].clone(),
+                                            })
+                                            .collect(),
                                         last_update_id: orderbook.u,
                                     }))
                                 }
@@ -235,10 +257,12 @@ impl MarketDataSource for BackpackConnector {
             params.push(("startTime".to_string(), (start_time / 1000).to_string()));
         } else {
             // If no start time provided, default to 1 day ago
+            #[allow(clippy::cast_possible_wrap)]
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_secs() as i64;
+                .as_secs()
+                .min(i64::MAX as u64) as i64;
             params.push(("startTime".to_string(), (now - 86400).to_string()));
         }
 
@@ -249,7 +273,8 @@ impl MarketDataSource for BackpackConnector {
         let query_string = Self::create_query_string(&params);
         let url = format!("{}/api/v1/klines?{}", self.base_url, query_string);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -268,8 +293,9 @@ impl MarketDataSource for BackpackConnector {
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse klines response: {}", e)))?;
 
-        let klines = klines_data.into_iter().map(|kline| {
-            Kline {
+        let klines = klines_data
+            .into_iter()
+            .map(|kline| Kline {
                 symbol: symbol.clone(),
                 open_time: kline.start.parse().unwrap_or(0),
                 close_time: kline.end.parse().unwrap_or(0),
@@ -281,8 +307,8 @@ impl MarketDataSource for BackpackConnector {
                 volume: kline.volume,
                 number_of_trades: kline.trades.parse().unwrap_or(0),
                 final_bar: true,
-            }
-        }).collect();
+            })
+            .collect();
 
         Ok(klines)
     }
@@ -290,12 +316,16 @@ impl MarketDataSource for BackpackConnector {
 
 impl BackpackConnector {
     /// Get ticker information for a symbol
-    pub async fn get_ticker(&self, symbol: &str) -> Result<crate::core::types::Ticker, ExchangeError> {
+    pub async fn get_ticker(
+        &self,
+        symbol: &str,
+    ) -> Result<crate::core::types::Ticker, ExchangeError> {
         let params = vec![("symbol".to_string(), symbol.to_string())];
         let query_string = Self::create_query_string(&params);
         let url = format!("{}/api/v1/ticker?{}", self.base_url, query_string);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -323,19 +353,24 @@ impl BackpackConnector {
             low_price: ticker.low,
             volume: ticker.volume,
             quote_volume: ticker.quote_volume,
-            open_time: 0, // Not provided by Backpack API
+            open_time: 0,  // Not provided by Backpack API
             close_time: 0, // Not provided by Backpack API
             count: ticker.trades.parse().unwrap_or(0),
         })
     }
 
     /// Get order book for a symbol
-    pub async fn get_order_book(&self, symbol: &str, _limit: Option<u32>) -> Result<crate::core::types::OrderBook, ExchangeError> {
+    pub async fn get_order_book(
+        &self,
+        symbol: &str,
+        _limit: Option<u32>,
+    ) -> Result<crate::core::types::OrderBook, ExchangeError> {
         let params = vec![("symbol".to_string(), symbol.to_string())];
         let query_string = Self::create_query_string(&params);
         let url = format!("{}/api/v1/depth?{}", self.base_url, query_string);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -349,29 +384,40 @@ impl BackpackConnector {
         }
 
         // Backpack API returns depth directly, not wrapped
-        let depth: BackpackDepthResponse = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse order book response: {}", e)))?;
+        let depth: BackpackDepthResponse = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse order book response: {}", e))
+        })?;
 
         Ok(crate::core::types::OrderBook {
             symbol: symbol.to_string(),
-            bids: depth.bids.iter().map(|b| crate::core::types::OrderBookEntry {
-                price: b[0].clone(),
-                quantity: b[1].clone(),
-            }).collect(),
-            asks: depth.asks.iter().map(|a| crate::core::types::OrderBookEntry {
-                price: a[0].clone(),
-                quantity: a[1].clone(),
-            }).collect(),
+            bids: depth
+                .bids
+                .iter()
+                .map(|b| crate::core::types::OrderBookEntry {
+                    price: b[0].clone(),
+                    quantity: b[1].clone(),
+                })
+                .collect(),
+            asks: depth
+                .asks
+                .iter()
+                .map(|a| crate::core::types::OrderBookEntry {
+                    price: a[0].clone(),
+                    quantity: a[1].clone(),
+                })
+                .collect(),
             last_update_id: depth.last_update_id.parse().unwrap_or(0),
         })
     }
 
     /// Get recent trades for a symbol
-    pub async fn get_trades(&self, symbol: &str, limit: Option<u32>) -> Result<Vec<crate::core::types::Trade>, ExchangeError> {
+    pub async fn get_trades(
+        &self,
+        symbol: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<crate::core::types::Trade>, ExchangeError> {
         let mut params = vec![("symbol".to_string(), symbol.to_string())];
-        
+
         if let Some(limit) = limit {
             params.push(("limit".to_string(), limit.to_string()));
         }
@@ -379,7 +425,8 @@ impl BackpackConnector {
         let query_string = Self::create_query_string(&params);
         let url = format!("{}/api/v1/trades?{}", self.base_url, query_string);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .await
@@ -398,13 +445,16 @@ impl BackpackConnector {
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse trades response: {}", e)))?;
 
-        Ok(trades.into_iter().map(|trade| crate::core::types::Trade {
-            symbol: symbol.to_string(),
-            id: trade.id,
-            price: trade.price,
-            quantity: trade.quantity,
-            time: trade.timestamp,
-            is_buyer_maker: trade.is_buyer_maker,
-        }).collect())
+        Ok(trades
+            .into_iter()
+            .map(|trade| crate::core::types::Trade {
+                symbol: symbol.to_string(),
+                id: trade.id,
+                price: trade.price,
+                quantity: trade.quantity,
+                time: trade.timestamp,
+                is_buyer_maker: trade.is_buyer_maker,
+            })
+            .collect())
     }
-} 
+}

@@ -8,9 +8,11 @@ use crate::exchanges::backpack::{
     types::{BackpackApiResponse, BackpackOrderRequest, BackpackOrderResponse},
 };
 use async_trait::async_trait;
+use serde_json;
 
 #[async_trait]
 impl OrderPlacer for BackpackConnector {
+    #[allow(clippy::too_many_lines)]
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let backpack_order = BackpackOrderRequest {
             symbol: order.symbol,
@@ -46,17 +48,25 @@ impl OrderPlacer for BackpackConnector {
         let instruction = "order";
         let params = serde_json::to_string(&backpack_order)
             .map_err(|e| ExchangeError::Other(format!("Failed to serialize order: {}", e)))?;
-        
+
         let headers = self.create_signed_headers(instruction, &params)?;
 
         let url = format!("{}/api/v1/order", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .json(&backpack_order)
             .send()
             .await
@@ -76,16 +86,16 @@ impl OrderPlacer for BackpackConnector {
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
+                code: api_response.error.as_ref().map_or(-1, |e| e.code),
+                message: api_response
+                    .error
+                    .map_or_else(|| "Unknown error".to_string(), |e| e.msg),
             });
         }
 
-        let backpack_response = api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No order response received".to_string(),
-            }
+        let backpack_response = api_response.data.ok_or_else(|| ExchangeError::ApiError {
+            code: -1,
+            message: "No order response received".to_string(),
         })?;
 
         Ok(OrderResponse {
@@ -95,7 +105,11 @@ impl OrderPlacer for BackpackConnector {
             side: match backpack_response.side.as_str() {
                 "BUY" => crate::core::types::OrderSide::Buy,
                 "SELL" => crate::core::types::OrderSide::Sell,
-                _ => return Err(ExchangeError::Other("Invalid order side in response".to_string())),
+                _ => {
+                    return Err(ExchangeError::Other(
+                        "Invalid order side in response".to_string(),
+                    ))
+                }
             },
             order_type: match backpack_response.order_type.as_str() {
                 "MARKET" => crate::core::types::OrderType::Market,
@@ -104,7 +118,11 @@ impl OrderPlacer for BackpackConnector {
                 "STOP_LIMIT" => crate::core::types::OrderType::StopLossLimit,
                 "TAKE_PROFIT_MARKET" => crate::core::types::OrderType::TakeProfit,
                 "TAKE_PROFIT_LIMIT" => crate::core::types::OrderType::TakeProfitLimit,
-                _ => return Err(ExchangeError::Other("Invalid order type in response".to_string())),
+                _ => {
+                    return Err(ExchangeError::Other(
+                        "Invalid order type in response".to_string(),
+                    ))
+                }
             },
             quantity: backpack_response.quantity,
             price: backpack_response.price,
@@ -124,19 +142,28 @@ impl OrderPlacer for BackpackConnector {
 
         // Create signed headers for the cancel request
         let instruction = "cancelOrder";
-        let params = serde_json::to_string(&cancel_request)
-            .map_err(|e| ExchangeError::Other(format!("Failed to serialize cancel request: {}", e)))?;
-        
+        let params = serde_json::to_string(&cancel_request).map_err(|e| {
+            ExchangeError::Other(format!("Failed to serialize cancel request: {}", e))
+        })?;
+
         let headers = self.create_signed_headers(instruction, &params)?;
 
         let url = format!("{}/api/v1/order", self.base_url);
 
-        let response = self.client
+        let response = self
+            .client
             .delete(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .json(&cancel_request)
             .send()
             .await
@@ -156,8 +183,10 @@ impl OrderPlacer for BackpackConnector {
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
+                code: api_response.error.as_ref().map_or(-1, |e| e.code),
+                message: api_response
+                    .error
+                    .map_or_else(|| "Unknown error".to_string(), |e| e.msg),
             });
         }
 
@@ -167,9 +196,12 @@ impl OrderPlacer for BackpackConnector {
 
 impl BackpackConnector {
     /// Get all open orders for a symbol
-    pub async fn get_open_orders(&self, symbol: Option<String>) -> Result<Vec<crate::exchanges::backpack::types::BackpackOrder>, ExchangeError> {
+    pub async fn get_open_orders(
+        &self,
+        symbol: Option<String>,
+    ) -> Result<Vec<crate::exchanges::backpack::types::BackpackOrder>, ExchangeError> {
         let mut params = Vec::new();
-        
+
         if let Some(symbol) = symbol {
             params.push(("symbol".to_string(), symbol));
         }
@@ -189,15 +221,23 @@ impl BackpackConnector {
         } else {
             Self::create_query_string(&params)
         };
-        
+
         let headers = self.create_signed_headers(instruction, &params_str)?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .send()
             .await
             .map_err(ExchangeError::HttpError)?;
@@ -209,51 +249,68 @@ impl BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<Vec<crate::exchanges::backpack::types::BackpackOrder>> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse open orders response: {}", e)))?;
+        let api_response: BackpackApiResponse<
+            Vec<crate::exchanges::backpack::types::BackpackOrder>,
+        > = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse open orders response: {}", e))
+        })?;
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
+                code: api_response.error.as_ref().map_or(-1, |e| e.code),
+                message: api_response
+                    .error
+                    .map_or_else(|| "Unknown error".to_string(), |e| e.msg),
             });
         }
 
-        api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No open orders data received".to_string(),
-            }
+        api_response.data.ok_or_else(|| ExchangeError::ApiError {
+            code: -1,
+            message: "No open orders data received".to_string(),
         })
     }
 
     /// Get order status by order ID
-    pub async fn get_order(&self, symbol: String, order_id: Option<i64>, client_order_id: Option<String>) -> Result<crate::exchanges::backpack::types::BackpackOrder, ExchangeError> {
+    #[allow(clippy::too_many_lines)]
+    pub async fn get_order(
+        &self,
+        symbol: String,
+        order_id: Option<i64>,
+        client_order_id: Option<String>,
+    ) -> Result<crate::exchanges::backpack::types::BackpackOrder, ExchangeError> {
         let mut params = vec![("symbol".to_string(), symbol)];
-        
+
         if let Some(order_id) = order_id {
             params.push(("orderId".to_string(), order_id.to_string()));
         }
-        
+
         if let Some(client_order_id) = client_order_id {
-            params.push(("clientOrderId".to_string(), client_order_id));
+            params.push(("origClientOrderId".to_string(), client_order_id));
         }
 
-        let query_string = Self::create_query_string(&params);
-        let url = format!("{}/api/v1/order?{}", self.base_url, query_string);
+        let query_string = format!("?{}", Self::create_query_string(&params));
+        let url = format!("{}/api/v1/order{}", self.base_url, query_string);
 
         // Create signed headers for the request
         let instruction = "order";
-        let headers = self.create_signed_headers(instruction, &query_string)?;
+        let params_str = Self::create_query_string(&params);
 
-        let response = self.client
+        let headers = self.create_signed_headers(instruction, &params_str)?;
+
+        let response = self
+            .client
             .get(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .send()
             .await
             .map_err(ExchangeError::HttpError)?;
@@ -265,23 +322,23 @@ impl BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<crate::exchanges::backpack::types::BackpackOrder> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse order response: {}", e)))?;
+        let api_response: BackpackApiResponse<crate::exchanges::backpack::types::BackpackOrder> =
+            response.json().await.map_err(|e| {
+                ExchangeError::Other(format!("Failed to parse order response: {}", e))
+            })?;
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
+                code: api_response.error.as_ref().map_or(-1, |e| e.code),
+                message: api_response
+                    .error
+                    .map_or_else(|| "Unknown error".to_string(), |e| e.msg),
             });
         }
 
-        api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No order data received".to_string(),
-            }
+        api_response.data.ok_or_else(|| ExchangeError::ApiError {
+            code: -1,
+            message: "No order data received".to_string(),
         })
     }
-} 
+}

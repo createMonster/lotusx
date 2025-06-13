@@ -3,9 +3,9 @@ use lotusx::core::{
     traits::{AccountInfo, MarketDataSource},
 };
 use lotusx::exchanges::backpack::BackpackConnector;
-use tokio;
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
@@ -87,12 +87,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Example 5: Get historical klines
     println!("\n📈 Getting SOL-USDC 1h klines...");
-    match backpack.get_klines("SOL_USDC".to_string(), "1h".to_string(), Some(5), None, None).await {
+    match backpack
+        .get_klines(
+            "SOL_USDC".to_string(),
+            "1h".to_string(),
+            Some(5),
+            None,
+            None,
+        )
+        .await
+    {
         Ok(klines) => {
             println!("Recent 1h Klines:");
             for kline in klines.iter().take(5) {
-                println!("  Open: ${}, High: ${}, Low: ${}, Close: ${}, Volume: {}",
-                    kline.open_price, kline.high_price, kline.low_price, kline.close_price, kline.volume);
+                println!(
+                    "  Open: ${}, High: ${}, Low: ${}, Close: ${}, Volume: {}",
+                    kline.open_price,
+                    kline.high_price,
+                    kline.low_price,
+                    kline.close_price,
+                    kline.volume
+                );
             }
         }
         Err(e) => eprintln!("Error getting klines: {}", e),
@@ -104,10 +119,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(balances) => {
             println!("Account Balances:");
             for balance in balances.iter().take(10) {
-                if balance.free.parse::<f64>().unwrap_or(0.0) > 0.0 || 
-                   balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0 {
-                    println!("  {}: Free: {}, Locked: {}", 
-                        balance.asset, balance.free, balance.locked);
+                if balance.free.parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0
+                {
+                    println!(
+                        "  {}: Free: {}, Locked: {}",
+                        balance.asset, balance.free, balance.locked
+                    );
                 }
             }
         }
@@ -123,12 +141,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 println!("Open Positions:");
                 for position in positions {
-                    println!("  {}: {:?} {} @ ${}, PnL: ${}", 
-                        position.symbol, 
+                    println!(
+                        "  {}: {:?} {} @ ${}, PnL: ${}",
+                        position.symbol,
                         position.position_side,
                         position.position_amount,
                         position.entry_price,
-                        position.unrealized_pnl);
+                        position.unrealized_pnl
+                    );
                 }
             }
         }
@@ -158,12 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("🔄 Trade: {} {} @ ${}", trade.symbol, trade.quantity, trade.price);
                     }
                     MarketDataType::OrderBook(orderbook) => {
-                        println!("📖 OrderBook: {} (bids: {}, asks: {})", 
+                        println!("📖 OrderBook: {} (bids: {}, asks: {})",
                             orderbook.symbol, orderbook.bids.len(), orderbook.asks.len());
                     }
                     _ => {}
                 }
-                
+
                 count += 1;
                 if count >= 10 {
                     println!("Received 10 messages, stopping...");
@@ -180,4 +200,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Set BACKPACK_API_KEY and BACKPACK_SECRET_KEY in your .env file or as environment variables to test authenticated endpoints.");
 
     Ok(())
-} 
+}

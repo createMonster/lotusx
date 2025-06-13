@@ -18,19 +18,30 @@ impl AccountInfo for BackpackConnector {
         let instruction = "balanceQuery";
         let headers = self.create_signed_headers(instruction, "")?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .send()
             .await
             .map_err(ExchangeError::HttpError)?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_body = response.text().await.unwrap_or_else(|_| "Unable to read error body".to_string());
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error body".to_string());
             return Err(ExchangeError::ApiError {
                 code: status.as_u16() as i32,
                 message: format!("Failed to get account balance: {} - {}", status, error_body),
@@ -38,18 +49,19 @@ impl AccountInfo for BackpackConnector {
         }
 
         // Backpack API returns balances as a map of asset -> balance info
-        let balance_map: BackpackBalanceMap = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse account response: {}", e)))?;
+        let balance_map: BackpackBalanceMap = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse account response: {}", e))
+        })?;
 
         // Convert the balance map to our Balance struct
-        let balances = balance_map.0.into_iter()
+        let balances = balance_map
+            .0
+            .into_iter()
             .filter(|(_, balance)| {
                 // Only include balances that have some value
-                balance.available.parse::<f64>().unwrap_or(0.0) > 0.0 ||
-                balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0 ||
-                balance.staked.parse::<f64>().unwrap_or(0.0) > 0.0
+                balance.available.parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.staked.parse::<f64>().unwrap_or(0.0) > 0.0
             })
             .map(|(asset, balance)| Balance {
                 asset,
@@ -73,19 +85,30 @@ impl AccountInfo for BackpackConnector {
         let instruction = "positionQuery";
         let headers = self.create_signed_headers(instruction, "")?;
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
-            .headers(headers.into_iter().map(|(k, v)| {
-                (reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                 reqwest::header::HeaderValue::from_str(&v).unwrap())
-            }).collect())
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
             .send()
             .await
             .map_err(ExchangeError::HttpError)?;
 
         if !response.status().is_success() {
             let status = response.status();
-            let error_body = response.text().await.unwrap_or_else(|_| "Unable to read error body".to_string());
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error body".to_string());
             return Err(ExchangeError::ApiError {
                 code: status.as_u16() as i32,
                 message: format!("Failed to get positions: {} - {}", status, error_body),
@@ -93,10 +116,9 @@ impl AccountInfo for BackpackConnector {
         }
 
         // Backpack API returns positions directly as an array
-        let positions: Vec<BackpackPositionResponse> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse positions response: {}", e)))?;
+        let positions: Vec<BackpackPositionResponse> = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse positions response: {}", e))
+        })?;
 
         Ok(positions.into_iter()
             .filter(|p| p.net_quantity.parse::<f64>().unwrap_or(0.0) != 0.0) // Only include non-zero positions
@@ -126,4 +148,4 @@ impl AccountInfo for BackpackConnector {
             })
             .collect())
     }
-} 
+}
