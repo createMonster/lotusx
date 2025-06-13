@@ -63,6 +63,7 @@ BINANCE_TESTNET=true
 - **🧪 Testnet**: Full testnet support for safe development
 - **📊 Multi-Exchange**: Binance Spot & Futures, Hyperliquid (more coming soon)
 - **🔧 Maintainable**: Single-responsibility modules for easy development
+- **📈 Performance Monitoring**: Built-in latency testing and benchmarking tools
 
 ## 🏛️ **Architecture Highlights**
 
@@ -135,6 +136,19 @@ while let Some(data) = receiver.recv().await {
 }
 ```
 
+### Performance Benchmarking
+
+```rust
+// Test latency across all exchanges
+cargo run --example latency_test
+
+// Results show:
+// - get_markets: 200ms-4s (varies by exchange)
+// - get_klines: 150-250ms (where supported)
+// - WebSocket connection: <100ms
+// - Comprehensive statistics (min/max/avg/median/std dev)
+```
+
 ## 🏃 **Run Examples**
 
 ```bash
@@ -143,6 +157,9 @@ cargo run --example basic_usage
 
 # WebSocket streaming
 cargo run --example websocket_example
+
+# Performance benchmarking
+cargo run --example latency_test
 
 # Configuration examples
 cargo run --example secure_config_example --features env-file

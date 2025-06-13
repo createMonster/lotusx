@@ -2,6 +2,39 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-4
+
+### Added
+- **Comprehensive Latency Testing Framework**: New performance benchmarking tool for exchange API methods
+  - **Multi-Exchange Testing**: Tests Binance Spot, Binance Perpetual, and Hyperliquid simultaneously
+  - **Method-Specific Benchmarks**: Individual latency measurements for `get_markets`, `get_klines`, and WebSocket connections
+  - **Statistical Analysis**: Comprehensive statistics including min/max/average/median and standard deviation
+  - **Sequential Request Testing**: Measures performance of multiple API calls in sequence
+  - **WebSocket Latency**: Tests connection establishment and first message reception times
+  - **Error Handling**: Graceful handling of unsupported features (e.g., Hyperliquid k-lines)
+  - **Rate Limiting Protection**: Built-in delays between requests to avoid API rate limits
+
+### Enhanced
+- **K-lines Implementation**: Complete historical candlestick data support across exchanges
+  - **Binance Spot**: Full k-lines API with configurable intervals, limits, and time ranges
+  - **Binance Perpetual**: Complete k-lines support matching spot implementation
+  - **Hyperliquid**: Proper placeholder implementation with clear error messaging for unsupported feature
+  - **Consistent Interface**: Unified `get_klines` method across all exchanges via `MarketDataSource` trait
+  - **Flexible Parameters**: Support for symbol, interval, limit, start_time, and end_time parameters
+  - **Error Handling**: Proper error types and messaging for different failure scenarios
+
+### Technical Improvements
+- **Trait Object Support**: Latency testing uses trait objects for polymorphic exchange testing
+- **Performance Metrics**: Detailed timing analysis with microsecond precision
+- **Code Quality**: All examples pass clippy with `-D warnings` enabled
+- **Documentation**: Comprehensive inline documentation for all new features
+
+### Performance Insights
+- **Binance Spot**: `get_markets` ~4s (1445 markets), `get_klines` ~214ms avg
+- **Binance Perpetual**: `get_markets` ~1.4s (509 markets), `get_klines` ~234ms avg  
+- **Hyperliquid**: `get_markets` ~399ms (199 markets), k-lines not supported
+- **WebSocket**: Connection times <100ms across all exchanges
+
 ## PR-3
 
 ### Refactored
