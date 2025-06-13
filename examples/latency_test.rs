@@ -5,6 +5,19 @@ use lotusx::exchanges::binance_perp::BinancePerpConnector;
 use lotusx::exchanges::hyperliquid::HyperliquidClient;
 use std::time::{Duration, Instant};
 
+// Configuration constants
+const MARKETS_TEST_COUNT: usize = 10;
+const KLINES_TEST_COUNT: usize = 10;
+const TEST_SYMBOLS: [&str; 3] = ["BTCUSDT", "ETHUSDT", "ADAUSDT"];
+const MARKETS_DELAY_MS: u64 = 100;
+const KLINES_DELAY_MS: u64 = 200;
+const WEBSOCKET_TIMEOUT_SECS: u64 = 5;
+
+// Helper function to format duration as milliseconds with 2 decimal places
+fn format_ms(duration: Duration) -> String {
+    format!("{:.2}", duration.as_secs_f64() * 1000.0)
+}
+
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -40,8 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Test 2: get_klines latency (if supported)
         test_get_klines_latency(&*client, exchange_name).await;
 
-        // Test 3: Multiple concurrent requests
-        test_concurrent_requests(&*client, exchange_name).await;
+        // Test 3: Multiple sequential requests
+        test_sequential_requests(&*client, exchange_name).await;
 
         // Test 4: WebSocket connection latency
         test_websocket_latency(&*client, exchange_name).await;
@@ -55,10 +68,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn test_get_markets_latency(client: &dyn MarketDataSource, exchange_name: &str) {
     println!("\n🔍 Testing get_markets latency for {}:", exchange_name);
 
-    let mut latencies = Vec::new();
-    let num_tests = 5;
+    let mut latencies = Vec::with_capacity(MARKETS_TEST_COUNT);
 
-    for i in 0..num_tests {
+    for i in 0..MARKETS_TEST_COUNT {
         let start = Instant::now();
         let result = client.get_markets().await;
         let duration = start.elapsed();
@@ -69,7 +81,7 @@ async fn test_get_markets_latency(client: &dyn MarketDataSource, exchange_name: 
                 println!(
                     "  Test {}: ✅ {}ms ({} markets)",
                     i + 1,
-                    duration.as_millis(),
+                    format_ms(duration),
                     markets.len()
                 );
             }
@@ -77,14 +89,14 @@ async fn test_get_markets_latency(client: &dyn MarketDataSource, exchange_name: 
                 println!(
                     "  Test {}: ❌ {}ms - Error: {}",
                     i + 1,
-                    duration.as_millis(),
+                    format_ms(duration),
                     e
                 );
             }
         }
 
         // Small delay between requests to avoid rate limiting
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(MARKETS_DELAY_MS)).await;
     }
 
     if !latencies.is_empty() {
@@ -96,14 +108,12 @@ async fn test_get_markets_latency(client: &dyn MarketDataSource, exchange_name: 
 async fn test_get_klines_latency(client: &dyn MarketDataSource, exchange_name: &str) {
     println!("\n📈 Testing get_klines latency for {}:", exchange_name);
 
-    let mut latencies = Vec::new();
-    let num_tests = 3;
-    let test_symbols = vec!["BTCUSDT", "ETHUSDT", "ADAUSDT"];
+    let mut latencies = Vec::with_capacity(KLINES_TEST_COUNT * TEST_SYMBOLS.len());
 
-    for symbol in test_symbols {
+    for symbol in TEST_SYMBOLS {
         println!("  Testing symbol: {}", symbol);
 
-        for i in 0..num_tests {
+        for i in 0..KLINES_TEST_COUNT {
             let start = Instant::now();
             let result = client
                 .get_klines(symbol.to_string(), "1m".to_string(), Some(10), None, None)
@@ -116,7 +126,7 @@ async fn test_get_klines_latency(client: &dyn MarketDataSource, exchange_name: &
                     println!(
                         "    Test {}: ✅ {}ms ({} k-lines)",
                         i + 1,
-                        duration.as_millis(),
+                        format_ms(duration),
                         klines.len()
                     );
                 }
@@ -124,14 +134,14 @@ async fn test_get_klines_latency(client: &dyn MarketDataSource, exchange_name: &
                     println!(
                         "    Test {}: ❌ {}ms - Error: {}",
                         i + 1,
-                        duration.as_millis(),
+                        format_ms(duration),
                         e
                     );
                 }
             }
 
             // Small delay between requests
-            tokio::time::sleep(Duration::from_millis(200)).await;
+            tokio::time::sleep(Duration::from_millis(KLINES_DELAY_MS)).await;
         }
     }
 
@@ -141,15 +151,13 @@ async fn test_get_klines_latency(client: &dyn MarketDataSource, exchange_name: &
 }
 
 #[allow(clippy::future_not_send)]
-async fn test_concurrent_requests(client: &dyn MarketDataSource, exchange_name: &str) {
+async fn test_sequential_requests(client: &dyn MarketDataSource, exchange_name: &str) {
     println!(
         "\n⚡ Testing sequential requests latency for {}:",
         exchange_name
     );
 
     let start = Instant::now();
-
-    // Test multiple requests sequentially but measure each individually
     let mut latencies = Vec::new();
     let mut success_count = 0;
 
@@ -157,14 +165,15 @@ async fn test_concurrent_requests(client: &dyn MarketDataSource, exchange_name: 
     let req1_start = Instant::now();
     match client.get_markets().await {
         Ok(_) => {
-            latencies.push(req1_start.elapsed());
+            let duration = req1_start.elapsed();
+            latencies.push(duration);
             success_count += 1;
-            println!("  ✅ get_markets: {}ms", req1_start.elapsed().as_millis());
+            println!("  ✅ get_markets: {}ms", format_ms(duration));
         }
         Err(e) => {
             println!(
                 "  ❌ get_markets: {}ms - Error: {}",
-                req1_start.elapsed().as_millis(),
+                format_ms(req1_start.elapsed()),
                 e
             );
         }
@@ -177,17 +186,15 @@ async fn test_concurrent_requests(client: &dyn MarketDataSource, exchange_name: 
         .await
     {
         Ok(_) => {
-            latencies.push(req2_start.elapsed());
+            let duration = req2_start.elapsed();
+            latencies.push(duration);
             success_count += 1;
-            println!(
-                "  ✅ get_klines BTCUSDT: {}ms",
-                req2_start.elapsed().as_millis()
-            );
+            println!("  ✅ get_klines BTCUSDT: {}ms", format_ms(duration));
         }
         Err(e) => {
             println!(
                 "  ❌ get_klines BTCUSDT: {}ms - Error: {}",
-                req2_start.elapsed().as_millis(),
+                format_ms(req2_start.elapsed()),
                 e
             );
         }
@@ -200,17 +207,15 @@ async fn test_concurrent_requests(client: &dyn MarketDataSource, exchange_name: 
         .await
     {
         Ok(_) => {
-            latencies.push(req3_start.elapsed());
+            let duration = req3_start.elapsed();
+            latencies.push(duration);
             success_count += 1;
-            println!(
-                "  ✅ get_klines ETHUSDT: {}ms",
-                req3_start.elapsed().as_millis()
-            );
+            println!("  ✅ get_klines ETHUSDT: {}ms", format_ms(duration));
         }
         Err(e) => {
             println!(
                 "  ❌ get_klines ETHUSDT: {}ms - Error: {}",
-                req3_start.elapsed().as_millis(),
+                format_ms(req3_start.elapsed()),
                 e
             );
         }
@@ -220,7 +225,7 @@ async fn test_concurrent_requests(client: &dyn MarketDataSource, exchange_name: 
 
     println!(
         "  Sequential requests: {}ms total, {} successful",
-        total_duration.as_millis(),
+        format_ms(total_duration),
         success_count
     );
 
@@ -250,17 +255,22 @@ async fn test_websocket_latency(client: &dyn MarketDataSource, exchange_name: &s
             let connection_time = start.elapsed();
             println!(
                 "  ✅ WebSocket connected in {}ms",
-                connection_time.as_millis()
+                format_ms(connection_time)
             );
 
             // Wait for first message
             let message_start = Instant::now();
-            match tokio::time::timeout(Duration::from_secs(5), receiver.recv()).await {
+            match tokio::time::timeout(
+                Duration::from_secs(WEBSOCKET_TIMEOUT_SECS),
+                receiver.recv(),
+            )
+            .await
+            {
                 Ok(Some(_)) => {
                     let message_time = message_start.elapsed();
                     println!(
                         "  ✅ First message received in {}ms",
-                        message_time.as_millis()
+                        format_ms(message_time)
                     );
                 }
                 Ok(None) => {
@@ -275,7 +285,7 @@ async fn test_websocket_latency(client: &dyn MarketDataSource, exchange_name: &s
             let connection_time = start.elapsed();
             println!(
                 "  ❌ WebSocket connection failed in {}ms: {}",
-                connection_time.as_millis(),
+                format_ms(connection_time),
                 e
             );
         }
@@ -302,20 +312,20 @@ fn print_latency_stats(latencies: &[Duration], operation: &str) {
     };
 
     println!("  📊 {} Stats ({} samples):", operation, latencies.len());
-    println!("    Min: {}ms", min.as_millis());
-    println!("    Max: {}ms", max.as_millis());
-    println!("    Avg: {}ms", avg.as_millis());
-    println!("    Median: {}ms", median.as_millis());
+    println!("    Min: {}ms", format_ms(*min));
+    println!("    Max: {}ms", format_ms(*max));
+    println!("    Avg: {}ms", format_ms(avg));
+    println!("    Median: {}ms", format_ms(median));
 
     // Calculate standard deviation
     let variance = latencies
         .iter()
         .map(|&d| {
-            let diff = d.as_micros() as i64 - avg.as_micros() as i64;
+            let diff = d.as_secs_f64() * 1000.0 - avg.as_secs_f64() * 1000.0;
             diff * diff
         })
-        .sum::<i64>()
-        / latencies.len() as i64;
-    let std_dev = (variance as f64).sqrt();
-    println!("    Std Dev: {:.2}ms", std_dev / 1000.0);
+        .sum::<f64>()
+        / latencies.len() as f64;
+    let std_dev = variance.sqrt();
+    println!("    Std Dev: {:.2}ms", std_dev);
 }
