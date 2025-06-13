@@ -53,7 +53,7 @@ impl BackpackConnector {
     }
 
     /// Generate signature for Backpack Exchange API requests
-    pub(crate) fn generate_signature(
+    pub fn generate_signature(
         &self,
         instruction: &str,
         params: &str,
