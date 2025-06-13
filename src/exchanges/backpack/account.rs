@@ -5,17 +5,17 @@ use crate::core::{
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,
-    types::{BackpackApiResponse, BackpackBalance, BackpackPosition},
+    types::{BackpackBalanceMap, BackpackPositionResponse},
 };
 use async_trait::async_trait;
 
 #[async_trait]
 impl AccountInfo for BackpackConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
-        let url = format!("{}/api/v1/account", self.base_url);
+        let url = format!("{}/api/v1/capital", self.base_url);
 
-        // Create signed headers for the request
-        let instruction = "account";
+        // Create signed headers for the request - use correct instruction name
+        let instruction = "balanceQuery";
         let headers = self.create_signed_headers(instruction, "")?;
 
         let response = self.client
@@ -35,37 +35,40 @@ impl AccountInfo for BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<Vec<BackpackBalance>> = response
+        // Backpack API returns balances as a map of asset -> balance info
+        let balance_map: BackpackBalanceMap = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse account response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
+        // Convert the balance map to our Balance struct
+        let balances = balance_map.0.into_iter()
+            .filter(|(_, balance)| {
+                // Only include balances that have some value
+                balance.available.parse::<f64>().unwrap_or(0.0) > 0.0 ||
+                balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0 ||
+                balance.staked.parse::<f64>().unwrap_or(0.0) > 0.0
+            })
+            .map(|(asset, balance)| Balance {
+                asset,
+                free: balance.available,
+                locked: {
+                    // Combine locked and staked for the locked field
+                    let locked: f64 = balance.locked.parse().unwrap_or(0.0);
+                    let staked: f64 = balance.staked.parse().unwrap_or(0.0);
+                    (locked + staked).to_string()
+                },
+            })
+            .collect();
 
-        let balances = api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No account data received".to_string(),
-            }
-        })?;
-
-        Ok(balances.into_iter().map(|b| Balance {
-            asset: b.asset,
-            free: b.free,
-            locked: b.locked,
-        }).collect())
+        Ok(balances)
     }
 
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
-        let url = format!("{}/api/v1/positions", self.base_url);
+        let url = format!("{}/api/v1/position", self.base_url);
 
-        // Create signed headers for the request
-        let instruction = "positions";
+        // Create signed headers for the request - use correct instruction name
+        let instruction = "positionQuery";
         let headers = self.create_signed_headers(instruction, "")?;
 
         let response = self.client
@@ -85,37 +88,38 @@ impl AccountInfo for BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<Vec<BackpackPosition>> = response
+        // Backpack API returns positions directly as an array
+        let positions: Vec<BackpackPositionResponse> = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse positions response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
+        Ok(positions.into_iter()
+            .filter(|p| p.net_quantity.parse::<f64>().unwrap_or(0.0) != 0.0) // Only include non-zero positions
+            .map(|p| {
+                let net_quantity: f64 = p.net_quantity.parse().unwrap_or(0.0);
+                let position_side = if net_quantity > 0.0 {
+                    crate::core::types::PositionSide::Long
+                } else if net_quantity < 0.0 {
+                    crate::core::types::PositionSide::Short
+                } else {
+                    crate::core::types::PositionSide::Both
+                };
 
-        let positions = api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No positions data received".to_string(),
-            }
-        })?;
-
-        Ok(positions.into_iter().map(|p| Position {
-            symbol: p.symbol,
-            position_side: match p.side.as_str() {
-                "LONG" => crate::core::types::PositionSide::Long,
-                "SHORT" => crate::core::types::PositionSide::Short,
-                _ => crate::core::types::PositionSide::Both,
-            },
-            entry_price: p.entry_price,
-            position_amount: p.size,
-            unrealized_pnl: p.unrealized_pnl,
-            liquidation_price: Some(p.liquidation_price),
-            leverage: p.leverage,
-        }).collect())
+                Position {
+                    symbol: p.symbol,
+                    position_side,
+                    entry_price: p.entry_price,
+                    position_amount: p.net_quantity,
+                    unrealized_pnl: p.pnl_unrealized,
+                    liquidation_price: if p.est_liquidation_price == "0" || p.est_liquidation_price.is_empty() {
+                        None
+                    } else {
+                        Some(p.est_liquidation_price)
+                    },
+                    leverage: "1".to_string(), // Default leverage, not provided by API
+                }
+            })
+            .collect())
     }
 } 

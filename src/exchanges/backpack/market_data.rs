@@ -6,8 +6,8 @@ use crate::core::{
 use crate::exchanges::backpack::{
     client::BackpackConnector,
     types::{
-        BackpackApiResponse, BackpackMarket, BackpackOrderBook,
-        BackpackTicker, BackpackTrade, BackpackWebSocketMessage,
+        BackpackMarketResponse, BackpackDepthResponse, BackpackTickerResponse, 
+        BackpackTradeResponse, BackpackKlineResponse, BackpackWebSocketMessage,
         BackpackWebSocketSubscription,
     },
 };
@@ -34,38 +34,37 @@ impl MarketDataSource for BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<Vec<BackpackMarket>> = response
+        // Backpack API returns markets directly as an array, not wrapped
+        let markets: Vec<BackpackMarketResponse> = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse markets response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
-
-        let markets = api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No market data received".to_string(),
-            }
-        })?;
-
         Ok(markets.into_iter().map(|m| Market {
             symbol: crate::core::types::Symbol {
-                base: m.base_asset,
-                quote: m.quote_asset,
+                base: m.base_symbol,
+                quote: m.quote_symbol,
                 symbol: m.symbol,
             },
-            status: m.status,
-            base_precision: m.base_precision,
-            quote_precision: m.quote_precision,
-            min_qty: Some(m.min_qty),
-            max_qty: Some(m.max_qty),
-            min_price: Some(m.min_price),
-            max_price: Some(m.max_price),
+            status: m.order_book_state,
+            base_precision: 8, // Default precision
+            quote_precision: 8, // Default precision
+            min_qty: m.filters.as_ref()
+                .and_then(|f| f.quantity.as_ref())
+                .and_then(|q| q.min_quantity.clone())
+                .or_else(|| Some("0".to_string())),
+            max_qty: m.filters.as_ref()
+                .and_then(|f| f.quantity.as_ref())
+                .and_then(|q| q.max_quantity.clone())
+                .or_else(|| Some("999999999".to_string())),
+            min_price: m.filters.as_ref()
+                .and_then(|f| f.price.as_ref())
+                .and_then(|p| p.min_price.clone())
+                .or_else(|| Some("0".to_string())),
+            max_price: m.filters.as_ref()
+                .and_then(|f| f.price.as_ref())
+                .and_then(|p| p.max_price.clone())
+                .or_else(|| Some("999999999".to_string())),
         }).collect())
     }
 
@@ -75,7 +74,7 @@ impl MarketDataSource for BackpackConnector {
         subscription_types: Vec<SubscriptionType>,
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        let ws_url = "wss://ws.backpack.exchange/stream";
+        let ws_url = "wss://ws.backpack.exchange/";
         
         let (ws_stream, _) = connect_async(ws_url)
             .await
@@ -83,24 +82,24 @@ impl MarketDataSource for BackpackConnector {
 
         let (mut write, read) = ws_stream.split();
 
-        // Create subscription requests
+        // Create subscription requests according to new API format
         let mut subscription_params = Vec::new();
         
         for symbol in &symbols {
             for sub_type in &subscription_types {
                 match sub_type {
                     SubscriptionType::Ticker => {
-                        subscription_params.push(format!("{}@ticker", symbol.to_lowercase()));
+                        subscription_params.push(format!("ticker.{}", symbol));
                     }
                     SubscriptionType::OrderBook { depth } => {
-                        let depth_str = depth.map(|d| format!("@{}", d)).unwrap_or_else(|| "@20".to_string());
-                        subscription_params.push(format!("{}@depth{}", symbol.to_lowercase(), depth_str));
+                        let depth_str = depth.map(|d| d.to_string()).unwrap_or_else(|| "20".to_string());
+                        subscription_params.push(format!("depth.{}.{}", depth_str, symbol));
                     }
                     SubscriptionType::Trades => {
-                        subscription_params.push(format!("{}@trade", symbol.to_lowercase()));
+                        subscription_params.push(format!("trade.{}", symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        subscription_params.push(format!("{}@kline_{}", symbol.to_lowercase(), interval));
+                        subscription_params.push(format!("kline.{}.{}", interval, symbol));
                     }
                 }
             }
@@ -136,13 +135,13 @@ impl MarketDataSource for BackpackConnector {
                                     Some(MarketDataType::Ticker(crate::core::types::Ticker {
                                         symbol: ticker.s,
                                         price: ticker.c,
-                                        price_change: "0".to_string(), // Not available in WebSocket
-                                        price_change_percent: "0".to_string(), // Not available in WebSocket
+                                        price_change: "0".to_string(),
+                                        price_change_percent: "0".to_string(),
                                         high_price: ticker.h,
                                         low_price: ticker.l,
                                         volume: ticker.v,
                                         quote_volume: ticker.V,
-                                        open_time: 0, // Not available in WebSocket
+                                        open_time: 0,
                                         close_time: ticker.E,
                                         count: ticker.n,
                                     }))
@@ -176,7 +175,7 @@ impl MarketDataSource for BackpackConnector {
                                         symbol: kline.s,
                                         open_time: kline.t,
                                         close_time: kline.T,
-                                        interval: "1m".to_string(), // Default, should be extracted from subscription
+                                        interval: "1m".to_string(),
                                         open_price: kline.o,
                                         high_price: kline.h,
                                         low_price: kline.l,
@@ -186,12 +185,12 @@ impl MarketDataSource for BackpackConnector {
                                         final_bar: kline.X,
                                     }))
                                 }
-                                _ => None, // Ignore other message types for now
+                                _ => None,
                             };
 
                             if let Some(data) = market_data {
                                 if tx.send(data).await.is_err() {
-                                    break; // Receiver closed
+                                    break;
                                 }
                             }
                         }
@@ -212,14 +211,14 @@ impl MarketDataSource for BackpackConnector {
     }
 
     fn get_websocket_url(&self) -> String {
-        "wss://ws.backpack.exchange/stream".to_string()
+        "wss://ws.backpack.exchange/".to_string()
     }
 
     async fn get_klines(
         &self,
         symbol: String,
         interval: String,
-        limit: Option<u32>,
+        _limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
@@ -228,16 +227,20 @@ impl MarketDataSource for BackpackConnector {
             ("interval".to_string(), interval.clone()),
         ];
 
-        if let Some(limit) = limit {
-            params.push(("limit".to_string(), limit.to_string()));
-        }
-
+        // Convert start_time and end_time from milliseconds to seconds as per API docs
         if let Some(start_time) = start_time {
-            params.push(("startTime".to_string(), start_time.to_string()));
+            params.push(("startTime".to_string(), (start_time / 1000).to_string()));
+        } else {
+            // If no start time provided, default to 1 day ago
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs() as i64;
+            params.push(("startTime".to_string(), (now - 86400).to_string()));
         }
 
         if let Some(end_time) = end_time {
-            params.push(("endTime".to_string(), end_time.to_string()));
+            params.push(("endTime".to_string(), (end_time / 1000).to_string()));
         }
 
         let query_string = Self::create_query_string(&params);
@@ -256,7 +259,8 @@ impl MarketDataSource for BackpackConnector {
             });
         }
 
-        let klines_data: Vec<Vec<serde_json::Value>> = response
+        // Backpack API returns klines directly as an array
+        let klines_data: Vec<BackpackKlineResponse> = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse klines response: {}", e)))?;
@@ -264,16 +268,16 @@ impl MarketDataSource for BackpackConnector {
         let klines = klines_data.into_iter().map(|kline| {
             Kline {
                 symbol: symbol.clone(),
-                open_time: kline[0].as_i64().unwrap_or(0),
-                close_time: kline[6].as_i64().unwrap_or(0),
+                open_time: kline.start.parse().unwrap_or(0),
+                close_time: kline.end.parse().unwrap_or(0),
                 interval: interval.clone(),
-                open_price: kline[1].as_str().unwrap_or("0").to_string(),
-                high_price: kline[2].as_str().unwrap_or("0").to_string(),
-                low_price: kline[3].as_str().unwrap_or("0").to_string(),
-                close_price: kline[4].as_str().unwrap_or("0").to_string(),
-                volume: kline[5].as_str().unwrap_or("0").to_string(),
-                number_of_trades: kline[8].as_i64().unwrap_or(0),
-                final_bar: true, // Always true for historical data
+                open_price: kline.open,
+                high_price: kline.high,
+                low_price: kline.low,
+                close_price: kline.close,
+                volume: kline.volume,
+                number_of_trades: kline.trades.parse().unwrap_or(0),
+                final_bar: true,
             }
         }).collect();
 
@@ -283,15 +287,13 @@ impl MarketDataSource for BackpackConnector {
 
 impl BackpackConnector {
     /// Get ticker information for a symbol
-    pub async fn get_ticker(&self, symbol: &str) -> Result<BackpackTicker, ExchangeError> {
-        let url = format!("{}/api/v1/ticker/24hr", self.base_url);
-        
+    pub async fn get_ticker(&self, symbol: &str) -> Result<crate::core::types::Ticker, ExchangeError> {
         let params = vec![("symbol".to_string(), symbol.to_string())];
         let query_string = Self::create_query_string(&params);
-        let full_url = format!("{}?{}", url, query_string);
+        let url = format!("{}/api/v1/ticker?{}", self.base_url, query_string);
 
         let response = self.client
-            .get(&full_url)
+            .get(&url)
             .send()
             .await
             .map_err(ExchangeError::HttpError)?;
@@ -303,34 +305,30 @@ impl BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<BackpackTicker> = response
+        // Backpack API returns ticker directly, not wrapped
+        let ticker: BackpackTickerResponse = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse ticker response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
-
-        api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No ticker data received".to_string(),
-            }
+        Ok(crate::core::types::Ticker {
+            symbol: ticker.symbol,
+            price: ticker.last_price,
+            price_change: ticker.price_change,
+            price_change_percent: ticker.price_change_percent,
+            high_price: ticker.high,
+            low_price: ticker.low,
+            volume: ticker.volume,
+            quote_volume: ticker.quote_volume,
+            open_time: 0, // Not provided by Backpack API
+            close_time: 0, // Not provided by Backpack API
+            count: ticker.trades.parse().unwrap_or(0),
         })
     }
 
     /// Get order book for a symbol
-    pub async fn get_order_book(&self, symbol: &str, limit: Option<u32>) -> Result<BackpackOrderBook, ExchangeError> {
-        let mut params = vec![("symbol".to_string(), symbol.to_string())];
-        
-        if let Some(limit) = limit {
-            params.push(("limit".to_string(), limit.to_string()));
-        }
-
+    pub async fn get_order_book(&self, symbol: &str, _limit: Option<u32>) -> Result<crate::core::types::OrderBook, ExchangeError> {
+        let params = vec![("symbol".to_string(), symbol.to_string())];
         let query_string = Self::create_query_string(&params);
         let url = format!("{}/api/v1/depth?{}", self.base_url, query_string);
 
@@ -347,28 +345,28 @@ impl BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<BackpackOrderBook> = response
+        // Backpack API returns depth directly, not wrapped
+        let depth: BackpackDepthResponse = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse order book response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
-
-        api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No order book data received".to_string(),
-            }
+        Ok(crate::core::types::OrderBook {
+            symbol: symbol.to_string(),
+            bids: depth.bids.iter().map(|b| crate::core::types::OrderBookEntry {
+                price: b[0].clone(),
+                quantity: b[1].clone(),
+            }).collect(),
+            asks: depth.asks.iter().map(|a| crate::core::types::OrderBookEntry {
+                price: a[0].clone(),
+                quantity: a[1].clone(),
+            }).collect(),
+            last_update_id: depth.last_update_id.parse().unwrap_or(0),
         })
     }
 
     /// Get recent trades for a symbol
-    pub async fn get_trades(&self, symbol: &str, limit: Option<u32>) -> Result<Vec<BackpackTrade>, ExchangeError> {
+    pub async fn get_trades(&self, symbol: &str, limit: Option<u32>) -> Result<Vec<crate::core::types::Trade>, ExchangeError> {
         let mut params = vec![("symbol".to_string(), symbol.to_string())];
         
         if let Some(limit) = limit {
@@ -391,23 +389,19 @@ impl BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<Vec<BackpackTrade>> = response
+        // Backpack API returns trades directly as an array
+        let trades: Vec<BackpackTradeResponse> = response
             .json()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to parse trades response: {}", e)))?;
 
-        if !api_response.success {
-            return Err(ExchangeError::ApiError {
-                code: api_response.error.as_ref().map(|e| e.code).unwrap_or(-1),
-                message: api_response.error.map(|e| e.msg).unwrap_or_else(|| "Unknown error".to_string()),
-            });
-        }
-
-        api_response.data.ok_or_else(|| {
-            ExchangeError::ApiError {
-                code: -1,
-                message: "No trades data received".to_string(),
-            }
-        })
+        Ok(trades.into_iter().map(|trade| crate::core::types::Trade {
+            symbol: symbol.to_string(),
+            id: trade.id,
+            price: trade.price,
+            quantity: trade.quantity,
+            time: trade.timestamp,
+            is_buyer_maker: trade.is_buyer_maker,
+        }).collect())
     }
 } 

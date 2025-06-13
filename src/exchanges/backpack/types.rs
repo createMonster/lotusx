@@ -375,6 +375,141 @@ pub struct BackpackApiResponse<T> {
     pub error: Option<BackpackError>,
 }
 
+// Add alternative response types for endpoints that don't use the wrapper
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackDepthResponse {
+    pub asks: Vec<Vec<String>>,
+    pub bids: Vec<Vec<String>>,
+    #[serde(rename = "lastUpdateId")]
+    pub last_update_id: String,
+    pub timestamp: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackTickerResponse {
+    pub symbol: String,
+    #[serde(rename = "firstPrice")]
+    pub first_price: String,
+    #[serde(rename = "lastPrice")]
+    pub last_price: String,
+    #[serde(rename = "priceChange")]
+    pub price_change: String,
+    #[serde(rename = "priceChangePercent")]
+    pub price_change_percent: String,
+    pub high: String,
+    pub low: String,
+    pub volume: String,
+    #[serde(rename = "quoteVolume")]
+    pub quote_volume: String,
+    pub trades: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackKlineResponse {
+    pub start: String,
+    pub end: String,
+    pub open: String,
+    pub high: String,
+    pub low: String,
+    pub close: String,
+    pub volume: String,
+    #[serde(rename = "quoteVolume")]
+    pub quote_volume: String,
+    pub trades: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackTradeResponse {
+    pub id: i64,
+    pub price: String,
+    pub quantity: String,
+    #[serde(rename = "quoteQuantity")]
+    pub quote_quantity: String,
+    pub timestamp: i64,
+    #[serde(rename = "isBuyerMaker")]
+    pub is_buyer_maker: bool,
+}
+
+// Update market structure to match API response
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackMarketResponse {
+    pub symbol: String,
+    #[serde(rename = "baseSymbol")]
+    pub base_symbol: String,
+    #[serde(rename = "quoteSymbol")]
+    pub quote_symbol: String,
+    #[serde(rename = "marketType")]
+    pub market_type: String,
+    pub filters: Option<BackpackMarketFilters>,
+    #[serde(rename = "orderBookState")]
+    pub order_book_state: String,
+    #[serde(rename = "fundingInterval")]
+    pub funding_interval: Option<i64>,
+    #[serde(rename = "fundingRateUpperBound")]
+    pub funding_rate_upper_bound: Option<String>,
+    #[serde(rename = "fundingRateLowerBound")]
+    pub funding_rate_lower_bound: Option<String>,
+    #[serde(rename = "openInterestLimit")]
+    pub open_interest_limit: Option<String>,
+    #[serde(rename = "createdAt")]
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackMarketFilters {
+    pub price: Option<BackpackPriceFilter>,
+    pub quantity: Option<BackpackQuantityFilter>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackPriceFilter {
+    #[serde(rename = "minPrice")]
+    pub min_price: Option<String>,
+    #[serde(rename = "maxPrice")]
+    pub max_price: Option<String>,
+    #[serde(rename = "tickSize")]
+    pub tick_size: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackQuantityFilter {
+    #[serde(rename = "minQuantity")]
+    pub min_quantity: Option<String>,
+    #[serde(rename = "maxQuantity")]
+    pub max_quantity: Option<String>,
+    #[serde(rename = "stepSize")]
+    pub step_size: Option<String>,
+}
+
+// Account response types that match the actual API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackBalanceMap(pub std::collections::HashMap<String, BackpackAssetBalance>);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackAssetBalance {
+    pub available: String,
+    pub locked: String,
+    pub staked: String,
+}
+
+// Position response type
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackpackPositionResponse {
+    pub symbol: String,
+    #[serde(rename = "netQuantity")]
+    pub net_quantity: String,
+    #[serde(rename = "entryPrice")]
+    pub entry_price: String,
+    #[serde(rename = "markPrice")]
+    pub mark_price: String,
+    #[serde(rename = "pnlUnrealized")]
+    pub pnl_unrealized: String,
+    #[serde(rename = "estLiquidationPrice")]
+    pub est_liquidation_price: String,
+    #[serde(rename = "positionId")]
+    pub position_id: String,
+}
+
 // WebSocket Message Types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
