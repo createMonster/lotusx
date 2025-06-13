@@ -1,8 +1,8 @@
 use crate::core::{
     errors::ExchangeError,
     types::{
-        Balance, Market, MarketDataType, OrderRequest, OrderResponse, Position, SubscriptionType,
-        WebSocketConfig,
+        Balance, Kline, Market, MarketDataType, OrderRequest, OrderResponse, Position,
+        SubscriptionType, WebSocketConfig,
     },
 };
 use async_trait::async_trait;
@@ -23,6 +23,16 @@ pub trait MarketDataSource {
 
     /// Get WebSocket endpoint URL for market data
     fn get_websocket_url(&self) -> String;
+
+    /// Get historical k-lines/candlestick data
+    async fn get_klines(
+        &self,
+        symbol: String,
+        interval: String,
+        limit: Option<u32>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+    ) -> Result<Vec<Kline>, ExchangeError>;
 }
 
 #[async_trait]

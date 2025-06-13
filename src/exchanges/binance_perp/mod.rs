@@ -10,6 +10,6 @@ pub use client::BinancePerpConnector;
 pub use types::{
     BinancePerpBalance, BinancePerpExchangeInfo, BinancePerpFilter, BinancePerpKlineData,
     BinancePerpMarket, BinancePerpOrderRequest, BinancePerpOrderResponse, BinancePerpPosition,
-    BinancePerpWebSocketKline, BinancePerpWebSocketOrderBook, BinancePerpWebSocketTicker,
-    BinancePerpWebSocketTrade,
+    BinancePerpRestKline, BinancePerpWebSocketKline, BinancePerpWebSocketOrderBook,
+    BinancePerpWebSocketTicker, BinancePerpWebSocketTrade,
 };
