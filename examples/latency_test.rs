@@ -1,3 +1,9 @@
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::suboptimal_flops
+)]
+
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::MarketDataSource;
 use lotusx::exchanges::binance::BinanceConnector;
@@ -24,6 +30,7 @@ fn format_us(duration: Duration) -> String {
 }
 
 // Calculate percentiles from a sorted vector
+#[allow(clippy::cast_precision_loss, clippy::cast_sign_loss)]
 fn calculate_percentile(sorted_data: &[Duration], percentile: f64) -> Duration {
     if sorted_data.is_empty() {
         return Duration::ZERO;

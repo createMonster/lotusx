@@ -1,0 +1,151 @@
+use crate::core::{
+    errors::ExchangeError,
+    traits::AccountInfo,
+    types::{Balance, Position},
+};
+use crate::exchanges::backpack::{
+    client::BackpackConnector,
+    types::{BackpackBalanceMap, BackpackPositionResponse},
+};
+use async_trait::async_trait;
+
+#[async_trait]
+impl AccountInfo for BackpackConnector {
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
+        let url = format!("{}/api/v1/capital", self.base_url);
+
+        // Create signed headers for the request - use correct instruction name
+        let instruction = "balanceQuery";
+        let headers = self.create_signed_headers(instruction, "")?;
+
+        let response = self
+            .client
+            .get(&url)
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+            .send()
+            .await
+            .map_err(ExchangeError::HttpError)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error body".to_string());
+            return Err(ExchangeError::ApiError {
+                code: status.as_u16() as i32,
+                message: format!("Failed to get account balance: {} - {}", status, error_body),
+            });
+        }
+
+        // Backpack API returns balances as a map of asset -> balance info
+        let balance_map: BackpackBalanceMap = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse account response: {}", e))
+        })?;
+
+        // Convert the balance map to our Balance struct
+        let balances = balance_map
+            .0
+            .into_iter()
+            .filter(|(_, balance)| {
+                // Only include balances that have some value
+                balance.available.parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.staked.parse::<f64>().unwrap_or(0.0) > 0.0
+            })
+            .map(|(asset, balance)| Balance {
+                asset,
+                free: balance.available,
+                locked: {
+                    // Combine locked and staked for the locked field
+                    let locked: f64 = balance.locked.parse().unwrap_or(0.0);
+                    let staked: f64 = balance.staked.parse().unwrap_or(0.0);
+                    (locked + staked).to_string()
+                },
+            })
+            .collect();
+
+        Ok(balances)
+    }
+
+    async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
+        let url = format!("{}/api/v1/position", self.base_url);
+
+        // Create signed headers for the request - use correct instruction name
+        let instruction = "positionQuery";
+        let headers = self.create_signed_headers(instruction, "")?;
+
+        let response = self
+            .client
+            .get(&url)
+            .headers(
+                headers
+                    .into_iter()
+                    .map(|(k, v)| {
+                        (
+                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
+                        )
+                    })
+                    .collect(),
+            )
+            .send()
+            .await
+            .map_err(ExchangeError::HttpError)?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error body".to_string());
+            return Err(ExchangeError::ApiError {
+                code: status.as_u16() as i32,
+                message: format!("Failed to get positions: {} - {}", status, error_body),
+            });
+        }
+
+        // Backpack API returns positions directly as an array
+        let positions: Vec<BackpackPositionResponse> = response.json().await.map_err(|e| {
+            ExchangeError::Other(format!("Failed to parse positions response: {}", e))
+        })?;
+
+        Ok(positions.into_iter()
+            .filter(|p| p.net_quantity.parse::<f64>().unwrap_or(0.0) != 0.0) // Only include non-zero positions
+            .map(|p| {
+                let net_quantity: f64 = p.net_quantity.parse().unwrap_or(0.0);
+                let position_side = if net_quantity > 0.0 {
+                    crate::core::types::PositionSide::Long
+                } else if net_quantity < 0.0 {
+                    crate::core::types::PositionSide::Short
+                } else {
+                    crate::core::types::PositionSide::Both
+                };
+
+                Position {
+                    symbol: p.symbol,
+                    position_side,
+                    entry_price: p.entry_price,
+                    position_amount: p.net_quantity,
+                    unrealized_pnl: p.pnl_unrealized,
+                    liquidation_price: if p.est_liquidation_price == "0" || p.est_liquidation_price.is_empty() {
+                        None
+                    } else {
+                        Some(p.est_liquidation_price)
+                    },
+                    leverage: "1".to_string(), // Default leverage, not provided by API
+                }
+            })
+            .collect())
+    }
+}
