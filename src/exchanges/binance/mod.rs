@@ -11,5 +11,6 @@ pub use client::BinanceConnector;
 pub use types::{
     BinanceAccountInfo, BinanceBalance, BinanceExchangeInfo, BinanceFilter, BinanceKlineData,
     BinanceMarket, BinanceOrderRequest, BinanceOrderResponse, BinanceRestKline,
-    BinanceWebSocketKline, BinanceWebSocketOrderBook, BinanceWebSocketTicker, BinanceWebSocketTrade,
+    BinanceWebSocketKline, BinanceWebSocketOrderBook, BinanceWebSocketTicker,
+    BinanceWebSocketTrade,
 };

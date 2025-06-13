@@ -1,8 +1,8 @@
 use crate::core::{
     errors::ExchangeError,
     types::{
-        Balance, Kline, Market, MarketDataType, OrderRequest, OrderResponse, Position, SubscriptionType,
-        WebSocketConfig,
+        Balance, Kline, Market, MarketDataType, OrderRequest, OrderResponse, Position,
+        SubscriptionType, WebSocketConfig,
     },
 };
 use async_trait::async_trait;

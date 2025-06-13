@@ -2,7 +2,9 @@ use super::client::HyperliquidClient;
 use super::types::InfoRequest;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig};
+use crate::core::types::{
+    Kline, Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig,
+};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 
@@ -11,7 +13,8 @@ impl MarketDataSource for HyperliquidClient {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let request = InfoRequest::Meta;
         let response: super::types::Universe = self.post_info_request(&request).await?;
-        let markets = response.universe
+        let markets = response
+            .universe
             .into_iter()
             .map(|asset| {
                 Market {

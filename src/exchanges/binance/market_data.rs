@@ -83,10 +83,7 @@ impl MarketDataSource for BinanceConnector {
     ) -> Result<Vec<Kline>, ExchangeError> {
         let url = format!("{}/api/v3/klines", self.base_url);
 
-        let mut query_params = vec![
-            ("symbol", symbol.clone()),
-            ("interval", interval.clone()),
-        ];
+        let mut query_params = vec![("symbol", symbol.clone()), ("interval", interval.clone())];
 
         if let Some(limit_val) = limit {
             query_params.push(("limit", limit_val.to_string()));
