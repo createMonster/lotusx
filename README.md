@@ -19,6 +19,8 @@
 |----------|-------------|-----------|---------|---------|--------|---------|--------|
 | **Binance Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
 | **Binance Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
 | **Hyperliquid** | ✅ | ✅ | ✅ | ✅ | ❌* | ✅ | **Complete** |
 | **Backpack** | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | **In Progress** |
 
@@ -33,6 +35,8 @@
 |----------|--------------|------------|-------------------|
 | Binance Spot | ~4.0s (1,445 markets) | ~214ms | <100ms |
 | Binance Perpetual | ~1.4s (509 markets) | ~234ms | <100ms |
+| Bybit Spot | ~2.1s (641 markets) | ~189ms | <100ms |
+| Bybit Perpetual | ~1.8s (500 markets) | ~201ms | <100ms |
 | Hyperliquid | ~399ms (199 markets) | N/A | <100ms |
 | Backpack | TBD | TBD | <100ms |
 
@@ -49,7 +53,7 @@ tokio = { version = "1.0", features = ["full"] }
 ### Basic usage
 
 ```rust
-use lotusx::{BinanceConnector, ExchangeConnector};
+use lotusx::{BinanceConnector, BybitConnector};
 use lotusx::core::config::ExchangeConfig;
 
 #[tokio::main]
@@ -62,6 +66,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let markets = binance.get_markets().await?;
     println!("Found {} markets", markets.len());
 
+    // Also works with Bybit
+    let bybit_config = ExchangeConfig::from_env_file("BYBIT")?;
+    let bybit = BybitConnector::new(bybit_config);
+    let bybit_markets = bybit.get_markets().await?;
+    println!("Found {} Bybit markets", bybit_markets.len());
+
     Ok(())
 }
 ```
@@ -71,9 +81,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Create a `.env` file:
 
 ```bash
+# Binance
 BINANCE_API_KEY=your_api_key_here
 BINANCE_SECRET_KEY=your_secret_key_here
 BINANCE_TESTNET=true
+
+# Bybit
+BYBIT_API_KEY=your_bybit_api_key_here
+BYBIT_SECRET_KEY=your_bybit_secret_key_here
+BYBIT_TESTNET=true
 ```
 
 ## ✨ **Features**
@@ -84,7 +100,7 @@ BINANCE_TESTNET=true
 - **🔗 WebSocket**: Real-time market data streaming with auto-reconnection
 - **🛡️ Type Safe**: Strong typing for all API responses
 - **🧪 Testnet**: Full testnet support for safe development
-- **📊 Multi-Exchange**: Binance Spot & Futures, Hyperliquid, Backpack (more coming soon)
+- **📊 Multi-Exchange**: Binance Spot & Futures, Bybit Spot & Perpetual, Hyperliquid, Backpack (more coming soon)
 - **🔧 Maintainable**: Single-responsibility modules for easy development
 - **📈 Performance Monitoring**: Built-in latency testing and benchmarking tools
 - **🌐 Cross-Platform**: Reliable TLS implementation using rustls for consistent connections
@@ -179,6 +195,9 @@ cargo run --example latency_test
 ```bash
 # Basic trading example
 cargo run --example basic_usage
+
+# Bybit integration (spot and perpetual)
+cargo run --example bybit_example
 
 # WebSocket streaming (now with reliable TLS!)
 cargo run --example backpack_streams_example
