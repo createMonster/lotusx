@@ -19,8 +19,8 @@
 |----------|-------------|-----------|---------|---------|--------|---------|--------|
 | **Binance Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
 | **Binance Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
-| **Bybit Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
-| **Bybit Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Spot** | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Perpetual** | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | **Complete** |
 | **Hyperliquid** | ✅ | ✅ | ✅ | ✅ | ❌* | ✅ | **Complete** |
 | **Backpack** | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | **In Progress** |
 

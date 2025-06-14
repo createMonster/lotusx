@@ -150,8 +150,7 @@ pub fn build_binance_stream_url(base_url: &str, streams: &[String]) -> String {
         return base_url.to_string();
     }
 
-    // For combined streams, Binance expects /stream?streams=...
-    // If base_url ends with /ws, strip it
+    // For combined streams, Binance expects /ws/stream?streams=...
     let base = base_url
         .strip_suffix("/ws")
         .map_or(base_url, |stripped| stripped);
@@ -180,7 +179,7 @@ mod tests {
         let url = build_binance_stream_url(base_url, &streams);
         assert_eq!(
             url,
-            "wss://stream.binance.com:9443/ws/stream?streams=btcusdt@ticker/ethusdt@ticker"
+            "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker"
         );
     }
 
@@ -191,7 +190,7 @@ mod tests {
         let url = build_binance_stream_url(base_url, &streams);
         assert_eq!(
             url,
-            "wss://stream.binance.com:9443/ws/stream?streams=btcusdt@ticker/ethusdt@ticker"
+            "wss://stream.binance.com:9443/stream?streams=btcusdt@ticker/ethusdt@ticker"
         );
     }
 
