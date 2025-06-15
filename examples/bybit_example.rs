@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use lotusx::{
-    core::{config::ExchangeConfig, traits::AccountInfo},
+    core::{config::ExchangeConfig, traits::{AccountInfo, MarketDataSource}},
     exchanges::{bybit::BybitConnector, bybit_perp::BybitPerpConnector},
 };
 
@@ -14,9 +14,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let bybit_spot = BybitConnector::new(config.clone());
 
-    // For testing purposes, let's just say we found some markets
-    println!("Found 641 spot markets");
-    println!("First market: BTCUSDT");
+    let markets = bybit_spot.get_markets().await?;
+    println!("Found {} markets", markets.len());
+    println!("First market: {}", markets[0].symbol);
 
     // Get account balance (requires valid API credentials)
     match bybit_spot.get_account_balance().await {
@@ -37,9 +37,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let bybit_perp = BybitPerpConnector::new(config.clone());
 
-    // For testing purposes, let's just say we found some perpetual markets
-    println!("Found 500 perpetual markets");
-    println!("First perpetual market: 1000000BABYDOGEUSDT");
+    let markets = bybit_perp.get_markets().await?;
+    println!("Found {} markets", markets.len());
+    println!("First market: {}", markets[0].symbol);
 
     // Get positions (requires valid API credentials)
     match bybit_perp.get_positions().await {
