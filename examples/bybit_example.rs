@@ -1,6 +1,9 @@
 #[allow(unused_imports)]
 use lotusx::{
-    core::{config::ExchangeConfig, traits::{AccountInfo, MarketDataSource}},
+    core::{
+        config::ExchangeConfig,
+        traits::{AccountInfo, MarketDataSource},
+    },
     exchanges::{bybit::BybitConnector, bybit_perp::BybitPerpConnector},
 };
 

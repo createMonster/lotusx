@@ -1,5 +1,7 @@
 use super::types::{BybitKlineData, BybitMarket};
-use crate::core::types::{Kline, Market, MarketDataType, Symbol};
+use crate::core::types::{
+    Kline, Market, MarketDataType, OrderSide, OrderType, Symbol, TimeInForce,
+};
 use serde_json::Value;
 
 pub fn convert_bybit_market_to_symbol(bybit_market: &BybitMarket) -> Symbol {
@@ -24,6 +26,35 @@ pub fn convert_bybit_market(bybit_market: BybitMarket) -> Market {
         max_qty: None,
         min_price: None,
         max_price: None,
+    }
+}
+
+/// Convert order side to Bybit format
+pub fn convert_order_side(side: &OrderSide) -> String {
+    match side {
+        OrderSide::Buy => "Buy".to_string(),
+        OrderSide::Sell => "Sell".to_string(),
+    }
+}
+
+/// Convert order type to Bybit format
+pub fn convert_order_type(order_type: &OrderType) -> String {
+    match order_type {
+        OrderType::Market => "Market".to_string(),
+        OrderType::Limit => "Limit".to_string(),
+        OrderType::StopLoss => "StopMarket".to_string(),
+        OrderType::StopLossLimit => "StopLimit".to_string(),
+        OrderType::TakeProfit => "TakeProfit".to_string(),
+        OrderType::TakeProfitLimit => "TakeProfitLimit".to_string(),
+    }
+}
+
+/// Convert time in force to Bybit format
+pub fn convert_time_in_force(tif: &TimeInForce) -> String {
+    match tif {
+        TimeInForce::GTC => "GTC".to_string(),
+        TimeInForce::IOC => "IOC".to_string(),
+        TimeInForce::FOK => "FOK".to_string(),
     }
 }
 
