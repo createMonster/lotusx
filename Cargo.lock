@@ -858,6 +858,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "ed25519-dalek",
+ "futures",
  "futures-util",
  "governor",
  "hex",

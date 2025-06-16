@@ -10,62 +10,58 @@ use async_trait::async_trait;
 #[async_trait]
 impl OrderPlacer for BybitPerpConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
-        let url = format!("{}/v2/private/order", self.base_url);
+        let url = format!("{}/v5/order/create", self.base_url);
         let timestamp = auth::get_timestamp();
 
-        let mut params = vec![
-            ("symbol".to_string(), order.symbol.clone()),
-            ("side".to_string(), convert_order_side(&order.side)),
-            (
-                "order_type".to_string(),
-                convert_order_type(&order.order_type),
-            ),
-            ("qty".to_string(), order.quantity.clone()),
-            ("timestamp".to_string(), timestamp.to_string()),
-        ];
+        // Build the request body for V5 API
+        let mut request_body = bybit_perp_types::BybitPerpOrderRequest {
+            category: "linear".to_string(), // Use linear for perpetual futures
+            symbol: order.symbol.clone(),
+            side: convert_order_side(&order.side),
+            order_type: convert_order_type(&order.order_type),
+            qty: order.quantity.clone(),
+            price: None,
+            time_in_force: None,
+            stop_price: None,
+        };
 
         // Add price for limit orders
         if matches!(order.order_type, OrderType::Limit) {
-            if let Some(price) = &order.price {
-                params.push(("price".to_string(), price.clone()));
-            }
-        }
-
-        // Add time in force for limit orders
-        if matches!(order.order_type, OrderType::Limit) {
-            if let Some(tif) = &order.time_in_force {
-                params.push(("time_in_force".to_string(), convert_time_in_force(tif)));
-            } else {
-                params.push(("time_in_force".to_string(), "GoodTillCancel".to_string()));
-            }
+            request_body.price = order.price.clone();
+            request_body.time_in_force = Some(
+                order
+                    .time_in_force
+                    .as_ref()
+                    .map_or_else(|| "GTC".to_string(), convert_time_in_force),
+            );
         }
 
         // Add stop price for stop orders
         if let Some(stop_price) = &order.stop_price {
-            params.push(("stop_px".to_string(), stop_price.clone()));
+            request_body.stop_price = Some(stop_price.clone());
         }
 
-        // Add reduce_only for futures
-        params.push(("reduce_only".to_string(), "false".to_string()));
+        let body = serde_json::to_string(&request_body).map_err(|e| {
+            ExchangeError::NetworkError(format!("Failed to serialize request: {}", e))
+        })?;
 
-        // Add close_on_trigger for futures
-        params.push(("close_on_trigger".to_string(), "false".to_string()));
-
-        let signature = auth::sign_request(
-            &params,
+        // V5 API signature
+        let signature = auth::sign_v5_request(
+            &body,
             self.config.secret_key(),
             self.config.api_key(),
-            "POST",
-            "/v2/private/order",
+            timestamp,
         )?;
-        params.push(("sign".to_string(), signature));
 
         let response = self
             .client
             .post(&url)
             .header("X-BAPI-API-KEY", self.config.api_key())
             .header("X-BAPI-TIMESTAMP", timestamp.to_string())
-            .form(&params)
+            .header("X-BAPI-RECV-WINDOW", "5000")
+            .header("X-BAPI-SIGN", &signature)
+            .header("Content-Type", "application/json")
+            .body(body)
             .send()
             .await?;
 
@@ -77,12 +73,28 @@ impl OrderPlacer for BybitPerpConnector {
             )));
         }
 
-        let bybit_response: bybit_perp_types::BybitPerpOrderResponse = response.json().await?;
+        let response_text = response.text().await?;
+        let api_response: bybit_perp_types::BybitPerpApiResponse<
+            bybit_perp_types::BybitPerpOrderResponse,
+        > = serde_json::from_str(&response_text).map_err(|e| {
+            ExchangeError::NetworkError(format!(
+                "Failed to parse Bybit response: {}. Response was: {}",
+                e, response_text
+            ))
+        })?;
 
+        if api_response.ret_code != 0 {
+            return Err(ExchangeError::NetworkError(format!(
+                "Bybit API error ({}): {}",
+                api_response.ret_code, api_response.ret_msg
+            )));
+        }
+
+        let bybit_response = api_response.result;
         let order_id = bybit_response.order_id.clone();
         Ok(OrderResponse {
-            order_id: order_id.clone(),
-            client_order_id: order_id, // Bybit uses same ID
+            order_id,
+            client_order_id: bybit_response.client_order_id,
             symbol: bybit_response.symbol,
             side: order.side,
             order_type: order.order_type,
@@ -94,32 +106,32 @@ impl OrderPlacer for BybitPerpConnector {
     }
 
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
-        let url = format!("{}/v2/private/order", self.base_url);
+        let url = format!("{}/v5/order/cancel", self.base_url);
         let timestamp = auth::get_timestamp();
 
-        let params = vec![
-            ("symbol".to_string(), symbol),
-            ("order_id".to_string(), order_id),
-            ("timestamp".to_string(), timestamp.to_string()),
-        ];
+        let request_body = serde_json::json!({
+            "category": "linear",
+            "symbol": symbol,
+            "orderId": order_id
+        });
 
-        let signature = auth::sign_request(
-            &params,
+        let body = request_body.to_string();
+        let signature = auth::sign_v5_request(
+            &body,
             self.config.secret_key(),
             self.config.api_key(),
-            "DELETE",
-            "/v2/private/order",
+            timestamp,
         )?;
-
-        let mut form_params = params;
-        form_params.push(("sign".to_string(), signature));
 
         let response = self
             .client
-            .delete(&url)
+            .post(&url)
             .header("X-BAPI-API-KEY", self.config.api_key())
             .header("X-BAPI-TIMESTAMP", timestamp.to_string())
-            .form(&form_params)
+            .header("X-BAPI-RECV-WINDOW", "5000")
+            .header("X-BAPI-SIGN", &signature)
+            .header("Content-Type", "application/json")
+            .body(body)
             .send()
             .await?;
 
@@ -128,6 +140,22 @@ impl OrderPlacer for BybitPerpConnector {
             return Err(ExchangeError::NetworkError(format!(
                 "Order cancellation failed: {}",
                 error_text
+            )));
+        }
+
+        let response_text = response.text().await?;
+        let api_response: bybit_perp_types::BybitPerpApiResponse<serde_json::Value> =
+            serde_json::from_str(&response_text).map_err(|e| {
+                ExchangeError::NetworkError(format!(
+                    "Failed to parse Bybit response: {}. Response was: {}",
+                    e, response_text
+                ))
+            })?;
+
+        if api_response.ret_code != 0 {
+            return Err(ExchangeError::NetworkError(format!(
+                "Bybit API error ({}): {}",
+                api_response.ret_code, api_response.ret_msg
             )));
         }
 

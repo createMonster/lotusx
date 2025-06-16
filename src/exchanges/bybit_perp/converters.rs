@@ -58,9 +58,9 @@ pub fn convert_order_type(order_type: &OrderType) -> String {
 /// Convert time in force to bybit perp format
 pub fn convert_time_in_force(tif: &TimeInForce) -> String {
     match tif {
-        TimeInForce::GTC => "GoodTillCancel".to_string(),
-        TimeInForce::IOC => "ImmediateOrCancel".to_string(),
-        TimeInForce::FOK => "FillOrKill".to_string(),
+        TimeInForce::GTC => "GTC".to_string(),
+        TimeInForce::IOC => "IOC".to_string(),
+        TimeInForce::FOK => "FOK".to_string(),
     }
 }
 

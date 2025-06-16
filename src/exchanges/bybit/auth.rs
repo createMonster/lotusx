@@ -9,6 +9,30 @@ pub fn get_timestamp() -> u64 {
         .as_millis() as u64
 }
 
+/// Sign request for Bybit V5 API
+pub fn sign_v5_request(
+    body: &str,
+    secret_key: &str,
+    api_key: &str,
+    timestamp: u64,
+) -> Result<String, crate::core::errors::ExchangeError> {
+    let recv_window = "5000";
+
+    // For V5 API: timestamp + api_key + recv_window + body
+    let payload = format!("{}{}{}{}", timestamp, api_key, recv_window, body);
+
+    // Sign with HMAC-SHA256
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret_key.as_bytes()).map_err(|_| {
+        crate::core::errors::ExchangeError::AuthError("Invalid secret key".to_string())
+    })?;
+
+    mac.update(payload.as_bytes());
+    let signature = hex::encode(mac.finalize().into_bytes());
+
+    Ok(signature)
+}
+
+/// Legacy sign request for V2 API (deprecated)
 pub fn sign_request(
     params: &[(String, String)],
     secret_key: &str,

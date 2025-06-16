@@ -63,6 +63,9 @@ unused_async = "allow"
 cargo_common_metadata = "allow"
 multiple_crate_versions = "allow"
 
+[dev-dependencies]
+futures = "0.3"
+
 [features]
 default = ["env-file"]
 env-file = ["dotenv"]
