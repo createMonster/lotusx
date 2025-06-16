@@ -2,6 +2,35 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-8
+
+### Fixed
+- **Bybit Trading Functionality**: Completed implementation of missing `cancel_order` functionality for both Bybit exchanges
+  - **Bybit Spot**: Added complete `cancel_order` method implementation with proper V5 API integration
+  - **Bybit Perpetual**: Added complete `cancel_order` method implementation for linear contracts
+  - **API Consistency**: Both implementations now use proper Bybit V5 API endpoints and authentication
+  - **Error Handling**: Comprehensive error handling for cancellation failures and API errors
+  - **Trading Completeness**: Both Bybit exchanges now have full OrderPlacer trait implementation
+
+### Technical Implementation
+- **Bybit Spot Cancel Order** (`src/exchanges/bybit/trading.rs`)
+  - Uses `/v5/order/cancel` endpoint with proper V5 API signature
+  - Category set to "spot" for spot trading cancellations
+  - Proper request body formatting with `orderId` and `symbol` parameters
+  - Complete error handling for both HTTP and API-level errors
+
+- **Bybit Perpetual Cancel Order** (`src/exchanges/bybit_perp/trading.rs`)
+  - Uses `/v5/order/cancel` endpoint with proper V5 API signature  
+  - Category set to "linear" for perpetual futures cancellations
+  - Reuses authentication module from spot Bybit for consistency
+  - Identical error handling patterns for maintainability
+
+### Code Quality
+- **Trait Completeness**: Both Bybit exchanges now fully implement the `OrderPlacer` trait
+- **API Compliance**: Uses official Bybit V5 API endpoints and proper request formatting
+- **Authentication**: Secure HMAC-SHA256 signature authentication for all cancel requests
+- **Error Messages**: Clear, actionable error messages for debugging and monitoring
+
 ## PR-6
 
 ### Added

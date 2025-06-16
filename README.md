@@ -19,8 +19,8 @@
 |----------|-------------|-----------|---------|---------|--------|---------|--------|
 | **Binance Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
 | **Binance Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
-| **Bybit Spot** | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | **Complete** |
-| **Bybit Perpetual** | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Spot** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
+| **Bybit Perpetual** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | **Complete** |
 | **Hyperliquid** | ✅ | ✅ | ✅ | ✅ | ❌* | ✅ | **Complete** |
 | **Backpack** | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | **In Progress** |
 
@@ -148,6 +148,9 @@ let order = OrderRequest {
 };
 
 let response = binance.place_order(order).await?;
+
+// Cancel orders (now available for all exchanges including Bybit)
+binance.cancel_order("BTCUSDT".to_string(), response.order_id).await?;
 ```
 
 ### Real-time Data Streaming
