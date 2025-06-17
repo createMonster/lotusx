@@ -25,4 +25,30 @@ pub enum ExchangeError {
 
     #[error("Other error: {0}")]
     Other(String),
+
+    #[error("Context error: {0}")]
+    ContextError(#[from] anyhow::Error),
+}
+
+// Helper trait to add context to Results
+pub trait ResultExt<T> {
+    fn with_exchange_context<F>(self, f: F) -> Result<T, ExchangeError>
+    where
+        F: FnOnce() -> String;
+}
+
+impl<T, E> ResultExt<T> for Result<T, E>
+where
+    E: Into<ExchangeError>,
+{
+    fn with_exchange_context<F>(self, f: F) -> Result<T, ExchangeError>
+    where
+        F: FnOnce() -> String,
+    {
+        self.map_err(|e| {
+            let base_error: ExchangeError = e.into();
+            let context = f();
+            ExchangeError::ContextError(anyhow::Error::from(base_error).context(context))
+        })
+    }
 }

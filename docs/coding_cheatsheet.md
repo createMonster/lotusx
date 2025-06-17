@@ -1,0 +1,5 @@
+- [ ] Does this function touch IO or decoding? Return Result<_, MyErr>.
+- [ ] Is panic appropriate? Only for violation of *invariant*, never external inputs.
+- [ ] Did I add context? `.with_context(|| format!("url={url}"))`
+- [ ] Library crate: typed enum (+thiserror).   Binary crate: anyhow.
+- [ ] Log OR propagate, not both.
