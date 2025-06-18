@@ -8,8 +8,8 @@ pub mod types;
 // Re-export main types for easier importing
 pub use client::BinancePerpConnector;
 pub use types::{
-    BinancePerpBalance, BinancePerpExchangeInfo, BinancePerpFilter, BinancePerpKlineData,
-    BinancePerpMarket, BinancePerpOrderRequest, BinancePerpOrderResponse, BinancePerpPosition,
-    BinancePerpRestKline, BinancePerpWebSocketKline, BinancePerpWebSocketOrderBook,
-    BinancePerpWebSocketTicker, BinancePerpWebSocketTrade,
+    BinancePerpBalance, BinancePerpError, BinancePerpExchangeInfo, BinancePerpFilter,
+    BinancePerpKlineData, BinancePerpMarket, BinancePerpOrderRequest, BinancePerpOrderResponse,
+    BinancePerpPosition, BinancePerpRestKline, BinancePerpWebSocketKline,
+    BinancePerpWebSocketOrderBook, BinancePerpWebSocketTicker, BinancePerpWebSocketTrade,
 };

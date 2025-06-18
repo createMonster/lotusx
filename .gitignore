@@ -31,3 +31,6 @@ LOTUSX_PROJECT_PLAN.md
 # Don't ignore assets (explicitly include them)
 !assets/
 !assets/**
+
+# cursor files
+/.cursor
