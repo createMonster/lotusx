@@ -102,6 +102,53 @@ impl From<crate::exchanges::bybit_perp::BybitPerpError> for ExchangeError {
     }
 }
 
+impl From<crate::exchanges::hyperliquid::HyperliquidError> for ExchangeError {
+    fn from(err: crate::exchanges::hyperliquid::HyperliquidError) -> Self {
+        match err {
+            crate::exchanges::hyperliquid::HyperliquidError::ApiError { message } => {
+                Self::Other(format!("Hyperliquid API error: {}", message))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::AuthError { reason } => {
+                Self::AuthError(reason)
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::InvalidOrder { details } => {
+                Self::InvalidParameters(details)
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::NetworkError(req_err) => {
+                Self::HttpError(req_err)
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::JsonError(json_err) => {
+                Self::JsonError(json_err)
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::RateLimit { operation } => {
+                Self::NetworkError(format!("Rate limit exceeded for operation: {}", operation))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::AssetNotFound { symbol } => {
+                Self::InvalidParameters(format!("Asset not found: {}", symbol))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::InsufficientMargin => {
+                Self::InvalidParameters("Insufficient margin for position".to_string())
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::PositionSizeExceeded {
+                max,
+                requested,
+            } => Self::InvalidParameters(format!(
+                "Position size exceeds limit: max={}, requested={}",
+                max, requested
+            )),
+            crate::exchanges::hyperliquid::HyperliquidError::SignatureError => {
+                Self::AuthError("Invalid signature or nonce".to_string())
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::VaultError { operation } => {
+                Self::InvalidParameters(format!("Vault operation not supported: {}", operation))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::WebSocketError { reason } => {
+                Self::NetworkError(format!("WebSocket connection failed: {}", reason))
+            }
+        }
+    }
+}
+
 // Add reverse conversions for the helper traits
 impl From<ExchangeError> for crate::exchanges::bybit::BybitError {
     fn from(err: ExchangeError) -> Self {
@@ -125,6 +172,21 @@ impl From<ExchangeError> for crate::exchanges::bybit_perp::BybitPerpError {
             ExchangeError::HttpError(req_err) => Self::NetworkError(req_err),
             ExchangeError::JsonError(json_err) => Self::JsonError(json_err),
             ExchangeError::ApiError { code, message } => Self::ApiError { code, message },
+            ExchangeError::AuthError(reason) => Self::AuthError { reason },
+            ExchangeError::InvalidParameters(details) => Self::InvalidOrder { details },
+            ExchangeError::NetworkError(msg) => Self::AuthError { reason: msg },
+            _ => Self::AuthError {
+                reason: err.to_string(),
+            },
+        }
+    }
+}
+
+impl From<ExchangeError> for crate::exchanges::hyperliquid::HyperliquidError {
+    fn from(err: ExchangeError) -> Self {
+        match err {
+            ExchangeError::HttpError(req_err) => Self::NetworkError(req_err),
+            ExchangeError::JsonError(json_err) => Self::JsonError(json_err),
             ExchangeError::AuthError(reason) => Self::AuthError { reason },
             ExchangeError::InvalidParameters(details) => Self::InvalidOrder { details },
             ExchangeError::NetworkError(msg) => Self::AuthError { reason: msg },

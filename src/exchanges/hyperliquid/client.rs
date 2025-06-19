@@ -6,9 +6,18 @@ use crate::core::errors::ExchangeError;
 use crate::core::traits::ExchangeConnector;
 use async_trait::async_trait;
 use reqwest::Client;
+use tracing::{error, instrument};
 
 const MAINNET_API_URL: &str = "https://api.hyperliquid.xyz";
 const TESTNET_API_URL: &str = "https://api.hyperliquid-testnet.xyz";
+
+/// Helper to handle API response errors
+#[cold]
+#[inline(never)]
+fn handle_api_error(status: u16, body: String) -> HyperliquidError {
+    error!(status = status, body = %body, "API request failed");
+    HyperliquidError::api_error(format!("HTTP {} error: {}", status, body))
+}
 
 pub struct HyperliquidClient {
     pub(crate) client: Client,
@@ -116,6 +125,10 @@ impl HyperliquidClient {
     }
 
     // Internal helper methods for HTTP requests
+    #[instrument(
+        skip(self, request),
+        fields(exchange = "hyperliquid", request_type = "info")
+    )]
     pub(crate) async fn post_info_request<T>(
         &self,
         request: &InfoRequest,
@@ -125,20 +138,27 @@ impl HyperliquidClient {
     {
         let url = format!("{}/info", self.base_url);
 
-        let response = self.client.post(&url).json(request).send().await?;
+        let response = self
+            .client
+            .post(&url)
+            .json(request)
+            .send()
+            .await
+            .with_symbol_context("*")?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(ExchangeError::NetworkError(format!(
-                "Info request failed: {}",
-                error_text
-            )));
+            let status = response.status().as_u16();
+            let error_text = response.text().await.with_symbol_context("*")?;
+            return Err(ExchangeError::Other(
+                handle_api_error(status, error_text).to_string(),
+            ));
         }
 
-        let result: T = response.json().await?;
+        let result: T = response.json().await.with_symbol_context("*")?;
         Ok(result)
     }
 
+    #[instrument(skip(self, request), fields(exchange = "hyperliquid", request_type = "exchange", vault = ?self.vault_address))]
     pub(crate) async fn post_exchange_request<T>(
         &self,
         request: &ExchangeRequest,
@@ -148,17 +168,35 @@ impl HyperliquidClient {
     {
         let url = format!("{}/exchange", self.base_url);
 
-        let response = self.client.post(&url).json(request).send().await?;
+        let response = self.client.post(&url).json(request).send().await;
+
+        let response = if let Some(vault_address) = &self.vault_address {
+            response.with_vault_context(vault_address)?
+        } else {
+            response.with_symbol_context("*")?
+        };
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(ExchangeError::NetworkError(format!(
-                "Exchange request failed: {}",
-                error_text
-            )));
+            let status = response.status().as_u16();
+            let error_text = response.text().await;
+
+            let error_text = if let Some(vault_address) = &self.vault_address {
+                error_text.with_vault_context(vault_address)?
+            } else {
+                error_text.with_symbol_context("*")?
+            };
+
+            return Err(ExchangeError::Other(
+                handle_api_error(status, error_text).to_string(),
+            ));
         }
 
-        let result: T = response.json().await?;
+        let result: T = if let Some(vault_address) = &self.vault_address {
+            response.json().await.with_vault_context(vault_address)?
+        } else {
+            response.json().await.with_symbol_context("*")?
+        };
+
         Ok(result)
     }
 }
