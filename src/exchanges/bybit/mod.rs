@@ -8,6 +8,6 @@ pub mod types;
 pub use client::*;
 pub use converters::*;
 pub use types::{
-    BybitAccountInfo, BybitCoinBalance, BybitExchangeInfo, BybitFilter, BybitKlineData,
-    BybitLotSizeFilter, BybitMarket, BybitPriceFilter,
+    BybitAccountInfo, BybitCoinBalance, BybitError, BybitExchangeInfo, BybitFilter, BybitKlineData,
+    BybitLotSizeFilter, BybitMarket, BybitPriceFilter, BybitResultExt,
 };

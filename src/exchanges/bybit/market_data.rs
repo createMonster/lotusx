@@ -1,27 +1,41 @@
 use super::client::BybitConnector;
 use super::converters::{convert_bybit_market, parse_websocket_message};
-use super::types as bybit_types;
+use super::types::{self as bybit_types, BybitError, BybitResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig};
 use crate::core::websocket::WebSocketManager;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
+use tracing::{instrument, warn};
+
+/// Helper to check API response status and convert to proper error
+#[cold]
+#[inline(never)]
+fn handle_api_response_error(ret_code: i32, ret_msg: String) -> BybitError {
+    BybitError::api_error(ret_code, ret_msg)
+}
 
 #[async_trait]
 impl MarketDataSource for BybitConnector {
+    #[instrument(skip(self), fields(exchange = "bybit"))]
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let url = format!("{}/v5/market/instruments-info?category=spot", self.base_url);
 
-        let response = self.client.get(&url).send().await?;
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .with_symbol_context("*")?;
+
         let api_response: bybit_types::BybitApiResponse<bybit_types::BybitExchangeInfo> =
-            response.json().await?;
+            response.json().await.with_symbol_context("*")?;
 
         if api_response.ret_code != 0 {
-            return Err(ExchangeError::NetworkError(format!(
-                "Bybit API error: {}",
-                api_response.ret_msg
-            )));
+            return Err(ExchangeError::Other(
+                handle_api_response_error(api_response.ret_code, api_response.ret_msg).to_string(),
+            ));
         }
 
         let markets = api_response
@@ -34,6 +48,7 @@ impl MarketDataSource for BybitConnector {
         Ok(markets)
     }
 
+    #[instrument(skip(self, _config), fields(exchange = "bybit", symbols_count = symbols.len()))]
     async fn subscribe_market_data(
         &self,
         symbols: Vec<String>,
@@ -81,6 +96,7 @@ impl MarketDataSource for BybitConnector {
         }
     }
 
+    #[instrument(skip(self), fields(exchange = "bybit", symbol = %symbol, interval = %interval))]
     async fn get_klines(
         &self,
         symbol: String,
@@ -108,22 +124,37 @@ impl MarketDataSource for BybitConnector {
             query_params.push(("end", end.to_string()));
         }
 
-        let response = self.client.get(&url).query(&query_params).send().await?;
+        let response = self
+            .client
+            .get(&url)
+            .query(&query_params)
+            .send()
+            .await
+            .with_symbol_context(&symbol)?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(ExchangeError::NetworkError(format!(
-                "K-lines request failed: {}",
-                error_text
+            let error_text = response.text().await.with_symbol_context(&symbol)?;
+            return Err(ExchangeError::Other(format!(
+                "K-lines request failed for {}: {}",
+                symbol, error_text
             )));
         }
 
-        let klines_data: Vec<Vec<serde_json::Value>> = response.json().await?;
+        let klines_data: Vec<Vec<serde_json::Value>> =
+            response.json().await.with_symbol_context(&symbol)?;
 
         let klines = klines_data
             .into_iter()
             .map(|kline_vec| {
-                let start_time: i64 = kline_vec[0].as_str().unwrap_or("0").parse().unwrap_or(0);
+                // Avoid unwrap() per HFT guidelines - handle parsing errors gracefully
+                let start_time: i64 = kline_vec
+                    .first()
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or_else(|| {
+                        warn!(symbol = %symbol, "Failed to parse kline start_time");
+                        0
+                    });
                 let end_time = start_time + 60000; // Assuming 1 minute interval, adjust as needed
 
                 Kline {
@@ -131,11 +162,31 @@ impl MarketDataSource for BybitConnector {
                     open_time: start_time,
                     close_time: end_time,
                     interval: interval.clone(),
-                    open_price: kline_vec[1].as_str().unwrap_or("0").to_string(),
-                    high_price: kline_vec[2].as_str().unwrap_or("0").to_string(),
-                    low_price: kline_vec[3].as_str().unwrap_or("0").to_string(),
-                    close_price: kline_vec[4].as_str().unwrap_or("0").to_string(),
-                    volume: kline_vec[5].as_str().unwrap_or("0").to_string(),
+                    open_price: kline_vec
+                        .get(1)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0")
+                        .to_string(),
+                    high_price: kline_vec
+                        .get(2)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0")
+                        .to_string(),
+                    low_price: kline_vec
+                        .get(3)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0")
+                        .to_string(),
+                    close_price: kline_vec
+                        .get(4)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0")
+                        .to_string(),
+                    volume: kline_vec
+                        .get(5)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0")
+                        .to_string(),
                     number_of_trades: 0,
                     final_bar: true,
                 }
