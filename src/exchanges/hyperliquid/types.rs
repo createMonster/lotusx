@@ -1,5 +1,144 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use thiserror::Error;
+
+// Hyperliquid-specific error types following HFT error handling guidelines
+#[derive(Error, Debug)]
+pub enum HyperliquidError {
+    #[error("API error: {message}")]
+    ApiError { message: String },
+
+    #[error("Authentication failed: {reason}")]
+    AuthError { reason: String },
+
+    #[error("Invalid order parameters: {details}")]
+    InvalidOrder { details: String },
+
+    #[error("Network request failed")]
+    NetworkError(#[from] reqwest::Error),
+
+    #[error("JSON parsing failed")]
+    JsonError(#[from] serde_json::Error),
+
+    #[error("Rate limit exceeded for operation: {operation}")]
+    RateLimit { operation: String },
+
+    #[error("Asset not found: {symbol}")]
+    AssetNotFound { symbol: String },
+
+    #[error("Insufficient margin for position")]
+    InsufficientMargin,
+
+    #[error("Position size exceeds limit: max={max}, requested={requested}")]
+    PositionSizeExceeded { max: String, requested: String },
+
+    #[error("Invalid signature or nonce")]
+    SignatureError,
+
+    #[error("Vault operation not supported: {operation}")]
+    VaultError { operation: String },
+
+    #[error("WebSocket connection failed: {reason}")]
+    WebSocketError { reason: String },
+}
+
+impl HyperliquidError {
+    /// Mark cold error paths to keep happy path in I-cache
+    #[cold]
+    #[inline(never)]
+    pub fn api_error(message: String) -> Self {
+        Self::ApiError { message }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn auth_error(reason: String) -> Self {
+        Self::AuthError { reason }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_order(details: String) -> Self {
+        Self::InvalidOrder { details }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn rate_limit(operation: String) -> Self {
+        Self::RateLimit { operation }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn asset_not_found(symbol: String) -> Self {
+        Self::AssetNotFound { symbol }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn position_size_exceeded(max: String, requested: String) -> Self {
+        Self::PositionSizeExceeded { max, requested }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn vault_error(operation: String) -> Self {
+        Self::VaultError { operation }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn websocket_error(reason: String) -> Self {
+        Self::WebSocketError { reason }
+    }
+}
+
+// Helper trait for adding context to Hyperliquid operations
+pub trait HyperliquidResultExt<T> {
+    fn with_symbol_context(self, symbol: &str) -> Result<T, HyperliquidError>;
+    fn with_order_context(self, symbol: &str, side: &str) -> Result<T, HyperliquidError>;
+    fn with_vault_context(self, vault_address: &str) -> Result<T, HyperliquidError>;
+}
+
+impl<T, E> HyperliquidResultExt<T> for Result<T, E>
+where
+    E: Into<HyperliquidError>,
+{
+    fn with_symbol_context(self, symbol: &str) -> Result<T, HyperliquidError> {
+        self.map_err(|e| {
+            let error = e.into();
+            // Attach lightweight breadcrumb context
+            match &error {
+                HyperliquidError::NetworkError(req_err) => {
+                    tracing::error!(symbol = %symbol, error = %req_err, "Network error");
+                }
+                HyperliquidError::JsonError(json_err) => {
+                    tracing::error!(symbol = %symbol, error = %json_err, "JSON parsing error");
+                }
+                _ => {
+                    tracing::error!(symbol = %symbol, error = %error, "Hyperliquid operation failed");
+                }
+            }
+            error
+        })
+    }
+
+    fn with_order_context(self, symbol: &str, side: &str) -> Result<T, HyperliquidError> {
+        self.map_err(|e| {
+            let error = e.into();
+            tracing::error!(symbol = %symbol, side = %side, error = %error, "Order operation failed");
+            error
+        })
+    }
+
+    fn with_vault_context(self, vault_address: &str) -> Result<T, HyperliquidError> {
+        self.map_err(|e| {
+            let error = e.into();
+            tracing::error!(vault = %vault_address, error = %error, "Vault operation failed");
+            error
+        })
+    }
+}
 
 // Common types
 #[derive(Debug, Clone, Serialize, Deserialize)]

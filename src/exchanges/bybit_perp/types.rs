@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct BybitPerpApiResponse<T> {
@@ -227,4 +228,145 @@ pub struct BybitPerpRestKline {
     pub close_price: String,
     pub volume: String,
     pub turnover: String,
+}
+
+// Bybit Perpetual-specific error types following HFT error handling guidelines
+#[derive(Error, Debug)]
+pub enum BybitPerpError {
+    #[error("API error {code}: {message}")]
+    ApiError { code: i32, message: String },
+
+    #[error("Authentication failed: {reason}")]
+    AuthError { reason: String },
+
+    #[error("Invalid order parameters: {details}")]
+    InvalidOrder { details: String },
+
+    #[error("Network request failed")]
+    NetworkError(#[from] reqwest::Error),
+
+    #[error("JSON parsing failed")]
+    JsonError(#[from] serde_json::Error),
+
+    #[error("Rate limit exceeded for endpoint: {endpoint}")]
+    RateLimit { endpoint: String },
+
+    #[error("Contract not found: {symbol}")]
+    ContractNotFound { symbol: String },
+
+    #[error("Insufficient margin for position")]
+    InsufficientMargin,
+
+    #[error("Position size exceeds limit: max={max}, requested={requested}")]
+    PositionSizeExceeded { max: String, requested: String },
+
+    #[error("Leverage out of range: min={min}, max={max}, requested={requested}")]
+    InvalidLeverage {
+        min: String,
+        max: String,
+        requested: String,
+    },
+}
+
+impl BybitPerpError {
+    /// Mark cold error paths to keep happy path in I-cache
+    #[cold]
+    #[inline(never)]
+    pub fn api_error(code: i32, message: String) -> Self {
+        Self::ApiError { code, message }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn auth_error(reason: String) -> Self {
+        Self::AuthError { reason }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_order(details: String) -> Self {
+        Self::InvalidOrder { details }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn rate_limit(endpoint: String) -> Self {
+        Self::RateLimit { endpoint }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn contract_not_found(symbol: String) -> Self {
+        Self::ContractNotFound { symbol }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn position_size_exceeded(max: String, requested: String) -> Self {
+        Self::PositionSizeExceeded { max, requested }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_leverage(min: String, max: String, requested: String) -> Self {
+        Self::InvalidLeverage {
+            min,
+            max,
+            requested,
+        }
+    }
+}
+
+// Helper trait for adding context to BybitPerp operations
+pub trait BybitPerpResultExt<T> {
+    fn with_contract_context(self, symbol: &str) -> Result<T, BybitPerpError>;
+    fn with_position_context(
+        self,
+        symbol: &str,
+        side: &str,
+        quantity: &str,
+    ) -> Result<T, BybitPerpError>;
+}
+
+impl<T, E> BybitPerpResultExt<T> for Result<T, E>
+where
+    E: Into<BybitPerpError>,
+{
+    fn with_contract_context(self, symbol: &str) -> Result<T, BybitPerpError> {
+        self.map_err(|e| {
+            let error = e.into();
+            // Attach lightweight breadcrumb context
+            match &error {
+                BybitPerpError::NetworkError(req_err) => {
+                    tracing::error!(contract = %symbol, error = %req_err, "Network error");
+                }
+                BybitPerpError::JsonError(json_err) => {
+                    tracing::error!(contract = %symbol, error = %json_err, "JSON parsing error");
+                }
+                _ => {
+                    tracing::error!(contract = %symbol, error = %error, "BybitPerp operation failed");
+                }
+            }
+            error
+        })
+    }
+
+    fn with_position_context(
+        self,
+        symbol: &str,
+        side: &str,
+        quantity: &str,
+    ) -> Result<T, BybitPerpError> {
+        self.map_err(|e| {
+            let error = e.into();
+            tracing::error!(
+                contract = %symbol,
+                side = %side,
+                quantity = %quantity,
+                error = %error,
+                "Position operation failed"
+            );
+            error
+        })
+    }
 }

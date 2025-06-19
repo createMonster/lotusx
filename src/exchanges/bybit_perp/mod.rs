@@ -8,7 +8,16 @@ pub mod types;
 // Re-export main types for easier importing
 pub use client::BybitPerpConnector;
 pub use types::{
-    BybitPerpCoinBalance, BybitPerpExchangeInfo, BybitPerpKlineData, BybitPerpLotSizeFilter,
-    BybitPerpMarket, BybitPerpOrderRequest, BybitPerpOrderResponse, BybitPerpPriceFilter,
+    BybitPerpCoinBalance,
+    // Export new error types following HFT guidelines
+    BybitPerpError,
+    BybitPerpExchangeInfo,
+    BybitPerpKlineData,
+    BybitPerpLotSizeFilter,
+    BybitPerpMarket,
+    BybitPerpOrderRequest,
+    BybitPerpOrderResponse,
+    BybitPerpPriceFilter,
     BybitPerpRestKline,
+    BybitPerpResultExt,
 };

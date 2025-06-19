@@ -88,11 +88,11 @@ impl BackpackConnector {
     }
 
     /// Get current timestamp in milliseconds
-    pub(crate) fn get_timestamp() -> i64 {
+    pub(crate) fn get_timestamp() -> Result<i64, ExchangeError> {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as i64
+            .map(|d| d.as_millis() as i64)
+            .map_err(|e| ExchangeError::Other(format!("System time error: {}", e)))
     }
 
     /// Create signed headers for authenticated requests
@@ -101,7 +101,7 @@ impl BackpackConnector {
         instruction: &str,
         params: &str,
     ) -> Result<std::collections::HashMap<String, String>, ExchangeError> {
-        let timestamp = Self::get_timestamp();
+        let timestamp = Self::get_timestamp()?;
         let window = 5000; // Default window in milliseconds
         let signature = self.generate_signature(instruction, params, timestamp, window)?;
         let api_key = self

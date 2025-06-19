@@ -1,5 +1,5 @@
 use super::client::HyperliquidClient;
-use super::types::InfoRequest;
+use super::types::{HyperliquidError, InfoRequest};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
@@ -7,9 +7,19 @@ use crate::core::types::{
 };
 use async_trait::async_trait;
 use tokio::sync::mpsc;
+use tracing::{instrument, warn};
+
+/// Helper to handle unavailable operations
+#[cold]
+#[inline(never)]
+fn handle_unavailable_operation(operation: &str) -> HyperliquidError {
+    warn!(operation = %operation, "Operation not supported by Hyperliquid");
+    HyperliquidError::api_error(format!("Hyperliquid does not provide {} API", operation))
+}
 
 #[async_trait]
 impl MarketDataSource for HyperliquidClient {
+    #[instrument(skip(self), fields(exchange = "hyperliquid"))]
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
         let request = InfoRequest::Meta;
         let response: super::types::Universe = self.post_info_request(&request).await?;
@@ -36,6 +46,7 @@ impl MarketDataSource for HyperliquidClient {
         Ok(markets)
     }
 
+    #[instrument(skip(self, config), fields(exchange = "hyperliquid", symbols_count = symbols.len()))]
     async fn subscribe_market_data(
         &self,
         symbols: Vec<String>,
@@ -51,19 +62,19 @@ impl MarketDataSource for HyperliquidClient {
         self.get_websocket_url()
     }
 
-    #[allow(unused_variables)]
+    #[instrument(skip(self), fields(exchange = "hyperliquid"))]
     async fn get_klines(
         &self,
-        symbol: String,
-        interval: String,
-        limit: Option<u32>,
-        start_time: Option<i64>,
-        end_time: Option<i64>,
+        _symbol: String,
+        _interval: String,
+        _limit: Option<u32>,
+        _start_time: Option<i64>,
+        _end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
         // Hyperliquid does not provide a k-lines/candlestick API for perpetuals as of the official documentation:
         // https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals
         Err(ExchangeError::Other(
-            "Hyperliquid does not provide a k-lines/candlestick API for perpetuals".to_string(),
+            handle_unavailable_operation("k-lines/candlestick").to_string(),
         ))
     }
 }

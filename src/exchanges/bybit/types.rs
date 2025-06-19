@@ -1,4 +1,104 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+// Bybit-specific error types following HFT error handling guidelines
+#[derive(Error, Debug)]
+pub enum BybitError {
+    #[error("API error {code}: {message}")]
+    ApiError { code: i32, message: String },
+
+    #[error("Authentication failed: {reason}")]
+    AuthError { reason: String },
+
+    #[error("Invalid order parameters: {details}")]
+    InvalidOrder { details: String },
+
+    #[error("Network request failed")]
+    NetworkError(#[from] reqwest::Error),
+
+    #[error("JSON parsing failed")]
+    JsonError(#[from] serde_json::Error),
+
+    #[error("Rate limit exceeded for endpoint: {endpoint}")]
+    RateLimit { endpoint: String },
+
+    #[error("Symbol not found: {symbol}")]
+    SymbolNotFound { symbol: String },
+
+    #[error("Insufficient balance for operation")]
+    InsufficientBalance,
+}
+
+impl BybitError {
+    /// Mark cold error paths to keep happy path in I-cache
+    #[cold]
+    #[inline(never)]
+    pub fn api_error(code: i32, message: String) -> Self {
+        Self::ApiError { code, message }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn auth_error(reason: String) -> Self {
+        Self::AuthError { reason }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_order(details: String) -> Self {
+        Self::InvalidOrder { details }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn rate_limit(endpoint: String) -> Self {
+        Self::RateLimit { endpoint }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn symbol_not_found(symbol: String) -> Self {
+        Self::SymbolNotFound { symbol }
+    }
+}
+
+// Helper trait for adding context to Bybit operations
+pub trait BybitResultExt<T> {
+    fn with_symbol_context(self, symbol: &str) -> Result<T, BybitError>;
+    fn with_order_context(self, symbol: &str, side: &str) -> Result<T, BybitError>;
+}
+
+impl<T, E> BybitResultExt<T> for Result<T, E>
+where
+    E: Into<BybitError>,
+{
+    fn with_symbol_context(self, symbol: &str) -> Result<T, BybitError> {
+        self.map_err(|e| {
+            let error = e.into();
+            // Attach lightweight breadcrumb context
+            match &error {
+                BybitError::NetworkError(req_err) => {
+                    tracing::error!(symbol = %symbol, error = %req_err, "Network error");
+                }
+                BybitError::JsonError(json_err) => {
+                    tracing::error!(symbol = %symbol, error = %json_err, "JSON parsing error");
+                }
+                _ => {
+                    tracing::error!(symbol = %symbol, error = %error, "Bybit operation failed");
+                }
+            }
+            error
+        })
+    }
+
+    fn with_order_context(self, symbol: &str, side: &str) -> Result<T, BybitError> {
+        self.map_err(|e| {
+            let error = e.into();
+            tracing::error!(symbol = %symbol, side = %side, error = %error, "Order operation failed");
+            error
+        })
+    }
+}
 
 // API response wrapper for V5 API
 #[derive(Debug, Deserialize, Serialize)]

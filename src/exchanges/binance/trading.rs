@@ -2,7 +2,7 @@ use super::auth;
 use super::client::BinanceConnector;
 use super::converters::{convert_order_side, convert_order_type, convert_time_in_force};
 use super::types as binance_types;
-use crate::core::errors::ExchangeError;
+use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::OrderPlacer;
 use crate::core::types::{OrderRequest, OrderResponse, OrderType};
 use async_trait::async_trait;
@@ -11,7 +11,7 @@ use async_trait::async_trait;
 impl OrderPlacer for BinanceConnector {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = format!("{}/api/v3/order", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = auth::get_timestamp()?;
 
         let mut params = vec![
             ("symbol", order.symbol.clone()),
@@ -43,7 +43,13 @@ impl OrderPlacer for BinanceConnector {
         }
 
         let signature =
-            auth::sign_request(&params, self.config.secret_key(), "POST", "/api/v3/order")?;
+            auth::sign_request(&params, self.config.secret_key(), "POST", "/api/v3/order")
+                .with_exchange_context(|| {
+                    format!(
+                        "Failed to sign order request: symbol={}, url={}",
+                        order.symbol, url
+                    )
+                })?;
         params.push(("signature", signature));
 
         let response = self
@@ -52,17 +58,32 @@ impl OrderPlacer for BinanceConnector {
             .header("X-MBX-APIKEY", self.config.api_key())
             .form(&params)
             .send()
-            .await?;
+            .await
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send order request: symbol={}, url={}",
+                    order.symbol, url
+                )
+            })?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(ExchangeError::NetworkError(format!(
-                "Order placement failed: {}",
-                error_text
-            )));
+            let status = response.status();
+            let error_text = response.text().await.with_exchange_context(|| {
+                format!(
+                    "Failed to read error response for order: symbol={}",
+                    order.symbol
+                )
+            })?;
+            return Err(ExchangeError::ApiError {
+                code: status.as_u16() as i32,
+                message: format!("Order placement failed: {}", error_text),
+            });
         }
 
-        let binance_response: binance_types::BinanceOrderResponse = response.json().await?;
+        let binance_response: binance_types::BinanceOrderResponse =
+            response.json().await.with_exchange_context(|| {
+                format!("Failed to parse order response: symbol={}", order.symbol)
+            })?;
 
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
@@ -79,16 +100,22 @@ impl OrderPlacer for BinanceConnector {
 
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let url = format!("{}/api/v3/order", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = auth::get_timestamp()?;
 
         let params = vec![
-            ("symbol", symbol),
-            ("orderId", order_id),
+            ("symbol", symbol.clone()),
+            ("orderId", order_id.clone()),
             ("timestamp", timestamp.to_string()),
         ];
 
         let signature =
-            auth::sign_request(&params, self.config.secret_key(), "DELETE", "/api/v3/order")?;
+            auth::sign_request(&params, self.config.secret_key(), "DELETE", "/api/v3/order")
+                .with_exchange_context(|| {
+                    format!(
+                        "Failed to sign cancel request: symbol={}, order_id={}",
+                        symbol, order_id
+                    )
+                })?;
 
         let mut form_params = params;
         form_params.push(("signature", signature));
@@ -99,14 +126,26 @@ impl OrderPlacer for BinanceConnector {
             .header("X-MBX-APIKEY", self.config.api_key())
             .form(&form_params)
             .send()
-            .await?;
+            .await
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send cancel request: symbol={}, order_id={}, url={}",
+                    symbol, order_id, url
+                )
+            })?;
 
         if !response.status().is_success() {
-            let error_text = response.text().await?;
-            return Err(ExchangeError::NetworkError(format!(
-                "Order cancellation failed: {}",
-                error_text
-            )));
+            let status = response.status();
+            let error_text = response.text().await.with_exchange_context(|| {
+                format!(
+                    "Failed to read cancel error response: symbol={}, order_id={}",
+                    symbol, order_id
+                )
+            })?;
+            return Err(ExchangeError::ApiError {
+                code: status.as_u16() as i32,
+                message: format!("Order cancellation failed: {}", error_text),
+            });
         }
 
         Ok(())

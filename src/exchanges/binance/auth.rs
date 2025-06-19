@@ -1,24 +1,23 @@
+use crate::core::errors::ExchangeError;
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 type HmacSha256 = Hmac<Sha256>;
 
-#[must_use]
-pub fn generate_signature(secret: &str, query_string: &str) -> String {
-    let mut mac =
-        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
+pub fn generate_signature(secret: &str, query_string: &str) -> Result<String, ExchangeError> {
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| ExchangeError::AuthError(format!("Failed to create HMAC: {}", e)))?;
     mac.update(query_string.as_bytes());
-    hex::encode(mac.finalize().into_bytes())
+    Ok(hex::encode(mac.finalize().into_bytes()))
 }
 
-#[must_use]
 #[allow(clippy::cast_possible_truncation)]
-pub fn get_timestamp() -> u64 {
+pub fn get_timestamp() -> Result<u64, ExchangeError> {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards")
-        .as_millis() as u64
+        .map(|duration| duration.as_millis() as u64)
+        .map_err(|e| ExchangeError::Other(format!("System time error: {}", e)))
 }
 
 #[must_use]
@@ -36,12 +35,12 @@ pub fn sign_request(
     secret: &str,
     _method: &str,
     _endpoint: &str,
-) -> Result<String, crate::core::errors::ExchangeError> {
+) -> Result<String, ExchangeError> {
     let query_string = params
         .iter()
         .map(|(k, v)| format!("{}={}", k, v))
         .collect::<Vec<String>>()
         .join("&");
 
-    Ok(generate_signature(secret, &query_string))
+    generate_signature(secret, &query_string)
 }

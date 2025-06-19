@@ -1,5 +1,5 @@
 use crate::core::{
-    errors::ExchangeError,
+    errors::{ExchangeError, ResultExt},
     traits::OrderPlacer,
     types::{OrderRequest, OrderResponse},
 };
@@ -10,12 +10,29 @@ use crate::exchanges::backpack::{
 use async_trait::async_trait;
 use serde_json;
 
+// Helper function to create headers safely
+fn create_headers_safe(
+    headers: std::collections::HashMap<String, String>,
+) -> Result<reqwest::header::HeaderMap, ExchangeError> {
+    let mut header_map = reqwest::header::HeaderMap::new();
+
+    for (k, v) in headers {
+        let header_name = reqwest::header::HeaderName::from_bytes(k.as_bytes())
+            .map_err(|e| ExchangeError::Other(format!("Invalid header name '{}': {}", k, e)))?;
+        let header_value = reqwest::header::HeaderValue::from_str(&v)
+            .map_err(|e| ExchangeError::Other(format!("Invalid header value '{}': {}", v, e)))?;
+        header_map.insert(header_name, header_value);
+    }
+
+    Ok(header_map)
+}
+
 #[async_trait]
 impl OrderPlacer for BackpackConnector {
     #[allow(clippy::too_many_lines)]
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let backpack_order = BackpackOrderRequest {
-            symbol: order.symbol,
+            symbol: order.symbol.clone(),
             side: match order.side {
                 crate::core::types::OrderSide::Buy => "BUY".to_string(),
                 crate::core::types::OrderSide::Sell => "SELL".to_string(),
@@ -46,31 +63,34 @@ impl OrderPlacer for BackpackConnector {
 
         // Create signed headers for the order request
         let instruction = "order";
-        let params = serde_json::to_string(&backpack_order)
-            .map_err(|e| ExchangeError::Other(format!("Failed to serialize order: {}", e)))?;
+        let params = serde_json::to_string(&backpack_order).with_exchange_context(|| {
+            format!("Failed to serialize order for symbol {}", order.symbol)
+        })?;
 
-        let headers = self.create_signed_headers(instruction, &params)?;
+        let headers = self
+            .create_signed_headers(instruction, &params)
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to create signed headers for order: symbol={}",
+                    order.symbol
+                )
+            })?;
 
         let url = format!("{}/api/v1/order", self.base_url);
 
         let response = self
             .client
             .post(&url)
-            .headers(
-                headers
-                    .into_iter()
-                    .map(|(k, v)| {
-                        (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
-                        )
-                    })
-                    .collect(),
-            )
+            .headers(create_headers_safe(headers)?)
             .json(&backpack_order)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send order request: url={}, symbol={}",
+                    url, order.symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -79,10 +99,10 @@ impl OrderPlacer for BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<BackpackOrderResponse> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse order response: {}", e)))?;
+        let api_response: BackpackApiResponse<BackpackOrderResponse> =
+            response.json().await.with_exchange_context(|| {
+                format!("Failed to parse order response for symbol {}", order.symbol)
+            })?;
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
@@ -133,7 +153,7 @@ impl OrderPlacer for BackpackConnector {
 
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let cancel_request = crate::exchanges::backpack::types::BackpackCancelOrderRequest {
-            symbol,
+            symbol: symbol.clone(),
             order_id: Some(order_id.parse().map_err(|_| {
                 ExchangeError::InvalidParameters("Invalid order ID format".to_string())
             })?),
@@ -142,32 +162,37 @@ impl OrderPlacer for BackpackConnector {
 
         // Create signed headers for the cancel request
         let instruction = "cancelOrder";
-        let params = serde_json::to_string(&cancel_request).map_err(|e| {
-            ExchangeError::Other(format!("Failed to serialize cancel request: {}", e))
+        let params = serde_json::to_string(&cancel_request).with_exchange_context(|| {
+            format!(
+                "Failed to serialize cancel request: symbol={}, order_id={}",
+                symbol, order_id
+            )
         })?;
 
-        let headers = self.create_signed_headers(instruction, &params)?;
+        let headers = self
+            .create_signed_headers(instruction, &params)
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to create signed headers for cancel: symbol={}, order_id={}",
+                    symbol, order_id
+                )
+            })?;
 
         let url = format!("{}/api/v1/order", self.base_url);
 
         let response = self
             .client
             .delete(&url)
-            .headers(
-                headers
-                    .into_iter()
-                    .map(|(k, v)| {
-                        (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
-                        )
-                    })
-                    .collect(),
-            )
+            .headers(create_headers_safe(headers)?)
             .json(&cancel_request)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send cancel request: url={}, symbol={}, order_id={}",
+                    url, symbol, order_id
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -176,10 +201,13 @@ impl OrderPlacer for BackpackConnector {
             });
         }
 
-        let api_response: BackpackApiResponse<()> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse cancel response: {}", e)))?;
+        let api_response: BackpackApiResponse<()> =
+            response.json().await.with_exchange_context(|| {
+                format!(
+                    "Failed to parse cancel response: symbol={}, order_id={}",
+                    symbol, order_id
+                )
+            })?;
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
@@ -222,25 +250,22 @@ impl BackpackConnector {
             Self::create_query_string(&params)
         };
 
-        let headers = self.create_signed_headers(instruction, &params_str)?;
+        let headers = self
+            .create_signed_headers(instruction, &params_str)
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to create signed headers for open orders: params={:?}",
+                    params
+                )
+            })?;
 
         let response = self
             .client
             .get(&url)
-            .headers(
-                headers
-                    .into_iter()
-                    .map(|(k, v)| {
-                        (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
-                        )
-                    })
-                    .collect(),
-            )
+            .headers(create_headers_safe(headers)?)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| format!("Failed to send open orders request: url={}", url))?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -251,9 +276,10 @@ impl BackpackConnector {
 
         let api_response: BackpackApiResponse<
             Vec<crate::exchanges::backpack::types::BackpackOrder>,
-        > = response.json().await.map_err(|e| {
-            ExchangeError::Other(format!("Failed to parse open orders response: {}", e))
-        })?;
+        > = response
+            .json()
+            .await
+            .with_exchange_context(|| "Failed to parse open orders response".to_string())?;
 
         if !api_response.success {
             return Err(ExchangeError::ApiError {
@@ -278,7 +304,7 @@ impl BackpackConnector {
         order_id: Option<i64>,
         client_order_id: Option<String>,
     ) -> Result<crate::exchanges::backpack::types::BackpackOrder, ExchangeError> {
-        let mut params = vec![("symbol".to_string(), symbol)];
+        let mut params = vec![("symbol".to_string(), symbol.clone())];
 
         if let Some(order_id) = order_id {
             params.push(("orderId".to_string(), order_id.to_string()));
@@ -295,25 +321,27 @@ impl BackpackConnector {
         let instruction = "order";
         let params_str = Self::create_query_string(&params);
 
-        let headers = self.create_signed_headers(instruction, &params_str)?;
+        let headers = self
+            .create_signed_headers(instruction, &params_str)
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to create signed headers for get order: symbol={}",
+                    symbol
+                )
+            })?;
 
         let response = self
             .client
             .get(&url)
-            .headers(
-                headers
-                    .into_iter()
-                    .map(|(k, v)| {
-                        (
-                            reqwest::header::HeaderName::from_bytes(k.as_bytes()).unwrap(),
-                            reqwest::header::HeaderValue::from_str(&v).unwrap(),
-                        )
-                    })
-                    .collect(),
-            )
+            .headers(create_headers_safe(headers)?)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send get order request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -323,8 +351,8 @@ impl BackpackConnector {
         }
 
         let api_response: BackpackApiResponse<crate::exchanges::backpack::types::BackpackOrder> =
-            response.json().await.map_err(|e| {
-                ExchangeError::Other(format!("Failed to parse order response: {}", e))
+            response.json().await.with_exchange_context(|| {
+                format!("Failed to parse order response for symbol {}", symbol)
             })?;
 
         if !api_response.success {

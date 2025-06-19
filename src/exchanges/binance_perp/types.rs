@@ -1,4 +1,117 @@
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum BinancePerpError {
+    #[error("Authentication failed: {message}, symbol={symbol:?}")]
+    AuthError {
+        message: String,
+        symbol: Option<String>,
+    },
+
+    #[error("Order placement failed: code={code}, message={message}, symbol={symbol}")]
+    OrderError {
+        code: i32,
+        message: String,
+        symbol: String,
+    },
+
+    #[error("Market data fetch failed: {message}, symbol={symbol:?}")]
+    MarketDataError {
+        message: String,
+        symbol: Option<String>,
+    },
+
+    #[error("Account data fetch failed: {message}")]
+    AccountError { message: String },
+
+    #[error("Rate limit exceeded: retry_after={retry_after_ms}ms")]
+    RateLimitError { retry_after_ms: u64 },
+
+    #[error("Network connectivity issue: {message}")]
+    NetworkError { message: String },
+
+    #[error("JSON parsing failed: {message}, context={context:?}")]
+    ParseError {
+        message: String,
+        context: Option<String>,
+    },
+
+    #[error("Invalid parameters: {message}, symbol={symbol:?}")]
+    ValidationError {
+        message: String,
+        symbol: Option<String>,
+    },
+}
+
+impl BinancePerpError {
+    #[cold]
+    #[inline(never)]
+    pub fn auth_error(message: impl Into<String>, symbol: Option<String>) -> Self {
+        Self::AuthError {
+            message: message.into(),
+            symbol,
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn order_error(code: i32, message: impl Into<String>, symbol: impl Into<String>) -> Self {
+        Self::OrderError {
+            code,
+            message: message.into(),
+            symbol: symbol.into(),
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn market_data_error(message: impl Into<String>, symbol: Option<String>) -> Self {
+        Self::MarketDataError {
+            message: message.into(),
+            symbol,
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn network_error(message: impl Into<String>) -> Self {
+        Self::NetworkError {
+            message: message.into(),
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn parse_error(message: impl Into<String>, context: Option<String>) -> Self {
+        Self::ParseError {
+            message: message.into(),
+            context,
+        }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn account_error(message: impl Into<String>) -> Self {
+        Self::AccountError {
+            message: message.into(),
+        }
+    }
+}
+
+impl From<BinancePerpError> for crate::core::errors::ExchangeError {
+    fn from(err: BinancePerpError) -> Self {
+        match err {
+            BinancePerpError::AuthError { message, .. } => Self::AuthError(message),
+            BinancePerpError::OrderError { code, message, .. } => Self::ApiError { code, message },
+            BinancePerpError::NetworkError { message } => Self::NetworkError(message),
+            BinancePerpError::ParseError { message, .. } => {
+                Self::Other(format!("Parse error: {}", message))
+            }
+            _ => Self::Other(err.to_string()),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct BinancePerpMarket {

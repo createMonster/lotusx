@@ -1,5 +1,5 @@
 use crate::core::{
-    errors::ExchangeError,
+    errors::{ExchangeError, ResultExt},
     traits::MarketDataSource,
     types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig},
 };
@@ -26,7 +26,7 @@ impl MarketDataSource for BackpackConnector {
             .get(&url)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| format!("Failed to send request to {}", url))?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -36,9 +36,10 @@ impl MarketDataSource for BackpackConnector {
         }
 
         // Backpack API returns markets directly as an array, not wrapped
-        let markets: Vec<BackpackMarketResponse> = response.json().await.map_err(|e| {
-            ExchangeError::Other(format!("Failed to parse markets response: {}", e))
-        })?;
+        let markets: Vec<BackpackMarketResponse> = response
+            .json()
+            .await
+            .with_exchange_context(|| "Failed to parse markets response".to_string())?;
 
         Ok(markets
             .into_iter()
@@ -89,7 +90,7 @@ impl MarketDataSource for BackpackConnector {
         let ws_url = "wss://ws.backpack.exchange";
 
         let (ws_stream, _) = connect_async(ws_url).await.map_err(|e| {
-            ExchangeError::NetworkError(format!("WebSocket connection failed: {}", e))
+            ExchangeError::NetworkError(format!("WebSocket connection failed to {}: {}", ws_url, e))
         })?;
 
         let (mut write, read) = ws_stream.split();
@@ -119,19 +120,26 @@ impl MarketDataSource for BackpackConnector {
         // Send subscription request
         let subscription = BackpackWebSocketSubscription {
             method: "SUBSCRIBE".to_string(),
-            params: subscription_params,
+            params: subscription_params.clone(),
             id: 1,
         };
 
-        let subscription_msg = serde_json::to_string(&subscription).map_err(|e| {
-            ExchangeError::Other(format!("Failed to serialize subscription: {}", e))
-        })?;
+        let subscription_msg =
+            serde_json::to_string(&subscription).with_exchange_context(|| {
+                format!(
+                    "Failed to serialize subscription: params={:?}",
+                    subscription_params
+                )
+            })?;
 
         write
             .send(Message::Text(subscription_msg))
             .await
             .map_err(|e| {
-                ExchangeError::NetworkError(format!("Failed to send subscription: {}", e))
+                ExchangeError::NetworkError(format!(
+                    "Failed to send subscription to {}: {}",
+                    ws_url, e
+                ))
             })?;
 
         // Create channel for market data
@@ -223,8 +231,8 @@ impl MarketDataSource for BackpackConnector {
                     Ok(Message::Close(_)) => {
                         break;
                     }
-                    Err(e) => {
-                        eprintln!("WebSocket error: {}", e);
+                    Err(_) => {
+                        // Don't log, just break and let the task end gracefully
                         break;
                     }
                     _ => {}
@@ -252,15 +260,12 @@ impl MarketDataSource for BackpackConnector {
             ("interval".to_string(), interval.clone()),
         ];
 
-        // Convert start_time and end_time from milliseconds to seconds as per API docs
-        if let Some(start_time) = start_time {
-            params.push(("startTime".to_string(), (start_time / 1000).to_string()));
-        } else {
-            // If no start time provided, default to 1 day ago
+        if start_time.is_none() {
+            // Default to last 24 hours if no start time provided
             #[allow(clippy::cast_possible_wrap)]
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .map_err(|e| ExchangeError::Other(format!("System time error: {}", e)))?
                 .as_secs()
                 .min(i64::MAX as u64) as i64;
             params.push(("startTime".to_string(), (now - 86400).to_string()));
@@ -278,7 +283,12 @@ impl MarketDataSource for BackpackConnector {
             .get(&url)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send klines request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -288,10 +298,10 @@ impl MarketDataSource for BackpackConnector {
         }
 
         // Backpack API returns klines directly as an array
-        let klines_data: Vec<BackpackKlineResponse> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse klines response: {}", e)))?;
+        let klines_data: Vec<BackpackKlineResponse> =
+            response.json().await.with_exchange_context(|| {
+                format!("Failed to parse klines response for symbol {}", symbol)
+            })?;
 
         let klines = klines_data
             .into_iter()
@@ -329,7 +339,12 @@ impl BackpackConnector {
             .get(&url)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send ticker request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -339,10 +354,9 @@ impl BackpackConnector {
         }
 
         // Backpack API returns ticker directly, not wrapped
-        let ticker: BackpackTickerResponse = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse ticker response: {}", e)))?;
+        let ticker: BackpackTickerResponse = response.json().await.with_exchange_context(|| {
+            format!("Failed to parse ticker response for symbol {}", symbol)
+        })?;
 
         Ok(crate::core::types::Ticker {
             symbol: ticker.symbol,
@@ -374,7 +388,12 @@ impl BackpackConnector {
             .get(&url)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send order book request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -384,8 +403,8 @@ impl BackpackConnector {
         }
 
         // Backpack API returns depth directly, not wrapped
-        let depth: BackpackDepthResponse = response.json().await.map_err(|e| {
-            ExchangeError::Other(format!("Failed to parse order book response: {}", e))
+        let depth: BackpackDepthResponse = response.json().await.with_exchange_context(|| {
+            format!("Failed to parse order book response for symbol {}", symbol)
         })?;
 
         Ok(crate::core::types::OrderBook {
@@ -430,7 +449,12 @@ impl BackpackConnector {
             .get(&url)
             .send()
             .await
-            .map_err(ExchangeError::HttpError)?;
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send trades request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
 
         if !response.status().is_success() {
             return Err(ExchangeError::ApiError {
@@ -440,10 +464,10 @@ impl BackpackConnector {
         }
 
         // Backpack API returns trades directly as an array
-        let trades: Vec<BackpackTradeResponse> = response
-            .json()
-            .await
-            .map_err(|e| ExchangeError::Other(format!("Failed to parse trades response: {}", e)))?;
+        let trades: Vec<BackpackTradeResponse> =
+            response.json().await.with_exchange_context(|| {
+                format!("Failed to parse trades response for symbol {}", symbol)
+            })?;
 
         Ok(trades
             .into_iter()
