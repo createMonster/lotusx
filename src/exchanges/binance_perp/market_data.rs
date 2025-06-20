@@ -3,7 +3,9 @@ use super::converters::{convert_binance_perp_market, parse_websocket_message};
 use super::types::{self as binance_perp_types, BinancePerpError};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig};
+use crate::core::types::{
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+};
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -64,7 +66,7 @@ impl MarketDataSource for BinancePerpConnector {
                         format!("{}@aggTrade", lower_symbol)
                     }
                     SubscriptionType::Klines { interval } => {
-                        format!("{}@kline_{}", lower_symbol, interval)
+                        format!("{}@kline_{}", lower_symbol, interval.to_binance_format())
                     }
                 };
                 streams.push(stream);
@@ -107,17 +109,20 @@ impl MarketDataSource for BinancePerpConnector {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
+        let interval_str = interval.to_binance_format();
         let url = format!("{}/fapi/v1/klines", self.base_url);
 
         // Pre-allocate query params with known capacity
         let mut query_params = Vec::with_capacity(5);
-        query_params
-            .extend_from_slice(&[("symbol", symbol.as_str()), ("interval", interval.as_str())]);
+        query_params.extend_from_slice(&[
+            ("symbol", symbol.as_str()),
+            ("interval", interval_str.as_str()),
+        ]);
 
         let limit_str;
         if let Some(limit_val) = limit {
@@ -157,7 +162,7 @@ impl MarketDataSource for BinancePerpConnector {
                 )
             })?;
 
-        self.handle_klines_response(response, symbol, interval)
+        self.handle_klines_response(response, symbol, interval_str)
             .await
     }
 }

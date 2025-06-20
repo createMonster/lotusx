@@ -1,6 +1,7 @@
 use lotusx::core::{
     config::ExchangeConfig,
     traits::{AccountInfo, MarketDataSource},
+    types::KlineInterval,
 };
 use lotusx::exchanges::backpack::BackpackConnector;
 
@@ -90,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match backpack
         .get_klines(
             "SOL_USDC".to_string(),
-            "1h".to_string(),
+            KlineInterval::Hours1,
             Some(5),
             None,
             None,

@@ -3,7 +3,9 @@ use super::converters::{convert_bybit_perp_market, parse_websocket_message};
 use super::types::{self as bybit_perp_types, BybitPerpError, BybitPerpResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig};
+use crate::core::types::{
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+};
 use crate::core::websocket::WebSocketManager;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -79,7 +81,7 @@ impl MarketDataSource for BybitPerpConnector {
                         streams.push(format!("publicTrade.{}", symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        streams.push(format!("kline.{}.{}", interval, symbol));
+                        streams.push(format!("kline.{}.{}", interval.to_bybit_format(), symbol));
                     }
                 }
             }
@@ -104,14 +106,15 @@ impl MarketDataSource for BybitPerpConnector {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
+        let interval_str = interval.to_bybit_format();
         let url = format!(
             "{}/v5/market/kline?category=linear&symbol={}&interval={}",
-            self.base_url, symbol, interval
+            self.base_url, symbol, interval_str
         );
 
         let mut query_params = vec![];
@@ -165,7 +168,7 @@ impl MarketDataSource for BybitPerpConnector {
                     symbol: symbol.clone(),
                     open_time: start_time,
                     close_time: end_time,
-                    interval: interval.clone(),
+                    interval: interval_str.clone(),
                     open_price: kline_vec
                         .get(1)
                         .and_then(|v| v.as_str())

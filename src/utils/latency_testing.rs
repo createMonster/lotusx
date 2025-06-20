@@ -1,4 +1,5 @@
 use crate::core::traits::MarketDataSource;
+use crate::core::types::KlineInterval;
 use std::time::{Duration, Instant};
 
 /// Configuration for latency tests
@@ -255,7 +256,13 @@ impl LatencyTester {
                 total_attempts += 1;
                 let start = Instant::now();
                 let result = client
-                    .get_klines(symbol.clone(), "1m".to_string(), Some(10), None, None)
+                    .get_klines(
+                        symbol.clone(),
+                        KlineInterval::Minutes1,
+                        Some(10),
+                        None,
+                        None,
+                    )
                     .await;
                 let duration = start.elapsed();
 
