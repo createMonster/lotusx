@@ -143,54 +143,64 @@ impl MarketDataSource for BybitConnector {
             )));
         }
 
-        let klines_data: Vec<Vec<serde_json::Value>> =
+        let klines_response: bybit_types::BybitKlineResponse =
             response.json().await.with_symbol_context(&symbol)?;
 
-        let klines = klines_data
+        if klines_response.ret_code != 0 {
+            return Err(ExchangeError::Other(format!(
+                "Bybit API error for {}: {} - {}",
+                symbol, klines_response.ret_code, klines_response.ret_msg
+            )));
+        }
+
+        let klines = klines_response
+            .result
+            .list
             .into_iter()
             .map(|kline_vec| {
-                // Avoid unwrap() per HFT guidelines - handle parsing errors gracefully
+                // Bybit V5 API returns klines in format:
+                // [startTime, openPrice, highPrice, lowPrice, closePrice, volume, turnover]
                 let start_time: i64 = kline_vec
                     .first()
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
+                    .and_then(|v| v.parse().ok())
                     .unwrap_or_else(|| {
                         warn!(symbol = %symbol, "Failed to parse kline start_time");
                         0
                     });
-                let end_time = start_time + 60000; // Assuming 1 minute interval, adjust as needed
+
+                // Calculate close time based on interval
+                let interval_ms = match interval {
+                    KlineInterval::Seconds1 => 1000,
+                    KlineInterval::Minutes1 => 60_000,
+                    KlineInterval::Minutes3 => 180_000,
+                    KlineInterval::Minutes5 => 300_000,
+                    KlineInterval::Minutes15 => 900_000,
+                    KlineInterval::Minutes30 => 1_800_000,
+                    KlineInterval::Hours1 => 3_600_000,
+                    KlineInterval::Hours2 => 7_200_000,
+                    KlineInterval::Hours4 => 14_400_000,
+                    KlineInterval::Hours6 => 21_600_000,
+                    KlineInterval::Hours8 => 28_800_000,
+                    KlineInterval::Hours12 => 43_200_000,
+                    KlineInterval::Days1 => 86_400_000,
+                    KlineInterval::Days3 => 259_200_000,
+                    KlineInterval::Weeks1 => 604_800_000,
+                    KlineInterval::Months1 => 2_592_000_000, // Approximate
+                };
+
+                let close_time = start_time + interval_ms;
 
                 Kline {
                     symbol: symbol.clone(),
                     open_time: start_time,
-                    close_time: end_time,
+                    close_time,
                     interval: interval_str.clone(),
-                    open_price: kline_vec
-                        .get(1)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    high_price: kline_vec
-                        .get(2)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    low_price: kline_vec
-                        .get(3)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    close_price: kline_vec
-                        .get(4)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    volume: kline_vec
-                        .get(5)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    number_of_trades: 0,
+                    open_price: kline_vec.get(1).cloned().unwrap_or_else(|| "0".to_string()),
+                    high_price: kline_vec.get(2).cloned().unwrap_or_else(|| "0".to_string()),
+                    low_price: kline_vec.get(3).cloned().unwrap_or_else(|| "0".to_string()),
+                    close_price: kline_vec.get(4).cloned().unwrap_or_else(|| "0".to_string()),
+                    volume: kline_vec.get(5).cloned().unwrap_or_else(|| "0".to_string()),
+                    number_of_trades: 0, // Bybit doesn't provide this in kline endpoint
                     final_bar: true,
                 }
             })

@@ -302,3 +302,20 @@ pub struct BybitRestKline {
     pub volume: String,
     pub turnover: String,
 }
+
+// Add kline response types for V5 API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitKlineResult {
+    pub symbol: String,
+    pub category: String,
+    pub list: Vec<Vec<String>>, // Array of arrays containing kline data
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitKlineResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i32,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: BybitKlineResult,
+}
