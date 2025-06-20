@@ -6,7 +6,7 @@ use crate::core::traits::MarketDataSource;
 use crate::core::types::{
     Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
-use crate::core::websocket::WebSocketManager;
+use crate::core::websocket::BybitWebSocketManager;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 use tracing::{instrument, warn};
@@ -57,7 +57,7 @@ impl MarketDataSource for BybitConnector {
         subscription_types: Vec<SubscriptionType>,
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // Build streams for Bybit WebSocket format
+        // Build streams for Bybit V5 WebSocket format
         let mut streams = Vec::new();
 
         for symbol in &symbols {
@@ -84,10 +84,10 @@ impl MarketDataSource for BybitConnector {
         }
 
         let ws_url = self.get_websocket_url();
-        let full_url = format!("{}?subscribe={}", ws_url, streams.join(","));
-
-        let ws_manager = WebSocketManager::new(full_url);
-        ws_manager.start_stream(parse_websocket_message).await
+        let ws_manager = BybitWebSocketManager::new(ws_url);
+        ws_manager
+            .start_stream_with_subscriptions(streams, parse_websocket_message)
+            .await
     }
 
     fn get_websocket_url(&self) -> String {
