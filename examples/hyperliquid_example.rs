@@ -1,6 +1,7 @@
 use lotusx::core::traits::{AccountInfo, MarketDataSource, OrderPlacer};
 use lotusx::core::types::{
-    OrderRequest, OrderSide, OrderType, SubscriptionType, TimeInForce, WebSocketConfig,
+    KlineInterval, OrderRequest, OrderSide, OrderType, SubscriptionType, TimeInForce,
+    WebSocketConfig,
 };
 use lotusx::exchanges::hyperliquid::HyperliquidClient;
 use std::error::Error;
@@ -127,7 +128,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         SubscriptionType::OrderBook { depth: Some(10) },
         SubscriptionType::Trades,
         SubscriptionType::Klines {
-            interval: "1m".to_string(),
+            interval: KlineInterval::Minutes1,
         },
     ];
 

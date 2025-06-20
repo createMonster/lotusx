@@ -230,6 +230,23 @@ pub struct BybitPerpRestKline {
     pub turnover: String,
 }
 
+// Add kline response types for V5 API
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpKlineResult {
+    pub symbol: String,
+    pub category: String,
+    pub list: Vec<Vec<String>>, // Array of arrays containing kline data
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpKlineResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i32,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: BybitPerpKlineResult,
+}
+
 // Bybit Perpetual-specific error types following HFT error handling guidelines
 #[derive(Error, Debug)]
 pub enum BybitPerpError {

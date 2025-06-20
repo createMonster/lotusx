@@ -1,8 +1,8 @@
 use crate::core::{
     errors::ExchangeError,
     types::{
-        Balance, Kline, Market, MarketDataType, OrderRequest, OrderResponse, Position,
-        SubscriptionType, WebSocketConfig,
+        Balance, Kline, KlineInterval, Market, MarketDataType, OrderRequest, OrderResponse,
+        Position, SubscriptionType, WebSocketConfig,
     },
 };
 use async_trait::async_trait;
@@ -28,7 +28,7 @@ pub trait MarketDataSource {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,

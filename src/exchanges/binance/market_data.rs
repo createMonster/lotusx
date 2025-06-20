@@ -3,7 +3,9 @@ use super::converters::{convert_binance_market, parse_websocket_message};
 use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig};
+use crate::core::types::{
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+};
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -60,7 +62,11 @@ impl MarketDataSource for BinanceConnector {
                         streams.push(format!("{}@trade", lower_symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        streams.push(format!("{}@kline_{}", lower_symbol, interval));
+                        streams.push(format!(
+                            "{}@kline_{}",
+                            lower_symbol,
+                            interval.to_binance_format()
+                        ));
                     }
                 }
             }
@@ -92,14 +98,18 @@ impl MarketDataSource for BinanceConnector {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
+        let interval_str = interval.to_binance_format();
         let url = format!("{}/api/v3/klines", self.base_url);
 
-        let mut query_params = vec![("symbol", symbol.clone()), ("interval", interval.clone())];
+        let mut query_params = vec![
+            ("symbol", symbol.clone()),
+            ("interval", interval_str.clone()),
+        ];
 
         if let Some(limit_val) = limit {
             query_params.push(("limit", limit_val.to_string()));
@@ -179,7 +189,7 @@ impl MarketDataSource for BinanceConnector {
                     symbol: symbol.clone(),
                     open_time,
                     close_time,
-                    interval: interval.clone(),
+                    interval: interval_str.clone(),
                     open_price,
                     high_price,
                     low_price,

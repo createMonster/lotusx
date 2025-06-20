@@ -5,7 +5,7 @@ use lotusx::{
     core::{
         config::ExchangeConfig,
         traits::{AccountInfo, MarketDataSource},
-        types::SubscriptionType,
+        types::{KlineInterval, SubscriptionType},
     },
     exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector},
 };
@@ -128,7 +128,7 @@ mod binance_spot_tests {
             Duration::from_secs(30),
             connector.get_klines(
                 "BTCUSDT".to_string(),
-                "1m".to_string(),
+                KlineInterval::Minutes1,
                 Some(10),
                 None,
                 None,
@@ -187,7 +187,7 @@ mod binance_spot_tests {
             SubscriptionType::OrderBook { depth: Some(10) },
             SubscriptionType::Trades,
             SubscriptionType::Klines {
-                interval: "1m".to_string(),
+                interval: KlineInterval::Minutes1,
             },
         ];
 
@@ -541,7 +541,13 @@ mod binance_comprehensive_tests {
 
         let result = timeout(
             Duration::from_secs(30),
-            connector.get_klines("BTCUSDT".to_string(), "1h".to_string(), Some(5), None, None),
+            connector.get_klines(
+                "BTCUSDT".to_string(),
+                KlineInterval::Hours1,
+                Some(5),
+                None,
+                None,
+            ),
         )
         .await;
 

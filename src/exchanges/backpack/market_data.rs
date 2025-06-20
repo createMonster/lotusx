@@ -1,7 +1,7 @@
 use crate::core::{
     errors::{ExchangeError, ResultExt},
     traits::MarketDataSource,
-    types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig},
+    types::{Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig},
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,
@@ -111,7 +111,11 @@ impl MarketDataSource for BackpackConnector {
                         subscription_params.push(format!("trade.{}", symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        subscription_params.push(format!("kline.{}.{}", interval, symbol));
+                        subscription_params.push(format!(
+                            "kline.{}.{}",
+                            interval.to_backpack_format(),
+                            symbol
+                        ));
                     }
                 }
             }
@@ -250,14 +254,15 @@ impl MarketDataSource for BackpackConnector {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         _limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
+        let interval_str = interval.to_backpack_format();
         let mut params = vec![
             ("symbol".to_string(), symbol.clone()),
-            ("interval".to_string(), interval.clone()),
+            ("interval".to_string(), interval_str.clone()),
         ];
 
         if start_time.is_none() {
@@ -309,7 +314,7 @@ impl MarketDataSource for BackpackConnector {
                 symbol: symbol.clone(),
                 open_time: kline.start.parse().unwrap_or(0),
                 close_time: kline.end.parse().unwrap_or(0),
-                interval: interval.clone(),
+                interval: interval_str.clone(),
                 open_price: kline.open,
                 high_price: kline.high,
                 low_price: kline.low,

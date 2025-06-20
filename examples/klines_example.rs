@@ -1,5 +1,6 @@
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::MarketDataSource;
+use lotusx::core::types::KlineInterval;
 use lotusx::exchanges::binance::BinanceConnector;
 use lotusx::exchanges::binance_perp::BinancePerpConnector;
 use lotusx::exchanges::hyperliquid::HyperliquidClient;
@@ -25,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match binance_client
         .get_klines(
             "BTCUSDT".to_string(),
-            "1m".to_string(),
+            KlineInterval::Minutes1,
             Some(10),
             None,
             None,
@@ -64,7 +65,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get last 5 5-minute k-lines for BTCUSDT
     match binance_perp_client
-        .get_klines("BTCUSDT".to_string(), "5m".to_string(), Some(5), None, None)
+        .get_klines(
+            "BTCUSDT".to_string(),
+            KlineInterval::Minutes5,
+            Some(5),
+            None,
+            None,
+        )
         .await
     {
         Ok(klines) => {
@@ -103,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match hyperliquid_client
         .get_klines(
             "BTC".to_string(),
-            "1m".to_string(),
+            KlineInterval::Minutes1,
             Some(10),
             Some(one_hour_ago),
             Some(now),
@@ -130,6 +137,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("❌ Failed to get Hyperliquid k-lines: {}", e);
+        }
+    }
+
+    // Example 4: Demonstrate different intervals
+    println!("\n📊 Different Intervals Example");
+    println!("------------------------------");
+
+    let intervals = vec![
+        (KlineInterval::Minutes1, "1-minute"),
+        (KlineInterval::Minutes5, "5-minute"),
+        (KlineInterval::Hours1, "1-hour"),
+        (KlineInterval::Days1, "1-day"),
+    ];
+
+    for (interval, description) in intervals {
+        println!("Testing {} interval:", description);
+        println!("  - Binance format: {}", interval.to_binance_format());
+
+        if interval.is_supported_by_binance() {
+            match binance_client
+                .get_klines("BTCUSDT".to_string(), interval, Some(2), None, None)
+                .await
+            {
+                Ok(klines) => {
+                    println!("  ✅ Retrieved {} k-lines from Binance", klines.len());
+                }
+                Err(e) => {
+                    println!("  ❌ Failed to get Binance k-lines: {}", e);
+                }
+            }
+        } else {
+            println!("  ⚠️ Interval not supported by Binance");
         }
     }
 

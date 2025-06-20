@@ -3,7 +3,7 @@ use super::types::{HyperliquidError, InfoRequest};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig,
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, Symbol, WebSocketConfig,
 };
 use async_trait::async_trait;
 use tokio::sync::mpsc;
@@ -66,7 +66,7 @@ impl MarketDataSource for HyperliquidClient {
     async fn get_klines(
         &self,
         _symbol: String,
-        _interval: String,
+        _interval: KlineInterval,
         _limit: Option<u32>,
         _start_time: Option<i64>,
         _end_time: Option<i64>,

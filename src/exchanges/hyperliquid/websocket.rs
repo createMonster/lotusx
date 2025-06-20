@@ -131,7 +131,7 @@ fn create_subscription_message(symbol: &str, sub_type: &SubscriptionType) -> Val
                 "subscription": {
                     "type": "candle",
                     "coin": symbol,
-                    "interval": interval
+                    "interval": interval.to_hyperliquid_format()
                 }
             })
         }
