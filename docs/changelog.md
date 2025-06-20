@@ -2,6 +2,22 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-9
+
+### Enhanced
+- **Unified Error Handling**: Standardized error handling patterns across all exchange implementations
+  - **Consistent Error Types**: Harmonized error handling to use unified error types across all exchanges
+  - **Improved Error Propagation**: Enhanced error propagation patterns for better debugging and monitoring
+  - **Exchange Consistency**: All exchanges now follow the same error handling approach for maintainability
+  - **Better Error Messages**: More descriptive and actionable error messages across all exchange operations
+  - **Type Safety**: Improved type safety in error handling with consistent error enum usage
+
+### Technical Implementation
+- **Error Standardization**: Unified approach to handling API errors, network errors, and parsing errors
+- **Code Quality**: Consistent error handling patterns make the codebase more maintainable
+- **Developer Experience**: Better error messages and consistent error types improve debugging experience
+- **Reliability**: More robust error handling improves overall system reliability
+
 ## PR-8
 
 ### Fixed
