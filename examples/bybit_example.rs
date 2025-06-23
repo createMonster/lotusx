@@ -6,6 +6,7 @@ use lotusx::exchanges::bybit_perp::BybitPerpConnector;
 use tokio::time::{timeout, Duration};
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Comprehensive Bybit API Example");
     println!("===================================");
@@ -15,13 +16,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // =================================================================
     // BYBIT SPOT EXCHANGE
     // =================================================================
-    
+
     println!("📊 BYBIT SPOT EXCHANGE");
     println!("======================");
 
     // Create configuration (try env file, fallback to empty credentials)
     let config = ExchangeConfig::from_env_file("BYBIT")
-        .unwrap_or_else(|_| ExchangeConfig::new("".to_string(), "".to_string()));
+        .unwrap_or_else(|_| ExchangeConfig::new(String::new(), String::new()));
     let bybit_spot = BybitConnector::new(config.clone());
 
     // 1. Market Data - Get all available markets
@@ -31,9 +32,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✅ Found {} spot markets", markets.len());
             println!("📝 Sample markets:");
             for (i, market) in markets.iter().take(5).enumerate() {
-                println!("  {}. {} (Status: {}, Base: {}, Quote: {})", 
-                    i + 1, market.symbol.symbol, market.status, 
-                    market.symbol.base, market.symbol.quote);
+                println!(
+                    "  {}. {} (Status: {}, Base: {}, Quote: {})",
+                    i + 1,
+                    market.symbol.symbol,
+                    market.status,
+                    market.symbol.base,
+                    market.symbol.quote
+                );
             }
         }
         Err(e) => println!("❌ Error getting markets: {}", e),
@@ -42,21 +48,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. K-lines Data - Test the fixed API
     println!("\n📈 2. Getting K-lines Data (Fixed API):");
     let test_symbols = vec!["BTCUSDT", "ETHUSDT", "ADAUSDT"];
-    
+
     for symbol in &test_symbols {
-        match bybit_spot.get_klines(
-            symbol.to_string(),
-            KlineInterval::Minutes1,
-            Some(5),
-            None,
-            None,
-        ).await {
+        match bybit_spot
+            .get_klines(
+                (*symbol).to_string(),
+                KlineInterval::Minutes1,
+                Some(5),
+                None,
+                None,
+            )
+            .await
+        {
             Ok(klines) => {
-                println!("✅ {} K-lines for {}: {} candles", symbol, klines.len(), symbol);
+                println!(
+                    "✅ {} K-lines for {}: {} candles",
+                    symbol,
+                    klines.len(),
+                    symbol
+                );
                 if let Some(first_kline) = klines.first() {
-                    println!("   📊 Latest: Open: {}, High: {}, Low: {}, Close: {}, Volume: {}", 
-                        first_kline.open_price, first_kline.high_price, 
-                        first_kline.low_price, first_kline.close_price, first_kline.volume);
+                    println!(
+                        "   📊 Latest: Open: {}, High: {}, Low: {}, Close: {}, Volume: {}",
+                        first_kline.open_price,
+                        first_kline.high_price,
+                        first_kline.low_price,
+                        first_kline.close_price,
+                        first_kline.volume
+                    );
                 }
             }
             Err(e) => println!("❌ Error getting {}: {}", symbol, e),
@@ -65,10 +84,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. WebSocket Subscription - Test the fixed WebSocket
     println!("\n🔌 3. Testing WebSocket Connections (Fixed V5 Protocol):");
-    
+
     let subscription_types = vec![
         SubscriptionType::Ticker,
-        SubscriptionType::Klines { interval: KlineInterval::Minutes1 },
+        SubscriptionType::Klines {
+            interval: KlineInterval::Minutes1,
+        },
         SubscriptionType::Trades,
     ];
 
@@ -78,12 +99,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             vec!["BTCUSDT".to_string()],
             subscription_types.clone(),
             None,
-        )
-    ).await {
+        ),
+    )
+    .await
+    {
         Ok(Ok(mut rx)) => {
             println!("✅ Bybit Spot WebSocket connected successfully!");
             println!("📡 Listening for real-time data...");
-            
+
             let mut message_count = 0;
             while message_count < 3 {
                 match timeout(Duration::from_secs(3), rx.recv()).await {
@@ -112,8 +135,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(balances) => {
             println!("✅ Account balances retrieved:");
             for balance in balances.iter().take(5) {
-                println!("   💳 {}: free={}, locked={}", 
-                    balance.asset, balance.free, balance.locked);
+                println!(
+                    "   💳 {}: free={}, locked={}",
+                    balance.asset, balance.free, balance.locked
+                );
             }
         }
         Err(e) => println!("ℹ️  Skipped (requires API credentials): {}", e),
@@ -135,9 +160,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✅ Found {} perpetual markets", markets.len());
             println!("📝 Sample perpetual contracts:");
             for (i, market) in markets.iter().take(5).enumerate() {
-                println!("  {}. {} (Status: {}, Min Qty: {:?}, Max Qty: {:?})", 
-                    i + 1, market.symbol.symbol, market.status, 
-                    market.min_qty, market.max_qty);
+                println!(
+                    "  {}. {} (Status: {}, Min Qty: {:?}, Max Qty: {:?})",
+                    i + 1,
+                    market.symbol.symbol,
+                    market.status,
+                    market.min_qty,
+                    market.max_qty
+                );
             }
         }
         Err(e) => println!("❌ Error getting perpetual markets: {}", e),
@@ -145,21 +175,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 2. Perpetual K-lines
     println!("\n📈 2. Getting Perpetual K-lines (Fixed API):");
-    
+
     for symbol in &test_symbols {
-        match bybit_perp.get_klines(
-            symbol.to_string(),
-            KlineInterval::Hours1,
-            Some(3),
-            None,
-            None,
-        ).await {
+        match bybit_perp
+            .get_klines(
+                (*symbol).to_string(),
+                KlineInterval::Hours1,
+                Some(3),
+                None,
+                None,
+            )
+            .await
+        {
             Ok(klines) => {
-                println!("✅ {} Perp K-lines for {}: {} candles", symbol, klines.len(), symbol);
+                println!(
+                    "✅ {} Perp K-lines for {}: {} candles",
+                    symbol,
+                    klines.len(),
+                    symbol
+                );
                 if let Some(first_kline) = klines.first() {
-                    println!("   📊 Latest: Open: {}, High: {}, Low: {}, Close: {}, Volume: {}", 
-                        first_kline.open_price, first_kline.high_price, 
-                        first_kline.low_price, first_kline.close_price, first_kline.volume);
+                    println!(
+                        "   📊 Latest: Open: {}, High: {}, Low: {}, Close: {}, Volume: {}",
+                        first_kline.open_price,
+                        first_kline.high_price,
+                        first_kline.low_price,
+                        first_kline.close_price,
+                        first_kline.volume
+                    );
                 }
             }
             Err(e) => println!("❌ Error getting {} perp: {}", symbol, e),
@@ -168,19 +211,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 3. Perpetual WebSocket
     println!("\n🔌 3. Testing Perpetual WebSocket (Fixed V5 Protocol):");
-    
+
     match timeout(
         Duration::from_secs(10),
-        bybit_perp.subscribe_market_data(
-            vec!["BTCUSDT".to_string()],
-            subscription_types,
-            None,
-        )
-    ).await {
+        bybit_perp.subscribe_market_data(vec!["BTCUSDT".to_string()], subscription_types, None),
+    )
+    .await
+    {
         Ok(Ok(mut rx)) => {
             println!("✅ Bybit Perpetual WebSocket connected successfully!");
             println!("📡 Listening for real-time perpetual data...");
-            
+
             let mut message_count = 0;
             while message_count < 3 {
                 match timeout(Duration::from_secs(3), rx.recv()).await {
@@ -212,9 +253,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("   📭 No open positions");
             } else {
                 for position in positions.iter().take(5) {
-                    println!("   📈 {}: side={:?}, size={}, entry_price={}, pnl={}", 
-                        position.symbol, position.position_side, 
-                        position.position_amount, position.entry_price, position.unrealized_pnl);
+                    println!(
+                        "   📈 {}: side={:?}, size={}, entry_price={}, pnl={}",
+                        position.symbol,
+                        position.position_side,
+                        position.position_amount,
+                        position.entry_price,
+                        position.unrealized_pnl
+                    );
                 }
             }
         }
@@ -234,13 +280,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Both Spot and Perpetual exchanges working");
     println!("✅ Real-time data streaming functional");
     println!("✅ Market data retrieval operational");
-    
+
     println!("\n💡 Notes:");
     println!("• All public API calls work without credentials");
     println!("• Account/position data requires valid API keys");
     println!("• WebSocket connections use Bybit V5 protocol");
     println!("• K-lines API now correctly parses V5 response format");
-    
+
     println!("\n🏁 Bybit comprehensive example completed successfully!");
     Ok(())
 }

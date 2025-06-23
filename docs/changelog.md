@@ -2,6 +2,53 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-10
+
+### Added
+- **KlineInterval Enum**: Unified interval handling across all exchanges
+  - **Type Safety**: Replaced string-based intervals with strongly-typed `KlineInterval` enum
+  - **Exchange Compatibility**: Built-in support for different exchange interval formats
+  - **Validation**: Compile-time validation of supported intervals per exchange
+  - **Consistency**: Standardized interval handling across Binance, Bybit, and Hyperliquid
+
+### Enhanced
+- **Comprehensive Bybit Example**: Massively expanded `bybit_example.rs` with full functionality demonstration
+  - **Complete API Coverage**: Demonstrates all Bybit Spot and Perpetual functionality
+  - **WebSocket Testing**: Real-time data streaming with connection management
+  - **Error Handling**: Comprehensive error handling patterns for production use
+  - **V5 API Integration**: Shows proper usage of Bybit V5 API with fixed K-lines and WebSocket protocols
+  - **Multi-Exchange Demo**: Side-by-side comparison of spot and perpetual features
+
+- **Example Standardization**: Updated all examples to use new `KlineInterval` enum
+  - **backpack_example.rs**: Added KlineInterval import and usage
+  - **hyperliquid_example.rs**: Updated WebSocket subscriptions with typed intervals
+  - **klines_example.rs**: Comprehensive interval demonstration with format conversion
+  - **websocket_example.rs**: Updated WebSocket subscriptions with typed intervals
+
+### Refactored
+- **Core Traits**: Updated `MarketDataSource` trait to use `KlineInterval` instead of `String`
+  - **Type Safety**: Eliminated string-based interval passing
+  - **API Consistency**: All exchanges now use the same interval type
+  - **Better Developer Experience**: IDE completion and compile-time validation
+
+### Fixed
+- **Code Quality Improvements**: Resolved clippy warnings across the codebase
+  - **Function Length**: Added `#[allow(clippy::too_many_lines)]` for comprehensive examples
+  - **String Creation**: Replaced manual `"".to_string()` with efficient `String::new()` calls
+  - **Inefficient Conversions**: Fixed `symbol.to_string()` on `&&str` to use `(*symbol).to_string()`
+  - **Lint Compliance**: All code now passes `cargo clippy --all-targets --all-features -- -D warnings`
+
+### Technical Implementation
+- **Interval Management**: `KlineInterval` enum with exchange-specific format conversion methods
+- **WebSocket Integration**: Enhanced WebSocket examples with proper timeout handling
+- **Performance Optimization**: String conversion improvements reduce overhead in HFT-critical paths
+- **Code Standards**: Maintained strict clippy compliance for production-ready code quality
+- **API Modernization**: Consistent use of typed parameters across all exchange interfaces
+
+### Breaking Changes
+- **MarketDataSource Trait**: `get_klines` method now accepts `KlineInterval` instead of `String`
+- **Example Updates**: All examples updated to use new `KlineInterval` enum (existing code using string intervals will need updating)
+
 ## PR-9
 
 ### Enhanced
