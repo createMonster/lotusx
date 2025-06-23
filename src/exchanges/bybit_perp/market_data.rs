@@ -3,8 +3,10 @@ use super::converters::{convert_bybit_perp_market, parse_websocket_message};
 use super::types::{self as bybit_perp_types, BybitPerpError, BybitPerpResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
-use crate::core::types::{Kline, Market, MarketDataType, SubscriptionType, WebSocketConfig};
-use crate::core::websocket::WebSocketManager;
+use crate::core::types::{
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+};
+use crate::core::websocket::BybitWebSocketManager;
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 use tracing::{instrument, warn};
@@ -59,7 +61,7 @@ impl MarketDataSource for BybitPerpConnector {
         subscription_types: Vec<SubscriptionType>,
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // Build streams for Bybit WebSocket format
+        // Build streams for Bybit V5 WebSocket format
         let mut streams = Vec::new();
 
         for symbol in &symbols {
@@ -79,17 +81,17 @@ impl MarketDataSource for BybitPerpConnector {
                         streams.push(format!("publicTrade.{}", symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        streams.push(format!("kline.{}.{}", interval, symbol));
+                        streams.push(format!("kline.{}.{}", interval.to_bybit_format(), symbol));
                     }
                 }
             }
         }
 
         let ws_url = self.get_websocket_url();
-        let full_url = format!("{}?subscribe={}", ws_url, streams.join(","));
-
-        let ws_manager = WebSocketManager::new(full_url);
-        ws_manager.start_stream(parse_websocket_message).await
+        let ws_manager = BybitWebSocketManager::new(ws_url);
+        ws_manager
+            .start_stream_with_subscriptions(streams, parse_websocket_message)
+            .await
     }
 
     fn get_websocket_url(&self) -> String {
@@ -104,14 +106,15 @@ impl MarketDataSource for BybitPerpConnector {
     async fn get_klines(
         &self,
         symbol: String,
-        interval: String,
+        interval: KlineInterval,
         limit: Option<u32>,
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
+        let interval_str = interval.to_bybit_format();
         let url = format!(
             "{}/v5/market/kline?category=linear&symbol={}&interval={}",
-            self.base_url, symbol, interval
+            self.base_url, symbol, interval_str
         );
 
         let mut query_params = vec![];
@@ -144,54 +147,64 @@ impl MarketDataSource for BybitPerpConnector {
             )));
         }
 
-        let klines_data: Vec<Vec<serde_json::Value>> =
+        let klines_response: bybit_perp_types::BybitPerpKlineResponse =
             response.json().await.with_contract_context(&symbol)?;
 
-        let klines = klines_data
+        if klines_response.ret_code != 0 {
+            return Err(ExchangeError::Other(format!(
+                "Bybit Perp API error for {}: {} - {}",
+                symbol, klines_response.ret_code, klines_response.ret_msg
+            )));
+        }
+
+        let klines = klines_response
+            .result
+            .list
             .into_iter()
             .map(|kline_vec| {
-                // Avoid unwrap() per HFT guidelines - handle parsing errors gracefully
+                // Bybit V5 API returns klines in format:
+                // [startTime, openPrice, highPrice, lowPrice, closePrice, volume, turnover]
                 let start_time: i64 = kline_vec
                     .first()
-                    .and_then(|v| v.as_str())
-                    .and_then(|s| s.parse().ok())
+                    .and_then(|v| v.parse().ok())
                     .unwrap_or_else(|| {
                         warn!(contract = %symbol, "Failed to parse kline start_time");
                         0
                     });
-                let end_time = start_time + 60000; // Assuming 1 minute interval, adjust as needed
+
+                // Calculate close time based on interval
+                let interval_ms = match interval {
+                    KlineInterval::Seconds1 => 1000,
+                    KlineInterval::Minutes1 => 60_000,
+                    KlineInterval::Minutes3 => 180_000,
+                    KlineInterval::Minutes5 => 300_000,
+                    KlineInterval::Minutes15 => 900_000,
+                    KlineInterval::Minutes30 => 1_800_000,
+                    KlineInterval::Hours1 => 3_600_000,
+                    KlineInterval::Hours2 => 7_200_000,
+                    KlineInterval::Hours4 => 14_400_000,
+                    KlineInterval::Hours6 => 21_600_000,
+                    KlineInterval::Hours8 => 28_800_000,
+                    KlineInterval::Hours12 => 43_200_000,
+                    KlineInterval::Days1 => 86_400_000,
+                    KlineInterval::Days3 => 259_200_000,
+                    KlineInterval::Weeks1 => 604_800_000,
+                    KlineInterval::Months1 => 2_592_000_000, // Approximate
+                };
+
+                let close_time = start_time + interval_ms;
 
                 Kline {
                     symbol: symbol.clone(),
                     open_time: start_time,
-                    close_time: end_time,
-                    interval: interval.clone(),
-                    open_price: kline_vec
-                        .get(1)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    high_price: kline_vec
-                        .get(2)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    low_price: kline_vec
-                        .get(3)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    close_price: kline_vec
-                        .get(4)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    volume: kline_vec
-                        .get(5)
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("0")
-                        .to_string(),
-                    number_of_trades: 0,
+                    close_time,
+                    interval: interval_str.clone(),
+                    open_price: kline_vec.get(1).cloned().unwrap_or_else(|| "0".to_string()),
+                    high_price: kline_vec.get(2).cloned().unwrap_or_else(|| "0".to_string()),
+                    low_price: kline_vec.get(3).cloned().unwrap_or_else(|| "0".to_string()),
+                    close_price: kline_vec.get(4).cloned().unwrap_or_else(|| "0".to_string()),
+                    volume: kline_vec.get(5).cloned().unwrap_or_else(|| "0".to_string()),
+                    number_of_trades: 0, // Bybit doesn't provide this in kline endpoint
                     final_bar: true,
                 }
             })

@@ -1,7 +1,7 @@
 use lotusx::core::{
     config::ExchangeConfig,
     traits::MarketDataSource,
-    types::{MarketDataType, SubscriptionType, WebSocketConfig},
+    types::{KlineInterval, MarketDataType, SubscriptionType, WebSocketConfig},
 };
 use lotusx::exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector};
 use secrecy::Secret;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         SubscriptionType::OrderBook { depth: Some(5) },
         SubscriptionType::Trades,
         SubscriptionType::Klines {
-            interval: "1m".to_string(),
+            interval: KlineInterval::Minutes1,
         },
     ];
 
