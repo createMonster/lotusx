@@ -91,6 +91,19 @@ impl HyperliquidError {
     pub fn websocket_error(reason: String) -> Self {
         Self::WebSocketError { reason }
     }
+
+    #[cold]
+    #[inline(never)]
+    pub fn funding_rate_error(message: String, symbol: Option<String>) -> Self {
+        symbol.map_or_else(
+            || Self::ApiError {
+                message: format!("Funding rate error: {}", message),
+            },
+            |s| Self::ApiError {
+                message: format!("Funding rate error for {}: {}", s, message),
+            },
+        )
+    }
 }
 
 // Helper trait for adding context to Hyperliquid operations
@@ -191,11 +204,60 @@ pub enum InfoRequest {
         #[serde(rename = "endTime")]
         end_time: u64,
     },
+    #[serde(rename = "fundingHistory")]
+    FundingHistory {
+        coin: String,
+        #[serde(rename = "startTime")]
+        start_time: Option<u64>,
+        #[serde(rename = "endTime")]
+        end_time: Option<u64>,
+    },
+    #[serde(rename = "metaAndAssetCtxs")]
+    MetaAndAssetCtxs,
 }
 
 // Info endpoint response types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AllMids(pub HashMap<String, String>);
+
+// Funding rate types for Hyperliquid
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FundingHistoryEntry {
+    pub coin: String,
+    #[serde(rename = "fundingRate")]
+    pub funding_rate: String,
+    pub premium: String,
+    pub time: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetaAndAssetCtxsResponse {
+    pub universe: Vec<AssetInfo>,
+    #[serde(rename = "assetContexts")]
+    pub asset_contexts: Vec<AssetContext>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetContext {
+    #[serde(rename = "dayNtlVlm")]
+    pub day_ntl_vlm: String,
+    #[serde(rename = "funding")]
+    pub funding: String,
+    #[serde(rename = "impactPxs")]
+    pub impact_pxs: Option<Vec<String>>,
+    #[serde(rename = "markPx")]
+    pub mark_px: String,
+    #[serde(rename = "midPx")]
+    pub mid_px: Option<String>,
+    #[serde(rename = "openInterest")]
+    pub open_interest: String,
+    #[serde(rename = "oraclePx")]
+    pub oracle_px: String,
+    #[serde(rename = "premium")]
+    pub premium: Option<String>,
+    #[serde(rename = "prevDayPx")]
+    pub prev_day_px: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserState {

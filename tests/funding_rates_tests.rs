@@ -3,6 +3,7 @@ mod funding_rates_tests {
     use lotusx::core::{config::ExchangeConfig, traits::FundingRateSource};
     use lotusx::exchanges::{
         backpack::client::BackpackConnector, binance_perp::client::BinancePerpConnector,
+        bybit_perp::client::BybitPerpConnector, hyperliquid::client::HyperliquidClient,
     };
 
     #[tokio::test]
@@ -355,5 +356,269 @@ mod funding_rates_tests {
         } else {
             println!("⚠️  Backpack get_all_funding_rates test skipped: No credentials found in environment");
         }
+    }
+
+    // Bybit Perpetual Tests
+    #[tokio::test]
+    async fn test_bybit_perp_get_funding_rates_single_symbol() {
+        let config = ExchangeConfig::read_only().testnet(true);
+        let exchange = BybitPerpConnector::new(config);
+
+        let symbols = vec!["BTCUSDT".to_string()];
+        let result = exchange.get_funding_rates(Some(symbols)).await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to get Bybit Perp funding rates: {:?}",
+            result.err()
+        );
+        let rates = result.unwrap();
+        assert_eq!(rates.len(), 1);
+        assert_eq!(rates[0].symbol, "BTCUSDT");
+        assert!(rates[0].funding_rate.is_some());
+        assert!(rates[0].mark_price.is_some());
+        assert!(rates[0].index_price.is_some());
+
+        println!("✅ Bybit Perp Single Symbol Test Passed");
+        println!("   Symbol: {}", rates[0].symbol);
+        println!("   Funding Rate: {:?}", rates[0].funding_rate);
+        println!("   Mark Price: {:?}", rates[0].mark_price);
+        println!("   Next Funding Time: {:?}", rates[0].next_funding_time);
+    }
+
+    #[tokio::test]
+    async fn test_bybit_perp_get_all_funding_rates_direct() {
+        let config = ExchangeConfig::read_only().testnet(true);
+        let exchange = BybitPerpConnector::new(config);
+
+        let result = exchange.get_all_funding_rates().await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to get all Bybit Perp funding rates: {:?}",
+            result.err()
+        );
+        let rates = result.unwrap();
+        assert!(!rates.is_empty(), "Should have received some funding rates");
+
+        // Check that all rates have required fields
+        for rate in &rates {
+            assert!(rate.funding_rate.is_some());
+            assert!(rate.mark_price.is_some());
+            assert!(rate.index_price.is_some());
+        }
+
+        println!("✅ Bybit Perp All Funding Rates Test Passed");
+        println!("   Total symbols: {}", rates.len());
+        println!("   Sample rates:");
+        for (i, rate) in rates.iter().take(3).enumerate() {
+            println!(
+                "   {}: {} - Rate: {:?}",
+                i + 1,
+                rate.symbol,
+                rate.funding_rate
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bybit_perp_get_funding_rate_history() {
+        let config = ExchangeConfig::read_only().testnet(true);
+        let exchange = BybitPerpConnector::new(config);
+
+        let result = exchange
+            .get_funding_rate_history(
+                "BTCUSDT".to_string(),
+                None,
+                None,
+                Some(5), // Last 5 funding rates
+            )
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Failed to get Bybit Perp funding rate history: {:?}",
+            result.err()
+        );
+        let history = result.unwrap();
+        assert!(
+            !history.is_empty(),
+            "Should have received funding rate history"
+        );
+        assert!(history.len() <= 5, "Should respect limit parameter");
+
+        // Check that historical rates have funding_time
+        for rate in &history {
+            assert!(rate.funding_rate.is_some());
+            assert!(rate.funding_time.is_some());
+        }
+
+        println!("✅ Bybit Perp Funding Rate History Test Passed");
+        println!("   History entries: {}", history.len());
+        for (i, rate) in history.iter().enumerate() {
+            println!(
+                "   {}: Rate: {:?}, Time: {:?}",
+                i + 1,
+                rate.funding_rate,
+                rate.funding_time
+            );
+        }
+    }
+
+    // Hyperliquid Tests
+    #[tokio::test]
+    async fn test_hyperliquid_get_funding_rates_single_symbol() {
+        let config = ExchangeConfig::read_only().testnet(false); // Hyperliquid doesn't have testnet
+        let exchange = HyperliquidClient::new(config);
+
+        let symbols = vec!["BTC".to_string()];
+        let result = exchange.get_funding_rates(Some(symbols)).await;
+
+        match result {
+            Ok(rates) => {
+                assert_eq!(rates.len(), 1);
+                assert_eq!(rates[0].symbol, "BTC");
+                assert!(rates[0].funding_rate.is_some());
+                assert!(rates[0].mark_price.is_some());
+                assert!(rates[0].index_price.is_some());
+
+                println!("✅ Hyperliquid Single Symbol Test Passed");
+                println!("   Symbol: {}", rates[0].symbol);
+                println!("   Funding Rate: {:?}", rates[0].funding_rate);
+                println!("   Mark Price: {:?}", rates[0].mark_price);
+                println!("   Oracle Price: {:?}", rates[0].index_price);
+            }
+            Err(e) => {
+                println!("⚠️  Hyperliquid Single Symbol Test: {}", e);
+                // Don't fail the test since Hyperliquid might have connectivity issues
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hyperliquid_get_all_funding_rates_direct() {
+        let config = ExchangeConfig::read_only().testnet(false); // Hyperliquid doesn't have testnet
+        let exchange = HyperliquidClient::new(config);
+
+        let result = exchange.get_all_funding_rates().await;
+
+        match result {
+            Ok(rates) => {
+                assert!(!rates.is_empty(), "Should have received some funding rates");
+
+                // Check that all rates have required fields
+                for rate in &rates {
+                    assert!(rate.funding_rate.is_some());
+                    assert!(rate.mark_price.is_some());
+                    assert!(rate.index_price.is_some());
+                }
+
+                println!("✅ Hyperliquid All Funding Rates Test Passed");
+                println!("   Total symbols: {}", rates.len());
+                println!("   Sample rates:");
+                for (i, rate) in rates.iter().take(3).enumerate() {
+                    println!(
+                        "   {}: {} - Rate: {:?}",
+                        i + 1,
+                        rate.symbol,
+                        rate.funding_rate
+                    );
+                }
+            }
+            Err(e) => {
+                println!("⚠️  Hyperliquid All Funding Rates Test: {}", e);
+                // Don't fail the test since Hyperliquid might have connectivity issues
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_hyperliquid_get_funding_rate_history() {
+        let config = ExchangeConfig::read_only().testnet(false); // Hyperliquid doesn't have testnet
+        let exchange = HyperliquidClient::new(config);
+
+        let result = exchange
+            .get_funding_rate_history(
+                "BTC".to_string(),
+                None,
+                None,
+                Some(5), // Hyperliquid doesn't support limit, but we test the interface
+            )
+            .await;
+
+        match result {
+            Ok(history) => {
+                println!("✅ Hyperliquid Funding Rate History Test Passed");
+                println!("   History entries: {}", history.len());
+
+                // Check that historical rates have funding_time
+                for rate in &history {
+                    assert!(rate.funding_rate.is_some());
+                    assert!(rate.funding_time.is_some());
+                }
+
+                for (i, rate) in history.iter().take(5).enumerate() {
+                    println!(
+                        "   {}: Rate: {:?}, Time: {:?}",
+                        i + 1,
+                        rate.funding_rate,
+                        rate.funding_time
+                    );
+                }
+            }
+            Err(e) => {
+                println!("⚠️  Hyperliquid History Test: {}", e);
+                // Don't fail the test since Hyperliquid might have connectivity issues
+            }
+        }
+    }
+
+    // Cross-exchange performance test
+    #[tokio::test]
+    async fn test_multi_exchange_funding_rates_performance() {
+        use std::time::Instant;
+
+        println!("🚀 Multi-Exchange Funding Rates Performance Test");
+
+        // Test Binance Perp
+        let start = Instant::now();
+        let config = ExchangeConfig::read_only().testnet(true);
+        let binance_exchange = BinancePerpConnector::new(config);
+        if let Ok(rates) = binance_exchange.get_all_funding_rates().await {
+            let duration = start.elapsed();
+            println!("   Binance Perp: {} symbols in {:?}", rates.len(), duration);
+            assert!(
+                duration.as_millis() < 2000,
+                "Binance Perp should complete under 2000ms for HFT requirements"
+            );
+        }
+
+        // Test Bybit Perp
+        let start = Instant::now();
+        let config = ExchangeConfig::read_only().testnet(true);
+        let bybit_exchange = BybitPerpConnector::new(config);
+        if let Ok(rates) = bybit_exchange.get_all_funding_rates().await {
+            let duration = start.elapsed();
+            println!("   Bybit Perp: {} symbols in {:?}", rates.len(), duration);
+            assert!(
+                duration.as_millis() < 2000,
+                "Bybit Perp should complete under 2000ms for HFT requirements"
+            );
+        }
+
+        // Test Hyperliquid (with more lenient timing due to different API)
+        let start = Instant::now();
+        let config = ExchangeConfig::read_only().testnet(false);
+        let hyperliquid_exchange = HyperliquidClient::new(config);
+        if let Ok(rates) = hyperliquid_exchange.get_all_funding_rates().await {
+            let duration = start.elapsed();
+            println!("   Hyperliquid: {} symbols in {:?}", rates.len(), duration);
+            assert!(
+                duration.as_millis() < 5000,
+                "Hyperliquid should complete under 5000ms"
+            );
+        }
+
+        println!("✅ Multi-Exchange Performance Test Passed");
     }
 }

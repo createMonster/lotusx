@@ -247,6 +247,85 @@ pub struct BybitPerpKlineResponse {
     pub result: BybitPerpKlineResult,
 }
 
+// Funding Rate Types for Bybit Perpetual
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpFundingRateInfo {
+    pub symbol: String,
+    #[serde(rename = "fundingRate")]
+    pub funding_rate: String,
+    #[serde(
+        rename = "fundingRateTimestamp",
+        deserialize_with = "deserialize_string_to_i64"
+    )]
+    pub funding_rate_timestamp: i64,
+}
+
+fn deserialize_string_to_i64<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+    use serde::Deserialize;
+
+    let s = String::deserialize(deserializer)?;
+    s.parse::<i64>().map_err(D::Error::custom)
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpFundingRateResult {
+    pub list: Vec<BybitPerpFundingRateInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpFundingRateResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i32,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: BybitPerpFundingRateResult,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpTickerInfo {
+    pub symbol: String,
+    #[serde(rename = "lastPrice")]
+    pub last_price: String,
+    #[serde(rename = "indexPrice")]
+    pub index_price: String,
+    #[serde(rename = "markPrice")]
+    pub mark_price: String,
+    #[serde(rename = "prevPrice24h")]
+    pub prev_price_24h: String,
+    #[serde(rename = "price24hPcnt")]
+    pub price_24h_pcnt: String,
+    #[serde(rename = "highPrice24h")]
+    pub high_price_24h: String,
+    #[serde(rename = "lowPrice24h")]
+    pub low_price_24h: String,
+    #[serde(rename = "volume24h")]
+    pub volume_24h: String,
+    #[serde(rename = "turnover24h")]
+    pub turnover_24h: String,
+    #[serde(rename = "fundingRate")]
+    pub funding_rate: String,
+    #[serde(rename = "nextFundingTime")]
+    pub next_funding_time: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpTickerResult {
+    pub list: Vec<BybitPerpTickerInfo>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitPerpTickerResponse {
+    #[serde(rename = "retCode")]
+    pub ret_code: i32,
+    #[serde(rename = "retMsg")]
+    pub ret_msg: String,
+    pub result: BybitPerpTickerResult,
+}
+
 // Bybit Perpetual-specific error types following HFT error handling guidelines
 #[derive(Error, Debug)]
 pub enum BybitPerpError {
@@ -331,6 +410,21 @@ impl BybitPerpError {
             max,
             requested,
         }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn funding_rate_error(message: String, symbol: Option<String>) -> Self {
+        symbol.map_or_else(
+            || Self::ApiError {
+                code: 10000,
+                message: format!("Funding rate error: {}", message),
+            },
+            |s| Self::ApiError {
+                code: 10000,
+                message: format!("Funding rate error for {}: {}", s, message),
+            },
+        )
     }
 }
 
