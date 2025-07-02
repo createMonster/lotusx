@@ -1,8 +1,8 @@
 use crate::core::{
     errors::ExchangeError,
     types::{
-        Balance, Kline, KlineInterval, Market, MarketDataType, OrderRequest, OrderResponse,
-        Position, SubscriptionType, WebSocketConfig,
+        Balance, FundingRate, Kline, KlineInterval, Market, MarketDataType, OrderRequest,
+        OrderResponse, Position, SubscriptionType, WebSocketConfig,
     },
 };
 use async_trait::async_trait;
@@ -51,6 +51,36 @@ pub trait AccountInfo {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError>;
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError>;
 }
+
+/// Trait for funding rate operations (PERPETUAL EXCHANGES ONLY)
+#[async_trait]
+pub trait FundingRateSource {
+    /// Get current funding rates for one or more symbols
+    async fn get_funding_rates(
+        &self,
+        symbols: Option<Vec<String>>,
+    ) -> Result<Vec<FundingRate>, ExchangeError>;
+
+    /// Get all available funding rates from the exchange
+    async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError>;
+
+    /// Get historical funding rates for a symbol
+    async fn get_funding_rate_history(
+        &self,
+        symbol: String,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<FundingRate>, ExchangeError>;
+}
+
+// BACKWARD-COMPATIBLE trait composition (NON-BREAKING APPROACH)
+#[async_trait]
+pub trait FundingRateConnector: MarketDataSource + FundingRateSource {}
+
+// Optional: Enhanced connector for perpetual exchanges
+#[async_trait]
+pub trait PerpetualExchangeConnector: ExchangeConnector + FundingRateSource {}
 
 // Optional: Keep a composite trait for convenience when you need all functionality
 #[async_trait]

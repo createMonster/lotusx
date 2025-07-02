@@ -1,10 +1,12 @@
 use super::client::BinancePerpConnector;
 use super::converters::{convert_binance_perp_market, parse_websocket_message};
-use super::types::{self as binance_perp_types, BinancePerpError};
+use super::types::{
+    self as binance_perp_types, BinancePerpError, BinancePerpFundingRate, BinancePerpPremiumIndex,
+};
 use crate::core::errors::ExchangeError;
-use crate::core::traits::MarketDataSource;
+use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
@@ -254,5 +256,162 @@ impl BinancePerpConnector {
         }
 
         Ok(klines)
+    }
+}
+
+// Funding Rate Implementation for Binance Perpetual
+#[async_trait]
+impl FundingRateSource for BinancePerpConnector {
+    #[instrument(skip(self), fields(symbols = ?symbols))]
+    async fn get_funding_rates(
+        &self,
+        symbols: Option<Vec<String>>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        match symbols {
+            Some(symbol_list) if symbol_list.len() == 1 => self
+                .get_single_funding_rate(&symbol_list[0])
+                .await
+                .map(|rate| vec![rate]),
+            Some(_) => {
+                // For multiple symbols, get premium index for all and extract funding rates
+                self.get_all_funding_rates_internal().await
+            }
+            None => {
+                // Get all funding rates
+                self.get_all_funding_rates_internal().await
+            }
+        }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError> {
+        self.get_all_funding_rates_internal().await
+    }
+
+    #[instrument(skip(self), fields(symbol = %symbol))]
+    async fn get_funding_rate_history(
+        &self,
+        symbol: String,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        let url = format!("{}/fapi/v1/fundingRate", self.base_url);
+
+        let mut url_with_params = self.client.get(&url).query(&[("symbol", symbol.as_str())]);
+
+        if let Some(limit_val) = limit {
+            url_with_params = url_with_params.query(&[("limit", &limit_val.to_string())]);
+        } else {
+            url_with_params = url_with_params.query(&[("limit", "100")]);
+        }
+
+        if let Some(start) = start_time {
+            url_with_params = url_with_params.query(&[("startTime", &start.to_string())]);
+        }
+
+        if let Some(end) = end_time {
+            url_with_params = url_with_params.query(&[("endTime", &end.to_string())]);
+        }
+
+        let response: reqwest::Response =
+            url_with_params.send().await.map_err(|e| -> ExchangeError {
+                error!(
+                    symbol = %symbol,
+                    url = %url,
+                    error = %e,
+                    "Failed to fetch funding rate history"
+                );
+                BinancePerpError::market_data_error(
+                    format!("Funding rate history request failed: {}", e),
+                    Some(symbol.clone()),
+                )
+                .into()
+            })?;
+
+        let funding_rates: Vec<BinancePerpFundingRate> = response.json().await.map_err(|e| {
+            BinancePerpError::parse_error(
+                format!("Failed to parse funding rate history: {}", e),
+                Some(symbol.clone()),
+            )
+        })?;
+
+        let mut result = Vec::with_capacity(funding_rates.len());
+        for rate in funding_rates {
+            result.push(FundingRate {
+                symbol: rate.symbol,
+                funding_rate: Some(rate.funding_rate),
+                previous_funding_rate: None,
+                next_funding_rate: None,
+                funding_time: Some(rate.funding_time),
+                next_funding_time: None,
+                mark_price: None,
+                index_price: None,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            });
+        }
+
+        Ok(result)
+    }
+}
+
+impl BinancePerpConnector {
+    async fn get_single_funding_rate(&self, symbol: &str) -> Result<FundingRate, ExchangeError> {
+        let url = format!("{}/fapi/v1/premiumIndex", self.base_url);
+
+        let premium_index: BinancePerpPremiumIndex = self
+            .request_with_retry(|| self.client.get(&url).query(&[("symbol", symbol)]), &url)
+            .await
+            .map_err(|e| -> ExchangeError {
+                BinancePerpError::market_data_error(
+                    format!("Single funding rate request failed: {}", e),
+                    Some(symbol.to_string()),
+                )
+                .into()
+            })?;
+
+        Ok(FundingRate {
+            symbol: premium_index.symbol,
+            funding_rate: Some(premium_index.last_funding_rate),
+            previous_funding_rate: None,
+            next_funding_rate: None,
+            funding_time: None,
+            next_funding_time: Some(premium_index.next_funding_time),
+            mark_price: Some(premium_index.mark_price),
+            index_price: Some(premium_index.index_price),
+            timestamp: premium_index.time,
+        })
+    }
+
+    async fn get_all_funding_rates_internal(&self) -> Result<Vec<FundingRate>, ExchangeError> {
+        let url = format!("{}/fapi/v1/premiumIndex", self.base_url);
+
+        let premium_indices: Vec<BinancePerpPremiumIndex> = self
+            .request_with_retry(|| self.client.get(&url), &url)
+            .await
+            .map_err(|e| -> ExchangeError {
+                BinancePerpError::market_data_error(
+                    format!("All funding rates request failed: {}", e),
+                    None,
+                )
+                .into()
+            })?;
+
+        let mut result = Vec::with_capacity(premium_indices.len());
+        for premium_index in premium_indices {
+            result.push(FundingRate {
+                symbol: premium_index.symbol,
+                funding_rate: Some(premium_index.last_funding_rate),
+                previous_funding_rate: None,
+                next_funding_rate: None,
+                funding_time: None,
+                next_funding_time: Some(premium_index.next_funding_time),
+                mark_price: Some(premium_index.mark_price),
+                index_price: Some(premium_index.index_price),
+                timestamp: premium_index.time,
+            });
+        }
+
+        Ok(result)
     }
 }
