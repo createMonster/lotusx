@@ -2,9 +2,9 @@ use super::client::BybitPerpConnector;
 use super::converters::{convert_bybit_perp_market, parse_websocket_message};
 use super::types::{self as bybit_perp_types, BybitPerpError, BybitPerpResultExt};
 use crate::core::errors::ExchangeError;
-use crate::core::traits::MarketDataSource;
+use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
 use crate::core::websocket::BybitWebSocketManager;
 use async_trait::async_trait;
@@ -211,5 +211,216 @@ impl MarketDataSource for BybitPerpConnector {
             .collect();
 
         Ok(klines)
+    }
+}
+
+// Funding Rate Implementation for Bybit Perpetual
+#[async_trait]
+impl FundingRateSource for BybitPerpConnector {
+    #[instrument(skip(self), fields(symbols = ?symbols))]
+    async fn get_funding_rates(
+        &self,
+        symbols: Option<Vec<String>>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        match symbols {
+            Some(symbol_list) if symbol_list.len() == 1 => {
+                // Get funding rate for single symbol using tickers endpoint
+                self.get_single_funding_rate(&symbol_list[0])
+                    .await
+                    .map(|rate| vec![rate])
+            }
+            Some(_) | None => {
+                // Get all funding rates using tickers endpoint
+                self.get_all_funding_rates().await
+            }
+        }
+    }
+
+    #[instrument(skip(self))]
+    async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError> {
+        self.get_all_funding_rates_internal().await
+    }
+
+    #[instrument(skip(self), fields(symbol = %symbol))]
+    async fn get_funding_rate_history(
+        &self,
+        symbol: String,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        let url = format!("{}/v5/market/funding/history", self.base_url);
+
+        let mut query_params = vec![
+            ("category", "linear".to_string()),
+            ("symbol", symbol.clone()),
+        ];
+
+        if let Some(limit_val) = limit {
+            query_params.push(("limit", limit_val.to_string()));
+        } else {
+            query_params.push(("limit", "100".to_string()));
+        }
+
+        if let Some(start) = start_time {
+            query_params.push(("startTime", start.to_string()));
+        }
+
+        if let Some(end) = end_time {
+            query_params.push(("endTime", end.to_string()));
+        }
+
+        let response = self
+            .client
+            .get(&url)
+            .query(&query_params)
+            .send()
+            .await
+            .with_contract_context(&symbol)?;
+
+        let api_response: bybit_perp_types::BybitPerpFundingRateResponse =
+            response.json().await.with_contract_context(&symbol)?;
+
+        if api_response.ret_code != 0 {
+            return Err(ExchangeError::Other(
+                BybitPerpError::funding_rate_error(
+                    format!("{} - {}", api_response.ret_code, api_response.ret_msg),
+                    Some(symbol),
+                )
+                .to_string(),
+            ));
+        }
+
+        let mut result = Vec::with_capacity(api_response.result.list.len());
+        for rate_info in api_response.result.list {
+            result.push(FundingRate {
+                symbol: rate_info.symbol,
+                funding_rate: Some(rate_info.funding_rate),
+                previous_funding_rate: None,
+                next_funding_rate: None,
+                funding_time: Some(rate_info.funding_rate_timestamp),
+                next_funding_time: None,
+                mark_price: None,
+                index_price: None,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            });
+        }
+
+        Ok(result)
+    }
+}
+
+impl BybitPerpConnector {
+    async fn get_single_funding_rate(&self, symbol: &str) -> Result<FundingRate, ExchangeError> {
+        let url = format!("{}/v5/market/tickers", self.base_url);
+
+        let query_params = vec![("category", "linear"), ("symbol", symbol)];
+
+        let response = self
+            .client
+            .get(&url)
+            .query(&query_params)
+            .send()
+            .await
+            .with_contract_context(symbol)?;
+
+        let api_response: bybit_perp_types::BybitPerpTickerResponse =
+            response.json().await.with_contract_context(symbol)?;
+
+        if api_response.ret_code != 0 {
+            return Err(ExchangeError::Other(
+                BybitPerpError::funding_rate_error(
+                    format!("{} - {}", api_response.ret_code, api_response.ret_msg),
+                    Some(symbol.to_string()),
+                )
+                .to_string(),
+            ));
+        }
+
+        api_response.result.list.first().map_or_else(
+            || {
+                Err(ExchangeError::Other(
+                    BybitPerpError::funding_rate_error(
+                        "No ticker data found".to_string(),
+                        Some(symbol.to_string()),
+                    )
+                    .to_string(),
+                ))
+            },
+            |ticker_info| {
+                let next_funding_time = ticker_info
+                    .next_funding_time
+                    .parse::<i64>()
+                    .unwrap_or_else(|_| {
+                        warn!(symbol = %symbol, "Failed to parse next_funding_time");
+                        0
+                    });
+
+                Ok(FundingRate {
+                    symbol: ticker_info.symbol.clone(),
+                    funding_rate: Some(ticker_info.funding_rate.clone()),
+                    previous_funding_rate: None,
+                    next_funding_rate: None,
+                    funding_time: None,
+                    next_funding_time: Some(next_funding_time),
+                    mark_price: Some(ticker_info.mark_price.clone()),
+                    index_price: Some(ticker_info.index_price.clone()),
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                })
+            },
+        )
+    }
+
+    async fn get_all_funding_rates_internal(&self) -> Result<Vec<FundingRate>, ExchangeError> {
+        let url = format!("{}/v5/market/tickers", self.base_url);
+
+        let query_params = vec![("category", "linear")];
+
+        let response = self
+            .client
+            .get(&url)
+            .query(&query_params)
+            .send()
+            .await
+            .with_contract_context("*")?;
+
+        let api_response: bybit_perp_types::BybitPerpTickerResponse =
+            response.json().await.with_contract_context("*")?;
+
+        if api_response.ret_code != 0 {
+            return Err(ExchangeError::Other(
+                BybitPerpError::funding_rate_error(
+                    format!("{} - {}", api_response.ret_code, api_response.ret_msg),
+                    None,
+                )
+                .to_string(),
+            ));
+        }
+
+        let mut result = Vec::with_capacity(api_response.result.list.len());
+        for ticker_info in api_response.result.list {
+            let next_funding_time =
+                ticker_info
+                    .next_funding_time
+                    .parse::<i64>()
+                    .unwrap_or_else(|_| {
+                        warn!(symbol = %ticker_info.symbol, "Failed to parse next_funding_time");
+                        0
+                    });
+
+            result.push(FundingRate {
+                symbol: ticker_info.symbol,
+                funding_rate: Some(ticker_info.funding_rate),
+                previous_funding_rate: None,
+                next_funding_rate: None,
+                funding_time: None,
+                next_funding_time: Some(next_funding_time),
+                mark_price: Some(ticker_info.mark_price),
+                index_price: Some(ticker_info.index_price),
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            });
+        }
+
+        Ok(result)
     }
 }

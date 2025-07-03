@@ -1,14 +1,17 @@
 use crate::core::{
     errors::{ExchangeError, ResultExt},
-    traits::MarketDataSource,
-    types::{Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig},
+    traits::{FundingRateSource, MarketDataSource},
+    types::{
+        FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
+        WebSocketConfig,
+    },
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,
     types::{
-        BackpackDepthResponse, BackpackKlineResponse, BackpackMarketResponse,
-        BackpackTickerResponse, BackpackTradeResponse, BackpackWebSocketMessage,
-        BackpackWebSocketSubscription,
+        BackpackDepthResponse, BackpackFundingRate, BackpackKlineResponse, BackpackMarkPrice,
+        BackpackMarketResponse, BackpackTickerResponse, BackpackTradeResponse,
+        BackpackWebSocketMessage, BackpackWebSocketSubscription,
     },
 };
 use async_trait::async_trait;
@@ -485,5 +488,173 @@ impl BackpackConnector {
                 is_buyer_maker: trade.is_buyer_maker,
             })
             .collect())
+    }
+}
+
+// Funding Rate Implementation for Backpack
+#[async_trait]
+impl FundingRateSource for BackpackConnector {
+    async fn get_funding_rates(
+        &self,
+        symbols: Option<Vec<String>>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        match symbols {
+            Some(symbol_list) if symbol_list.len() == 1 => {
+                // Get funding rate for single symbol
+                self.get_single_funding_rate(&symbol_list[0])
+                    .await
+                    .map(|rate| vec![rate])
+            }
+            Some(symbol_list) => {
+                // Get funding rates for multiple symbols
+                let mut results = Vec::new();
+                for symbol in symbol_list {
+                    if let Ok(rate) = self.get_single_funding_rate(&symbol).await {
+                        results.push(rate);
+                    }
+                    // Skip symbols that don't have funding rates
+                }
+                Ok(results)
+            }
+            None => {
+                // Get all funding rates
+                self.get_all_funding_rates().await
+            }
+        }
+    }
+
+    async fn get_funding_rate_history(
+        &self,
+        symbol: String,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+        limit: Option<u32>,
+    ) -> Result<Vec<FundingRate>, ExchangeError> {
+        let mut params = vec![("symbol".to_string(), symbol.clone())];
+
+        if let Some(limit) = limit {
+            params.push(("limit".to_string(), limit.to_string()));
+        }
+
+        if let Some(start) = start_time {
+            params.push(("startTime".to_string(), start.to_string()));
+        }
+
+        if let Some(end) = end_time {
+            params.push(("endTime".to_string(), end.to_string()));
+        }
+
+        let query_string = Self::create_query_string(&params);
+        let url = format!("{}/api/v1/fundingRate?{}", self.base_url, query_string);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send funding rate history request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::ApiError {
+                code: response.status().as_u16() as i32,
+                message: format!("Failed to get funding rate history: {}", response.status()),
+            });
+        }
+
+        let funding_rates: Vec<BackpackFundingRate> =
+            response.json().await.with_exchange_context(|| {
+                format!(
+                    "Failed to parse funding rate history response for symbol {}",
+                    symbol
+                )
+            })?;
+
+        let mut result = Vec::with_capacity(funding_rates.len());
+        for rate in funding_rates {
+            result.push(FundingRate {
+                symbol: rate.symbol,
+                funding_rate: Some(rate.funding_rate),
+                previous_funding_rate: None,
+                next_funding_rate: None,
+                funding_time: Some(rate.funding_time),
+                next_funding_time: Some(rate.next_funding_time),
+                mark_price: None,
+                index_price: None,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            });
+        }
+
+        Ok(result)
+    }
+
+    async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError> {
+        // Backpack doesn't have a single endpoint for all funding rates
+        // We need to get all markets first and then get funding rates for perpetual markets
+        let markets = self.get_markets().await?;
+
+        let mut funding_rates = Vec::new();
+
+        // Filter for perpetual markets and get their funding rates
+        for market in markets {
+            let symbol = &market.symbol.symbol;
+
+            // Try to get funding rate for this symbol
+            // Only perpetual futures will have funding rates
+            if let Ok(funding_rate) = self.get_single_funding_rate(symbol).await {
+                funding_rates.push(funding_rate);
+            }
+            // Continue with other symbols even if one fails
+        }
+
+        Ok(funding_rates)
+    }
+}
+
+impl BackpackConnector {
+    async fn get_single_funding_rate(&self, symbol: &str) -> Result<FundingRate, ExchangeError> {
+        // First get the mark price data which includes funding rate info
+        let params = vec![("symbol".to_string(), symbol.to_string())];
+        let query_string = Self::create_query_string(&params);
+        let url = format!("{}/api/v1/markPrice?{}", self.base_url, query_string);
+
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .with_exchange_context(|| {
+                format!(
+                    "Failed to send mark price request: url={}, symbol={}",
+                    url, symbol
+                )
+            })?;
+
+        if !response.status().is_success() {
+            return Err(ExchangeError::ApiError {
+                code: response.status().as_u16() as i32,
+                message: format!("Failed to get mark price: {}", response.status()),
+            });
+        }
+
+        let mark_price: BackpackMarkPrice = response.json().await.with_exchange_context(|| {
+            format!("Failed to parse mark price response for symbol {}", symbol)
+        })?;
+
+        Ok(FundingRate {
+            symbol: mark_price.symbol,
+            funding_rate: Some(mark_price.estimated_funding_rate),
+            previous_funding_rate: None,
+            next_funding_rate: None,
+            funding_time: None,
+            next_funding_time: Some(mark_price.next_funding_time),
+            mark_price: Some(mark_price.mark_price),
+            index_price: Some(mark_price.index_price),
+            timestamp: chrono::Utc::now().timestamp_millis(),
+        })
     }
 }

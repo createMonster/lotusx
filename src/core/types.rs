@@ -329,3 +329,37 @@ pub struct Position {
     pub liquidation_price: Option<String>,
     pub leverage: String,
 }
+
+/// Funding rate information for perpetual futures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FundingRate {
+    pub symbol: String,
+    pub funding_rate: Option<String>, // Current/upcoming funding rate
+    pub previous_funding_rate: Option<String>, // Most recently applied rate
+    pub next_funding_rate: Option<String>, // Predicted next rate (if available)
+    pub funding_time: Option<i64>,    // When current rate applies
+    pub next_funding_time: Option<i64>, // When next rate applies
+    pub mark_price: Option<String>,   // Current mark price
+    pub index_price: Option<String>,  // Current index price
+    pub timestamp: i64,               // Response timestamp
+}
+
+/// Funding rate interval for historical queries
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum FundingRateInterval {
+    Hours8,  // Every 8 hours (most common)
+    Hours1,  // Every hour (some exchanges)
+    Hours4,  // Every 4 hours
+    Hours12, // Every 12 hours
+}
+
+impl FundingRateInterval {
+    pub fn to_seconds(&self) -> i64 {
+        match self {
+            Self::Hours1 => 3600,
+            Self::Hours4 => 14400,
+            Self::Hours8 => 28800,
+            Self::Hours12 => 43200,
+        }
+    }
+}

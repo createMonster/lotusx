@@ -296,6 +296,34 @@ pub struct BinancePerpPosition {
     pub leverage: String,
 }
 
+// Funding Rate Types
+#[derive(Debug, Deserialize)]
+pub struct BinancePerpFundingRate {
+    pub symbol: String,
+    #[serde(rename = "fundingRate")]
+    pub funding_rate: String,
+    #[serde(rename = "fundingTime")]
+    pub funding_time: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BinancePerpPremiumIndex {
+    pub symbol: String,
+    #[serde(rename = "markPrice")]
+    pub mark_price: String,
+    #[serde(rename = "indexPrice")]
+    pub index_price: String,
+    #[serde(rename = "estimatedSettlePrice")]
+    pub estimated_settle_price: String,
+    #[serde(rename = "lastFundingRate")]
+    pub last_funding_rate: String,
+    #[serde(rename = "nextFundingTime")]
+    pub next_funding_time: i64,
+    #[serde(rename = "interestRate")]
+    pub interest_rate: String,
+    pub time: i64,
+}
+
 // REST API K-line Types
 #[derive(Debug, Deserialize)]
 pub struct BinancePerpRestKline {
