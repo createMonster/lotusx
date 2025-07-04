@@ -4,3 +4,4 @@ pub mod binance_perp;
 pub mod bybit;
 pub mod bybit_perp;
 pub mod hyperliquid;
+pub mod paradex;
