@@ -23,6 +23,9 @@ pub enum ExchangeError {
     #[error("Configuration error: {0}")]
     ConfigError(#[from] crate::core::config::ConfigError),
 
+    #[error("WebSocket error: {0}")]
+    WebSocketError(String),
+
     #[error("Other error: {0}")]
     Other(String),
 
