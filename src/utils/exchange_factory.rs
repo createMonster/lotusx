@@ -2,6 +2,7 @@ use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
 use crate::exchanges::{
     backpack::BackpackConnector, binance::BinanceConnector, binance_perp::BinancePerpConnector,
     bybit::BybitConnector, bybit_perp::BybitPerpConnector, hyperliquid::HyperliquidClient,
+    paradex::ParadexConnector,
 };
 
 /// Configuration for an exchange in the latency test
@@ -24,6 +25,7 @@ pub enum ExchangeType {
     BybitPerp,
     Backpack,
     Hyperliquid,
+    Paradex,
 }
 
 impl std::fmt::Display for ExchangeType {
@@ -35,6 +37,7 @@ impl std::fmt::Display for ExchangeType {
             Self::BybitPerp => write!(f, "Bybit Perp"),
             Self::Backpack => write!(f, "Backpack"),
             Self::Hyperliquid => write!(f, "Hyperliquid"),
+            Self::Paradex => write!(f, "Paradex"),
         }
     }
 }
@@ -78,6 +81,10 @@ impl ExchangeFactory {
                 }
             }
             ExchangeType::Hyperliquid => Ok(Box::new(HyperliquidClient::read_only(testnet))),
+            ExchangeType::Paradex => {
+                let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
+                Ok(Box::new(ParadexConnector::new(cfg)))
+            }
         }
     }
 
@@ -140,6 +147,18 @@ impl ExchangeFactory {
                 requires_auth: false,
                 symbols: vec!["BTC".to_string(), "ETH".to_string(), "SOL".to_string()],
             },
+            ExchangeTestConfig {
+                name: "Paradex".to_string(),
+                exchange_type: ExchangeType::Paradex,
+                testnet: true, // Default to testnet for Paradex
+                base_url: None,
+                requires_auth: false,
+                symbols: vec![
+                    "BTC-USD".to_string(),
+                    "ETH-USD".to_string(),
+                    "SOL-USD".to_string(),
+                ],
+            },
             // Note: Backpack excluded from default config as it requires valid credentials
         ]
     }
@@ -160,6 +179,18 @@ impl ExchangeFactory {
             });
         }
 
+        // Add Paradex if credentials are available
+        if ExchangeConfig::from_env("PARADEX").is_ok() {
+            configs.push(ExchangeTestConfig {
+                name: "Paradex (Auth)".to_string(),
+                exchange_type: ExchangeType::Paradex,
+                testnet: true,
+                base_url: None,
+                requires_auth: true,
+                symbols: vec!["BTC-USD".to_string(), "ETH-USD".to_string()],
+            });
+        }
+
         configs
     }
 
@@ -172,6 +203,7 @@ impl ExchangeFactory {
             ExchangeType::BybitPerp,
             ExchangeType::Backpack,
             ExchangeType::Hyperliquid,
+            ExchangeType::Paradex,
         ]
     }
 }
@@ -203,6 +235,7 @@ impl ExchangeTestConfigBuilder {
         let symbols = match exchange_type {
             ExchangeType::Hyperliquid => vec!["BTC".to_string(), "ETH".to_string()],
             ExchangeType::Backpack => vec!["SOL_USDC".to_string(), "BTC_USDC".to_string()],
+            ExchangeType::Paradex => vec!["BTC-USD".to_string(), "ETH-USD".to_string()],
             _ => vec!["BTCUSDT".to_string(), "ETHUSDT".to_string()],
         };
 

@@ -13,6 +13,7 @@ struct Claims {
 pub struct ParadexAuth {
     secret_key: Option<SecretKey>,
     wallet_address: Option<String>,
+    #[allow(dead_code)]
     secp: Secp256k1<secp256k1::All>,
 }
 
@@ -64,7 +65,10 @@ impl ParadexAuth {
 
         let claims = Claims {
             sub: self.wallet_address.as_ref().unwrap().to_string(),
-            exp: (chrono::Utc::now() + chrono::Duration::minutes(5)).timestamp() as usize,
+            exp: (chrono::Utc::now() + chrono::Duration::minutes(5))
+                .timestamp()
+                .try_into()
+                .unwrap_or(0),
         };
 
         let token = encode(

@@ -1,7 +1,9 @@
 use crate::core::types::{
-    Market, OrderResponse, OrderSide, OrderType, Position, PositionSide, Symbol,
+    Balance, Market, OrderResponse, OrderSide, OrderType, Position, PositionSide, Symbol,
 };
-use crate::exchanges::paradex::types::{ParadexMarket, ParadexOrder, ParadexPosition};
+use crate::exchanges::paradex::types::{
+    ParadexBalance, ParadexMarket, ParadexOrder, ParadexPosition,
+};
 
 impl From<ParadexMarket> for Market {
     fn from(market: ParadexMarket) -> Self {
@@ -34,15 +36,18 @@ impl From<ParadexOrder> for OrderResponse {
                 OrderSide::Sell
             },
             order_type: match order.order_type.as_str() {
-                "MARKET" => OrderType::Market,
                 "LIMIT" => OrderType::Limit,
-                _ => OrderType::Market, // Or handle as an error
+                "STOP_MARKET" => OrderType::StopLoss,
+                "STOP_LIMIT" => OrderType::StopLossLimit,
+                "TAKE_PROFIT_MARKET" => OrderType::TakeProfit,
+                "TAKE_PROFIT_LIMIT" => OrderType::TakeProfitLimit,
+                _ => OrderType::Market, // Default fallback for MARKET and unknown types
             },
             quantity: order.size,
             price: Some(order.price),
             status: order.status,
             timestamp: chrono::DateTime::parse_from_rfc3339(&order.created_at)
-                .unwrap()
+                .unwrap_or_else(|_| chrono::Utc::now().into())
                 .timestamp_millis(),
         }
     }
@@ -62,6 +67,16 @@ impl From<ParadexPosition> for Position {
             unrealized_pnl: position.unrealized_pnl,
             liquidation_price: position.liquidation_price,
             leverage: position.leverage,
+        }
+    }
+}
+
+impl From<ParadexBalance> for Balance {
+    fn from(balance: ParadexBalance) -> Self {
+        Self {
+            asset: balance.asset,
+            free: balance.available,
+            locked: balance.locked,
         }
     }
 }
