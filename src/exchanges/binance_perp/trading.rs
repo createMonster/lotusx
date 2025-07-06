@@ -3,7 +3,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types::{self as binance_perp_types, BinancePerpError};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{OrderRequest, OrderResponse, OrderType};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
 use crate::exchanges::binance::auth; // Reuse auth from spot Binance
 use async_trait::async_trait;
 use tracing::{error, instrument};
@@ -24,7 +24,7 @@ impl OrderPlacer for BinancePerpConnector {
         let timestamp = auth::get_timestamp().map_err(|e| {
             BinancePerpError::auth_error(
                 format!("Failed to generate timestamp: {}", e),
-                Some(order.symbol.clone()),
+                Some(order.symbol.to_string()),
             )
         })?;
 
@@ -193,7 +193,7 @@ impl BinancePerpConnector {
             return Err(BinancePerpError::order_error(
                 status.as_u16() as i32,
                 error_text,
-                &order.symbol,
+                &order.symbol.to_string(),
             )
             .into());
         }

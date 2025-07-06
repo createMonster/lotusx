@@ -1,12 +1,15 @@
 use super::types as binance_types;
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
-    TimeInForce, Trade,
+    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Price,
+    Quantity, Symbol, Ticker, TimeInForce, Trade, Volume,
 };
+use rust_decimal::Decimal;
 use serde_json::Value;
 
 /// Convert binance market to core market type
-pub fn convert_binance_market(binance_market: binance_types::BinanceMarket) -> Market {
+pub fn convert_binance_market(
+    binance_market: binance_types::BinanceMarket,
+) -> Result<Market, String> {
     let mut min_qty = None;
     let mut max_qty = None;
     let mut min_price = None;
@@ -15,23 +18,29 @@ pub fn convert_binance_market(binance_market: binance_types::BinanceMarket) -> M
     for filter in &binance_market.filters {
         match filter.filter_type.as_str() {
             "LOT_SIZE" => {
-                min_qty = filter.min_qty.clone();
-                max_qty = filter.max_qty.clone();
+                if let Some(min_q) = &filter.min_qty {
+                    min_qty = Some(Quantity::from_str(min_q).map_err(|e| e.to_string())?);
+                }
+                if let Some(max_q) = &filter.max_qty {
+                    max_qty = Some(Quantity::from_str(max_q).map_err(|e| e.to_string())?);
+                }
             }
             "PRICE_FILTER" => {
-                min_price = filter.min_price.clone();
-                max_price = filter.max_price.clone();
+                if let Some(min_p) = &filter.min_price {
+                    min_price = Some(Price::from_str(min_p).map_err(|e| e.to_string())?);
+                }
+                if let Some(max_p) = &filter.max_price {
+                    max_price = Some(Price::from_str(max_p).map_err(|e| e.to_string())?);
+                }
             }
             _ => {}
         }
     }
 
-    Market {
-        symbol: Symbol {
-            base: binance_market.base_asset,
-            quote: binance_market.quote_asset,
-            symbol: binance_market.symbol,
-        },
+    let symbol = Symbol::new(binance_market.base_asset, binance_market.quote_asset)?;
+
+    Ok(Market {
+        symbol,
         status: binance_market.status,
         base_precision: binance_market.base_asset_precision,
         quote_precision: binance_market.quote_precision,
@@ -39,7 +48,7 @@ pub fn convert_binance_market(binance_market: binance_types::BinanceMarket) -> M
         max_qty,
         min_price,
         max_price,
-    }
+    })
 }
 
 /// Convert order side to binance format
@@ -79,43 +88,80 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 if let Ok(ticker) =
                     serde_json::from_value::<binance_types::BinanceWebSocketTicker>(data.clone())
                 {
-                    return Some(MarketDataType::Ticker(Ticker {
-                        symbol: ticker.symbol,
-                        price: ticker.price,
-                        price_change: ticker.price_change,
-                        price_change_percent: ticker.price_change_percent,
-                        high_price: ticker.high_price,
-                        low_price: ticker.low_price,
-                        volume: ticker.volume,
-                        quote_volume: ticker.quote_volume,
-                        open_time: ticker.open_time,
-                        close_time: ticker.close_time,
-                        count: ticker.count,
-                    }));
+                    // Convert string fields to proper types
+                    if let (
+                        Ok(symbol),
+                        Ok(price),
+                        Ok(price_change),
+                        Ok(price_change_percent),
+                        Ok(high_price),
+                        Ok(low_price),
+                        Ok(volume),
+                        Ok(quote_volume),
+                    ) = (
+                        Symbol::from_string(&ticker.symbol),
+                        Price::from_str(&ticker.price),
+                        Price::from_str(&ticker.price_change),
+                        ticker.price_change_percent.parse::<Decimal>(),
+                        Price::from_str(&ticker.high_price),
+                        Price::from_str(&ticker.low_price),
+                        Volume::from_str(&ticker.volume),
+                        Volume::from_str(&ticker.quote_volume),
+                    ) {
+                        return Some(MarketDataType::Ticker(Ticker {
+                            symbol,
+                            price,
+                            price_change,
+                            price_change_percent,
+                            high_price,
+                            low_price,
+                            volume,
+                            quote_volume,
+                            open_time: ticker.open_time,
+                            close_time: ticker.close_time,
+                            count: ticker.count,
+                        }));
+                    }
                 }
             } else if stream.contains("@depth") {
                 if let Ok(depth) =
                     serde_json::from_value::<binance_types::BinanceWebSocketOrderBook>(data.clone())
                 {
+                    let symbol = match Symbol::from_string(&depth.symbol) {
+                        Ok(s) => s,
+                        Err(_) => return None,
+                    };
+
                     let bids = depth
                         .bids
                         .into_iter()
-                        .map(|b| OrderBookEntry {
-                            price: b[0].clone(),
-                            quantity: b[1].clone(),
+                        .filter_map(|b| {
+                            if let (Ok(price), Ok(quantity)) =
+                                (Price::from_str(&b[0]), Quantity::from_str(&b[1]))
+                            {
+                                Some(OrderBookEntry { price, quantity })
+                            } else {
+                                None
+                            }
                         })
                         .collect();
+
                     let asks = depth
                         .asks
                         .into_iter()
-                        .map(|a| OrderBookEntry {
-                            price: a[0].clone(),
-                            quantity: a[1].clone(),
+                        .filter_map(|a| {
+                            if let (Ok(price), Ok(quantity)) =
+                                (Price::from_str(&a[0]), Quantity::from_str(&a[1]))
+                            {
+                                Some(OrderBookEntry { price, quantity })
+                            } else {
+                                None
+                            }
                         })
                         .collect();
 
                     return Some(MarketDataType::OrderBook(OrderBook {
-                        symbol: depth.symbol,
+                        symbol,
                         bids,
                         asks,
                         last_update_id: depth.final_update_id,
@@ -125,32 +171,54 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 if let Ok(trade) =
                     serde_json::from_value::<binance_types::BinanceWebSocketTrade>(data.clone())
                 {
-                    return Some(MarketDataType::Trade(Trade {
-                        symbol: trade.symbol,
-                        id: trade.id,
-                        price: trade.price,
-                        quantity: trade.quantity,
-                        time: trade.time,
-                        is_buyer_maker: trade.is_buyer_maker,
-                    }));
+                    if let (Ok(symbol), Ok(price), Ok(quantity)) = (
+                        Symbol::from_string(&trade.symbol),
+                        Price::from_str(&trade.price),
+                        Quantity::from_str(&trade.quantity),
+                    ) {
+                        return Some(MarketDataType::Trade(Trade {
+                            symbol,
+                            id: trade.id,
+                            price,
+                            quantity,
+                            time: trade.time,
+                            is_buyer_maker: trade.is_buyer_maker,
+                        }));
+                    }
                 }
             } else if stream.contains("@kline") {
                 if let Ok(kline_data) =
                     serde_json::from_value::<binance_types::BinanceWebSocketKline>(data.clone())
                 {
-                    return Some(MarketDataType::Kline(Kline {
-                        symbol: kline_data.symbol,
-                        open_time: kline_data.kline.open_time,
-                        close_time: kline_data.kline.close_time,
-                        interval: kline_data.kline.interval,
-                        open_price: kline_data.kline.open_price,
-                        high_price: kline_data.kline.high_price,
-                        low_price: kline_data.kline.low_price,
-                        close_price: kline_data.kline.close_price,
-                        volume: kline_data.kline.volume,
-                        number_of_trades: kline_data.kline.number_of_trades,
-                        final_bar: kline_data.kline.final_bar,
-                    }));
+                    if let (
+                        Ok(symbol),
+                        Ok(open_price),
+                        Ok(high_price),
+                        Ok(low_price),
+                        Ok(close_price),
+                        Ok(volume),
+                    ) = (
+                        Symbol::from_string(&kline_data.symbol),
+                        Price::from_str(&kline_data.kline.open_price),
+                        Price::from_str(&kline_data.kline.high_price),
+                        Price::from_str(&kline_data.kline.low_price),
+                        Price::from_str(&kline_data.kline.close_price),
+                        Volume::from_str(&kline_data.kline.volume),
+                    ) {
+                        return Some(MarketDataType::Kline(Kline {
+                            symbol,
+                            open_time: kline_data.kline.open_time,
+                            close_time: kline_data.kline.close_time,
+                            interval: kline_data.kline.interval,
+                            open_price,
+                            high_price,
+                            low_price,
+                            close_price,
+                            volume,
+                            number_of_trades: kline_data.kline.number_of_trades,
+                            final_bar: kline_data.kline.final_bar,
+                        }));
+                    }
                 }
             }
         }

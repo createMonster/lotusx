@@ -2,8 +2,8 @@ use crate::core::{
     errors::{ExchangeError, ResultExt},
     traits::{FundingRateSource, MarketDataSource},
     types::{
-        FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
-        WebSocketConfig,
+        conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, Price, Quantity,
+        SubscriptionType, Symbol, WebSocketConfig,
     },
 };
 use crate::exchanges::backpack::{
@@ -16,6 +16,7 @@ use crate::exchanges::backpack::{
 };
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
+use rust_decimal::Decimal;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 
@@ -47,10 +48,9 @@ impl MarketDataSource for BackpackConnector {
         Ok(markets
             .into_iter()
             .map(|m| Market {
-                symbol: crate::core::types::Symbol {
+                symbol: Symbol {
                     base: m.base_symbol,
                     quote: m.quote_symbol,
-                    symbol: m.symbol,
                 },
                 status: m.order_book_state,
                 base_precision: 8,  // Default precision
@@ -59,26 +59,30 @@ impl MarketDataSource for BackpackConnector {
                     .filters
                     .as_ref()
                     .and_then(|f| f.quantity.as_ref())
-                    .and_then(|q| q.min_quantity.clone())
-                    .or_else(|| Some("0".to_string())),
+                    .and_then(|q| q.min_quantity.as_ref())
+                    .map(|s| conversion::string_to_quantity(s))
+                    .or_else(|| Some(Quantity::new(Decimal::from(0)))),
                 max_qty: m
                     .filters
                     .as_ref()
                     .and_then(|f| f.quantity.as_ref())
-                    .and_then(|q| q.max_quantity.clone())
-                    .or_else(|| Some("999999999".to_string())),
+                    .and_then(|q| q.max_quantity.as_ref())
+                    .map(|s| conversion::string_to_quantity(s))
+                    .or_else(|| Some(Quantity::new(Decimal::from(999999999)))),
                 min_price: m
                     .filters
                     .as_ref()
                     .and_then(|f| f.price.as_ref())
-                    .and_then(|p| p.min_price.clone())
-                    .or_else(|| Some("0".to_string())),
+                    .and_then(|p| p.min_price.as_ref())
+                    .map(|s| conversion::string_to_price(s))
+                    .or_else(|| Some(Price::new(Decimal::from(0)))),
                 max_price: m
                     .filters
                     .as_ref()
                     .and_then(|f| f.price.as_ref())
-                    .and_then(|p| p.max_price.clone())
-                    .or_else(|| Some("999999999".to_string())),
+                    .and_then(|p| p.max_price.as_ref())
+                    .map(|s| conversion::string_to_price(s))
+                    .or_else(|| Some(Price::new(Decimal::from(999999999)))),
             })
             .collect())
     }
@@ -165,14 +169,14 @@ impl MarketDataSource for BackpackConnector {
                             let market_data = match ws_message {
                                 BackpackWebSocketMessage::Ticker(ticker) => {
                                     Some(MarketDataType::Ticker(crate::core::types::Ticker {
-                                        symbol: ticker.s,
-                                        price: ticker.c,
-                                        price_change: "0".to_string(),
-                                        price_change_percent: "0".to_string(),
-                                        high_price: ticker.h,
-                                        low_price: ticker.l,
-                                        volume: ticker.v,
-                                        quote_volume: ticker.V,
+                                        symbol: conversion::string_to_symbol(&ticker.s),
+                                        price: conversion::string_to_price(&ticker.c),
+                                        price_change: Price::new(Decimal::from(0)),
+                                        price_change_percent: Decimal::from(0),
+                                        high_price: conversion::string_to_price(&ticker.h),
+                                        low_price: conversion::string_to_price(&ticker.l),
+                                        volume: conversion::string_to_volume(&ticker.v),
+                                        quote_volume: conversion::string_to_volume(&ticker.V),
                                         open_time: 0,
                                         close_time: ticker.E,
                                         count: ticker.n,
@@ -180,21 +184,21 @@ impl MarketDataSource for BackpackConnector {
                                 }
                                 BackpackWebSocketMessage::OrderBook(orderbook) => {
                                     Some(MarketDataType::OrderBook(crate::core::types::OrderBook {
-                                        symbol: orderbook.s,
+                                        symbol: conversion::string_to_symbol(&orderbook.s),
                                         bids: orderbook
                                             .b
                                             .iter()
                                             .map(|b| crate::core::types::OrderBookEntry {
-                                                price: b[0].clone(),
-                                                quantity: b[1].clone(),
+                                                price: conversion::string_to_price(&b[0]),
+                                                quantity: conversion::string_to_quantity(&b[1]),
                                             })
                                             .collect(),
                                         asks: orderbook
                                             .a
                                             .iter()
                                             .map(|a| crate::core::types::OrderBookEntry {
-                                                price: a[0].clone(),
-                                                quantity: a[1].clone(),
+                                                price: conversion::string_to_price(&a[0]),
+                                                quantity: conversion::string_to_quantity(&a[1]),
                                             })
                                             .collect(),
                                         last_update_id: orderbook.u,
@@ -202,25 +206,25 @@ impl MarketDataSource for BackpackConnector {
                                 }
                                 BackpackWebSocketMessage::Trade(trade) => {
                                     Some(MarketDataType::Trade(crate::core::types::Trade {
-                                        symbol: trade.s,
+                                        symbol: conversion::string_to_symbol(&trade.s),
                                         id: trade.t,
-                                        price: trade.p,
-                                        quantity: trade.q,
+                                        price: conversion::string_to_price(&trade.p),
+                                        quantity: conversion::string_to_quantity(&trade.q),
                                         time: trade.T,
                                         is_buyer_maker: trade.m,
                                     }))
                                 }
                                 BackpackWebSocketMessage::Kline(kline) => {
                                     Some(MarketDataType::Kline(crate::core::types::Kline {
-                                        symbol: kline.s,
+                                        symbol: conversion::string_to_symbol(&kline.s),
                                         open_time: kline.t,
                                         close_time: kline.T,
                                         interval: "1m".to_string(),
-                                        open_price: kline.o,
-                                        high_price: kline.h,
-                                        low_price: kline.l,
-                                        close_price: kline.c,
-                                        volume: kline.v,
+                                        open_price: conversion::string_to_price(&kline.o),
+                                        high_price: conversion::string_to_price(&kline.h),
+                                        low_price: conversion::string_to_price(&kline.l),
+                                        close_price: conversion::string_to_price(&kline.c),
+                                        volume: conversion::string_to_volume(&kline.v),
                                         number_of_trades: kline.n,
                                         final_bar: kline.X,
                                     }))
@@ -314,15 +318,15 @@ impl MarketDataSource for BackpackConnector {
         let klines = klines_data
             .into_iter()
             .map(|kline| Kline {
-                symbol: symbol.clone(),
+                symbol: conversion::string_to_symbol(&symbol),
                 open_time: kline.start.parse().unwrap_or(0),
                 close_time: kline.end.parse().unwrap_or(0),
                 interval: interval_str.clone(),
-                open_price: kline.open,
-                high_price: kline.high,
-                low_price: kline.low,
-                close_price: kline.close,
-                volume: kline.volume,
+                open_price: conversion::string_to_price(&kline.open),
+                high_price: conversion::string_to_price(&kline.high),
+                low_price: conversion::string_to_price(&kline.low),
+                close_price: conversion::string_to_price(&kline.close),
+                volume: conversion::string_to_volume(&kline.volume),
                 number_of_trades: kline.trades.parse().unwrap_or(0),
                 final_bar: true,
             })
@@ -367,14 +371,14 @@ impl BackpackConnector {
         })?;
 
         Ok(crate::core::types::Ticker {
-            symbol: ticker.symbol,
-            price: ticker.last_price,
-            price_change: ticker.price_change,
-            price_change_percent: ticker.price_change_percent,
-            high_price: ticker.high,
-            low_price: ticker.low,
-            volume: ticker.volume,
-            quote_volume: ticker.quote_volume,
+            symbol: conversion::string_to_symbol(&ticker.symbol),
+            price: conversion::string_to_price(&ticker.last_price),
+            price_change: conversion::string_to_price(&ticker.price_change),
+            price_change_percent: conversion::string_to_decimal(&ticker.price_change_percent),
+            high_price: conversion::string_to_price(&ticker.high),
+            low_price: conversion::string_to_price(&ticker.low),
+            volume: conversion::string_to_volume(&ticker.volume),
+            quote_volume: conversion::string_to_volume(&ticker.quote_volume),
             open_time: 0,  // Not provided by Backpack API
             close_time: 0, // Not provided by Backpack API
             count: ticker.trades.parse().unwrap_or(0),
@@ -416,21 +420,21 @@ impl BackpackConnector {
         })?;
 
         Ok(crate::core::types::OrderBook {
-            symbol: symbol.to_string(),
+            symbol: conversion::string_to_symbol(symbol),
             bids: depth
                 .bids
                 .iter()
                 .map(|b| crate::core::types::OrderBookEntry {
-                    price: b[0].clone(),
-                    quantity: b[1].clone(),
+                    price: conversion::string_to_price(&b[0]),
+                    quantity: conversion::string_to_quantity(&b[1]),
                 })
                 .collect(),
             asks: depth
                 .asks
                 .iter()
                 .map(|a| crate::core::types::OrderBookEntry {
-                    price: a[0].clone(),
-                    quantity: a[1].clone(),
+                    price: conversion::string_to_price(&a[0]),
+                    quantity: conversion::string_to_quantity(&a[1]),
                 })
                 .collect(),
             last_update_id: depth.last_update_id.parse().unwrap_or(0),
@@ -480,10 +484,10 @@ impl BackpackConnector {
         Ok(trades
             .into_iter()
             .map(|trade| crate::core::types::Trade {
-                symbol: symbol.to_string(),
+                symbol: conversion::string_to_symbol(symbol),
                 id: trade.id,
-                price: trade.price,
-                quantity: trade.quantity,
+                price: conversion::string_to_price(&trade.price),
+                quantity: conversion::string_to_quantity(&trade.quantity),
                 time: trade.timestamp,
                 is_buyer_maker: trade.is_buyer_maker,
             })
@@ -577,8 +581,8 @@ impl FundingRateSource for BackpackConnector {
         let mut result = Vec::with_capacity(funding_rates.len());
         for rate in funding_rates {
             result.push(FundingRate {
-                symbol: rate.symbol,
-                funding_rate: Some(rate.funding_rate),
+                symbol: conversion::string_to_symbol(&rate.symbol),
+                funding_rate: Some(conversion::string_to_decimal(&rate.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: Some(rate.funding_time),
@@ -601,11 +605,11 @@ impl FundingRateSource for BackpackConnector {
 
         // Filter for perpetual markets and get their funding rates
         for market in markets {
-            let symbol = &market.symbol.symbol;
+            let symbol = market.symbol.to_string();
 
             // Try to get funding rate for this symbol
             // Only perpetual futures will have funding rates
-            if let Ok(funding_rate) = self.get_single_funding_rate(symbol).await {
+            if let Ok(funding_rate) = self.get_single_funding_rate(&symbol).await {
                 funding_rates.push(funding_rate);
             }
             // Continue with other symbols even if one fails
@@ -646,14 +650,16 @@ impl BackpackConnector {
         })?;
 
         Ok(FundingRate {
-            symbol: mark_price.symbol,
-            funding_rate: Some(mark_price.estimated_funding_rate),
+            symbol: conversion::string_to_symbol(&mark_price.symbol),
+            funding_rate: Some(conversion::string_to_decimal(
+                &mark_price.estimated_funding_rate,
+            )),
             previous_funding_rate: None,
             next_funding_rate: None,
             funding_time: None,
             next_funding_time: Some(mark_price.next_funding_time),
-            mark_price: Some(mark_price.mark_price),
-            index_price: Some(mark_price.index_price),
+            mark_price: Some(conversion::string_to_price(&mark_price.mark_price)),
+            index_price: Some(conversion::string_to_price(&mark_price.index_price)),
             timestamp: chrono::Utc::now().timestamp_millis(),
         })
     }

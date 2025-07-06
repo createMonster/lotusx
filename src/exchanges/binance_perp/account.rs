@@ -2,7 +2,7 @@ use super::client::BinancePerpConnector;
 use super::types::{self as binance_perp_types, BinancePerpError};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, PositionSide};
+use crate::core::types::{conversion, Balance, Position, PositionSide};
 use crate::exchanges::binance::auth; // Reuse auth from spot Binance
 use async_trait::async_trait;
 use tracing::{error, instrument};
@@ -147,8 +147,8 @@ impl BinancePerpConnector {
                 if available > 0.0 || balance_amt > 0.0 {
                     Some(Balance {
                         asset: balance.asset,
-                        free: balance.available_balance,
-                        locked: balance.balance,
+                        free: conversion::string_to_quantity(&balance.available_balance),
+                        locked: conversion::string_to_quantity(&balance.balance),
                     })
                 } else {
                     None
@@ -209,13 +209,15 @@ impl BinancePerpConnector {
                     };
 
                     Some(Position {
-                        symbol: pos.symbol,
+                        symbol: conversion::string_to_symbol(&pos.symbol),
                         position_side,
-                        entry_price: pos.entry_price,
-                        position_amount: pos.position_amt,
-                        unrealized_pnl: pos.un_realized_pnl,
-                        liquidation_price: Some(pos.liquidation_price),
-                        leverage: pos.leverage,
+                        entry_price: conversion::string_to_price(&pos.entry_price),
+                        position_amount: conversion::string_to_quantity(&pos.position_amt),
+                        unrealized_pnl: conversion::string_to_decimal(&pos.un_realized_pnl),
+                        liquidation_price: Some(conversion::string_to_price(
+                            &pos.liquidation_price,
+                        )),
+                        leverage: conversion::string_to_decimal(&pos.leverage),
                     })
                 }
             })
