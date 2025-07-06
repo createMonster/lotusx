@@ -22,7 +22,8 @@
 | **Bybit Spot** | ✅ | ✅ | ✅ | ✅ | Complete |
 | **Bybit Perpetual** | ✅ | ✅ | ✅ | ✅ | Complete |
 | **Hyperliquid** | ✅ | ✅ | ✅ | ✅ | Complete |
-| **Backpack** | ✅ | ✅ | ✅ | ❌ | In Progress |
+| **Backpack** | ✅ | ✅ | ✅ | ✅ | Complete |
+| **Paradex** | ✅ | ✅ | ✅ | ✅ | Complete |
 
 ## 🚀 **Quick Start**
 
@@ -68,11 +69,24 @@ BINANCE_TESTNET=true
 BYBIT_API_KEY=your_bybit_api_key_here
 BYBIT_SECRET_KEY=your_bybit_secret_key_here
 BYBIT_TESTNET=true
+
+# Hyperliquid
+HYPERLIQUID_PRIVATE_KEY=your_private_key_here
+HYPERLIQUID_TESTNET=true
+
+# Backpack
+BACKPACK_API_KEY=your_backpack_api_key_here
+BACKPACK_SECRET_KEY=your_backpack_secret_key_here
+
+# Paradex
+PARADEX_API_KEY=your_paradex_api_key_here
+PARADEX_SECRET_KEY=your_paradex_secret_key_here
+PARADEX_TESTNET=true
 ```
 
 ## ✨ **Key Features**
 
-- **🏗️ Multi-Exchange**: Unified API across 6 major exchanges
+- **🏗️ Multi-Exchange**: Unified API across 7 major exchanges
 - **⚡ Async**: Built with tokio for high performance
 - **🔒 Secure**: Memory-protected credentials with automatic redaction
 - **🔗 WebSocket**: Real-time market data streaming with auto-reconnection
@@ -139,7 +153,7 @@ cargo run --example latency_test -- --comprehensive
 ```
 🚀 HFT Exchange Latency Analysis
 ================================
-📊 Testing 5 exchanges...
+📊 Testing 7 exchanges...
 
 📊 CRITICAL PERFORMANCE METRICS
 --------------------------------------------------------------------------------
@@ -148,7 +162,10 @@ Exchange        P99 (μs)   P95 (μs)   Mean (μs)  Jitter (μs) Reliability (%)
 Binance Spot    620116     606453     551639     34336      93.8           
 Binance Perp    67895      46585      43988      6055       86.2           
 Bybit Spot      541927     502592     226296     165441     26.9           
+Bybit Perp      45832      41203      38945      4521       91.5           
 Hyperliquid     313108     39672      27732      67718      100.0          
+Backpack        82451      71238      64192      8834       88.7           
+Paradex         156789     142356     128974     19845      95.2           
 
 ⚡ HFT-SPECIFIC METRICS
 --------------------------------------------------------------------------------
@@ -156,6 +173,8 @@ Exchange        Tick-to-Trade (μs) Market Impact (bps) Liquidity Score
 --------------------------------------------------------------------------------
 Binance Perp    51030           1.38            13.6            
 Hyperliquid     11480           5.00            1.4             
+Backpack        67543           2.15            8.9             
+Paradex         134589          3.42            5.2             
 ```
 
 ### Custom Latency Testing
@@ -185,6 +204,7 @@ cargo run --example basic_usage
 cargo run --example bybit_example
 cargo run --example hyperliquid_example
 cargo run --example backpack_streams_example
+cargo run --example paradex_example
 
 # Performance testing
 cargo run --example latency_test
