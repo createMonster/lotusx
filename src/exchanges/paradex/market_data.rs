@@ -323,8 +323,8 @@ impl FundingRateSource for ParadexConnector {
         let mut result = Vec::with_capacity(funding_rates.len());
         for rate in funding_rates {
             result.push(FundingRate {
-                symbol: rate.symbol,
-                funding_rate: Some(rate.funding_rate),
+                symbol: crate::core::types::conversion::string_to_symbol(&rate.symbol),
+                funding_rate: Some(crate::core::types::conversion::string_to_decimal(&rate.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: Some(rate.funding_time),
@@ -377,14 +377,14 @@ impl ParadexConnector {
         })?;
 
         Ok(FundingRate {
-            symbol: funding_rate.symbol,
-            funding_rate: Some(funding_rate.funding_rate),
+            symbol: crate::core::types::conversion::string_to_symbol(&funding_rate.symbol),
+            funding_rate: Some(crate::core::types::conversion::string_to_decimal(&funding_rate.funding_rate)),
             previous_funding_rate: None,
             next_funding_rate: None,
             funding_time: None,
             next_funding_time: Some(funding_rate.next_funding_time),
-            mark_price: Some(funding_rate.mark_price),
-            index_price: Some(funding_rate.index_price),
+            mark_price: Some(crate::core::types::conversion::string_to_price(&funding_rate.mark_price)),
+            index_price: Some(crate::core::types::conversion::string_to_price(&funding_rate.index_price)),
             timestamp: funding_rate.timestamp,
         })
     }

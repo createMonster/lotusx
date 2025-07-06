@@ -294,8 +294,8 @@ impl FundingRateSource for BybitPerpConnector {
         let mut result = Vec::with_capacity(api_response.result.list.len());
         for rate_info in api_response.result.list {
             result.push(FundingRate {
-                symbol: rate_info.symbol,
-                funding_rate: Some(rate_info.funding_rate),
+                symbol: crate::core::types::conversion::string_to_symbol(&rate_info.symbol),
+                funding_rate: Some(crate::core::types::conversion::string_to_decimal(&rate_info.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: Some(rate_info.funding_rate_timestamp),
@@ -357,14 +357,14 @@ impl BybitPerpConnector {
                     });
 
                 Ok(FundingRate {
-                    symbol: ticker_info.symbol.clone(),
-                    funding_rate: Some(ticker_info.funding_rate.clone()),
+                    symbol: crate::core::types::conversion::string_to_symbol(&ticker_info.symbol),
+                    funding_rate: Some(crate::core::types::conversion::string_to_decimal(&ticker_info.funding_rate)),
                     previous_funding_rate: None,
                     next_funding_rate: None,
                     funding_time: None,
                     next_funding_time: Some(next_funding_time),
-                    mark_price: Some(ticker_info.mark_price.clone()),
-                    index_price: Some(ticker_info.index_price.clone()),
+                    mark_price: Some(crate::core::types::conversion::string_to_price(&ticker_info.mark_price)),
+                    index_price: Some(crate::core::types::conversion::string_to_price(&ticker_info.index_price)),
                     timestamp: chrono::Utc::now().timestamp_millis(),
                 })
             },
@@ -409,14 +409,14 @@ impl BybitPerpConnector {
                     });
 
             result.push(FundingRate {
-                symbol: ticker_info.symbol,
-                funding_rate: Some(ticker_info.funding_rate),
+                symbol: crate::core::types::conversion::string_to_symbol(&ticker_info.symbol),
+                funding_rate: Some(crate::core::types::conversion::string_to_decimal(&ticker_info.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: None,
                 next_funding_time: Some(next_funding_time),
-                mark_price: Some(ticker_info.mark_price),
-                index_price: Some(ticker_info.index_price),
+                mark_price: Some(crate::core::types::conversion::string_to_price(&ticker_info.mark_price)),
+                index_price: Some(crate::core::types::conversion::string_to_price(&ticker_info.index_price)),
                 timestamp: chrono::Utc::now().timestamp_millis(),
             });
         }

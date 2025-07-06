@@ -5,20 +5,14 @@ use crate::core::types::{
 use serde_json::Value;
 
 pub fn convert_bybit_market_to_symbol(bybit_market: &BybitMarket) -> Symbol {
-    Symbol {
-        symbol: bybit_market.symbol.clone(),
-        base: bybit_market.base_coin.clone(),
-        quote: bybit_market.quote_coin.clone(),
-    }
+    Symbol::new(bybit_market.base_coin.clone(), bybit_market.quote_coin.clone())
+        .unwrap_or_else(|_| crate::core::types::conversion::string_to_symbol(&bybit_market.symbol))
 }
 
 pub fn convert_bybit_market(bybit_market: BybitMarket) -> Market {
     Market {
-        symbol: Symbol {
-            base: bybit_market.base_coin,
-            quote: bybit_market.quote_coin,
-            symbol: bybit_market.symbol.clone(),
-        },
+        symbol: Symbol::new(bybit_market.base_coin, bybit_market.quote_coin)
+            .unwrap_or_else(|_| crate::core::types::conversion::string_to_symbol(&bybit_market.symbol)),
         status: bybit_market.status,
         base_precision: 8, // Default precision for spot markets
         quote_precision: 8,
@@ -63,16 +57,18 @@ pub fn convert_bybit_kline_to_kline(
     interval: String,
     bybit_kline: &BybitKlineData,
 ) -> Kline {
+    use crate::core::types::conversion;
+    
     Kline {
-        symbol,
+        symbol: conversion::string_to_symbol(&symbol),
         open_time: bybit_kline.start_time,
         close_time: bybit_kline.end_time,
         interval,
-        open_price: bybit_kline.open_price.clone(),
-        high_price: bybit_kline.high_price.clone(),
-        low_price: bybit_kline.low_price.clone(),
-        close_price: bybit_kline.close_price.clone(),
-        volume: bybit_kline.volume.clone(),
+        open_price: conversion::string_to_price(&bybit_kline.open_price),
+        high_price: conversion::string_to_price(&bybit_kline.high_price),
+        low_price: conversion::string_to_price(&bybit_kline.low_price),
+        close_price: conversion::string_to_price(&bybit_kline.close_price),
+        volume: conversion::string_to_volume(&bybit_kline.volume),
         number_of_trades: 0, // Bybit doesn't provide this
         final_bar: true,
     }

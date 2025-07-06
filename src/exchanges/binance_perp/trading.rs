@@ -3,7 +3,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types::{self as binance_perp_types, BinancePerpError};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
+use crate::core::types::{OrderRequest, OrderResponse, OrderType};
 use crate::exchanges::binance::auth; // Reuse auth from spot Binance
 use async_trait::async_trait;
 use tracing::{error, instrument};
@@ -79,7 +79,7 @@ impl OrderPlacer for BinancePerpConnector {
         .map_err(|e| {
             BinancePerpError::auth_error(
                 format!("Failed to sign order request: {}", e),
-                Some(order.symbol.clone()),
+                Some(order.symbol.to_string()),
             )
         })?;
 
@@ -202,18 +202,18 @@ impl BinancePerpConnector {
             response.json().await.map_err(|e| {
                 BinancePerpError::parse_error(
                     format!("Failed to parse order response: {}", e),
-                    Some(order.symbol.clone()),
+                    Some(order.symbol.to_string()),
                 )
             })?;
 
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
             client_order_id: binance_response.client_order_id,
-            symbol: binance_response.symbol,
+            symbol: crate::core::types::conversion::string_to_symbol(&binance_response.symbol),
             side: order.side.clone(),
             order_type: order.order_type.clone(),
-            quantity: binance_response.orig_qty,
-            price: Some(binance_response.price),
+            quantity: crate::core::types::conversion::string_to_quantity(&binance_response.orig_qty),
+            price: Some(crate::core::types::conversion::string_to_price(&binance_response.price)),
             status: binance_response.status,
             timestamp: binance_response.update_time,
         })

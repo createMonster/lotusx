@@ -29,11 +29,8 @@ pub fn convert_binance_perp_market(
     }
 
     Market {
-        symbol: Symbol {
-            base: binance_market.base_asset,
-            quote: binance_market.quote_asset,
-            symbol: binance_market.symbol,
-        },
+        symbol: Symbol::new(binance_market.base_asset, binance_market.quote_asset)
+            .unwrap_or_else(|_| crate::core::types::conversion::string_to_symbol(&binance_market.symbol)),
         status: binance_market.status,
         base_precision: binance_market.base_asset_precision,
         quote_precision: binance_market.quote_precision,

@@ -75,12 +75,12 @@ impl AccountInfo for BackpackConnector {
             })
             .map(|(asset, balance)| Balance {
                 asset,
-                free: balance.available,
+                free: crate::core::types::conversion::string_to_quantity(&balance.available),
                 locked: {
                     // Combine locked and staked for the locked field
                     let locked: f64 = balance.locked.parse().unwrap_or(0.0);
                     let staked: f64 = balance.staked.parse().unwrap_or(0.0);
-                    (locked + staked).to_string()
+                    crate::core::types::conversion::string_to_quantity(&(locked + staked).to_string())
                 },
             })
             .collect();
