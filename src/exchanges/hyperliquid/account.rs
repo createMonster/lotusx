@@ -2,7 +2,7 @@ use super::client::HyperliquidClient;
 use super::types::{InfoRequest, UserState};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, PositionSide};
+use crate::core::types::{Balance, Position, PositionSide, conversion};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -21,13 +21,13 @@ impl AccountInfo for HyperliquidClient {
         let balances = vec![
             Balance {
                 asset: "USDC".to_string(),
-                free: response.margin_summary.account_value,
-                locked: response.margin_summary.total_margin_used,
+                free: conversion::string_to_quantity(&response.margin_summary.account_value),
+                locked: conversion::string_to_quantity(&response.margin_summary.total_margin_used),
             },
             Balance {
                 asset: "USDC".to_string(),
-                free: response.withdrawable,
-                locked: "0".to_string(),
+                free: conversion::string_to_quantity(&response.withdrawable),
+                locked: conversion::string_to_quantity("0"),
             },
         ];
 
@@ -56,13 +56,13 @@ impl AccountInfo for HyperliquidClient {
                 };
 
                 Position {
-                    symbol: pos.position.coin,
+                    symbol: conversion::string_to_symbol(&pos.position.coin),
                     position_side,
-                    entry_price: pos.position.entry_px.unwrap_or_else(|| "0".to_string()),
-                    position_amount: pos.position.szi,
-                    unrealized_pnl: pos.position.unrealized_pnl,
+                    entry_price: conversion::string_to_price(&pos.position.entry_px.unwrap_or_else(|| "0".to_string())),
+                    position_amount: conversion::string_to_quantity(&pos.position.szi),
+                    unrealized_pnl: conversion::string_to_decimal(&pos.position.unrealized_pnl),
                     liquidation_price: None, // Not directly available in Hyperliquid response
-                    leverage: pos.position.leverage.value.to_string(),
+                    leverage: conversion::string_to_decimal(&pos.position.leverage.value.to_string()),
                 }
             })
             .collect();

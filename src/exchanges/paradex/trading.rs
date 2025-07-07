@@ -155,7 +155,9 @@ impl ParadexConnector {
             side: order.side.clone(),
             order_type: order.order_type.clone(),
             quantity: crate::core::types::conversion::string_to_quantity(&paradex_response.size),
-            price: Some(crate::core::types::conversion::string_to_price(&paradex_response.price)),
+            price: Some(crate::core::types::conversion::string_to_price(
+                &paradex_response.price,
+            )),
             status: paradex_response.status,
             timestamp: chrono::DateTime::parse_from_rfc3339(&paradex_response.created_at)
                 .unwrap_or_else(|_| chrono::Utc::now().into())

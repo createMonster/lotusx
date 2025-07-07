@@ -1,7 +1,7 @@
 use crate::core::{
     errors::{ExchangeError, ResultExt},
     traits::OrderPlacer,
-    types::{OrderRequest, OrderResponse, conversion},
+    types::{conversion, OrderRequest, OrderResponse},
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,
@@ -64,7 +64,10 @@ impl OrderPlacer for BackpackConnector {
         // Create signed headers for the order request
         let instruction = "order";
         let params = serde_json::to_string(&backpack_order).with_exchange_context(|| {
-            format!("Failed to serialize order for symbol {}", order.symbol.to_string())
+            format!(
+                "Failed to serialize order for symbol {}",
+                order.symbol.to_string()
+            )
         })?;
 
         let headers = self
@@ -88,7 +91,8 @@ impl OrderPlacer for BackpackConnector {
             .with_exchange_context(|| {
                 format!(
                     "Failed to send order request: url={}, symbol={}",
-                    url, order.symbol.to_string()
+                    url,
+                    order.symbol.to_string()
                 )
             })?;
 
@@ -101,7 +105,10 @@ impl OrderPlacer for BackpackConnector {
 
         let api_response: BackpackApiResponse<BackpackOrderResponse> =
             response.json().await.with_exchange_context(|| {
-                format!("Failed to parse order response for symbol {}", order.symbol.to_string())
+                format!(
+                    "Failed to parse order response for symbol {}",
+                    order.symbol.to_string()
+                )
             })?;
 
         if !api_response.success {
@@ -145,7 +152,9 @@ impl OrderPlacer for BackpackConnector {
                 }
             },
             quantity: conversion::string_to_quantity(&backpack_response.quantity),
-            price: backpack_response.price.map(|p| conversion::string_to_price(&p)),
+            price: backpack_response
+                .price
+                .map(|p| conversion::string_to_price(&p)),
             status: backpack_response.status,
             timestamp: backpack_response.timestamp,
         })

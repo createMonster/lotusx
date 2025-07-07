@@ -8,7 +8,7 @@ use crate::exchanges::paradex::types::{
 impl From<ParadexMarket> for Market {
     fn from(market: ParadexMarket) -> Self {
         use crate::core::types::conversion;
-        
+
         Self {
             symbol: Symbol::new(market.base_asset.symbol, market.quote_asset.symbol)
                 .unwrap_or_else(|_| conversion::string_to_symbol(&market.symbol)),
@@ -26,7 +26,7 @@ impl From<ParadexMarket> for Market {
 impl From<ParadexOrder> for OrderResponse {
     fn from(order: ParadexOrder) -> Self {
         use crate::core::types::conversion;
-        
+
         Self {
             order_id: order.id,
             client_order_id: order.client_id,
@@ -57,7 +57,7 @@ impl From<ParadexOrder> for OrderResponse {
 impl From<ParadexPosition> for Position {
     fn from(position: ParadexPosition) -> Self {
         use crate::core::types::conversion;
-        
+
         Self {
             symbol: conversion::string_to_symbol(&position.market),
             position_side: if position.side == "LONG" {
@@ -68,7 +68,9 @@ impl From<ParadexPosition> for Position {
             entry_price: conversion::string_to_price(&position.average_entry_price),
             position_amount: conversion::string_to_quantity(&position.size),
             unrealized_pnl: conversion::string_to_decimal(&position.unrealized_pnl),
-            liquidation_price: position.liquidation_price.map(|p| conversion::string_to_price(&p)),
+            liquidation_price: position
+                .liquidation_price
+                .map(|p| conversion::string_to_price(&p)),
             leverage: conversion::string_to_decimal(&position.leverage),
         }
     }
@@ -77,7 +79,7 @@ impl From<ParadexPosition> for Position {
 impl From<ParadexBalance> for Balance {
     fn from(balance: ParadexBalance) -> Self {
         use crate::core::types::conversion;
-        
+
         Self {
             asset: balance.asset,
             free: conversion::string_to_quantity(&balance.available),

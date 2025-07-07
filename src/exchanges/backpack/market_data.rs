@@ -68,7 +68,7 @@ impl MarketDataSource for BackpackConnector {
                     .and_then(|f| f.quantity.as_ref())
                     .and_then(|q| q.max_quantity.as_ref())
                     .map(|s| conversion::string_to_quantity(s))
-                    .or_else(|| Some(Quantity::new(Decimal::from(999999999)))),
+                    .or_else(|| Some(Quantity::new(Decimal::from(999_999_999)))),
                 min_price: m
                     .filters
                     .as_ref()
@@ -82,7 +82,7 @@ impl MarketDataSource for BackpackConnector {
                     .and_then(|f| f.price.as_ref())
                     .and_then(|p| p.max_price.as_ref())
                     .map(|s| conversion::string_to_price(s))
-                    .or_else(|| Some(Price::new(Decimal::from(999999999)))),
+                    .or_else(|| Some(Price::new(Decimal::from(999_999_999)))),
             })
             .collect())
     }

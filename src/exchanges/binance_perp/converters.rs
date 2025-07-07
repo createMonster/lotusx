@@ -1,7 +1,7 @@
 use super::types as binance_perp_types;
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
-    TimeInForce, Trade, conversion,
+    conversion, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
+    Symbol, Ticker, TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -17,12 +17,24 @@ pub fn convert_binance_perp_market(
     for filter in &binance_market.filters {
         match filter.filter_type.as_str() {
             "LOT_SIZE" => {
-                min_qty = filter.min_qty.as_ref().map(|q| conversion::string_to_quantity(q));
-                max_qty = filter.max_qty.as_ref().map(|q| conversion::string_to_quantity(q));
+                min_qty = filter
+                    .min_qty
+                    .as_ref()
+                    .map(|q| conversion::string_to_quantity(q));
+                max_qty = filter
+                    .max_qty
+                    .as_ref()
+                    .map(|q| conversion::string_to_quantity(q));
             }
             "PRICE_FILTER" => {
-                min_price = filter.min_price.as_ref().map(|p| conversion::string_to_price(p));
-                max_price = filter.max_price.as_ref().map(|p| conversion::string_to_price(p));
+                min_price = filter
+                    .min_price
+                    .as_ref()
+                    .map(|p| conversion::string_to_price(p));
+                max_price = filter
+                    .max_price
+                    .as_ref()
+                    .map(|p| conversion::string_to_price(p));
             }
             _ => {}
         }
@@ -83,7 +95,9 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                         symbol: conversion::string_to_symbol(&ticker.symbol),
                         price: conversion::string_to_price(&ticker.price),
                         price_change: conversion::string_to_price(&ticker.price_change),
-                        price_change_percent: conversion::string_to_decimal(&ticker.price_change_percent),
+                        price_change_percent: conversion::string_to_decimal(
+                            &ticker.price_change_percent,
+                        ),
                         high_price: conversion::string_to_price(&ticker.high_price),
                         low_price: conversion::string_to_price(&ticker.low_price),
                         volume: conversion::string_to_volume(&ticker.volume),

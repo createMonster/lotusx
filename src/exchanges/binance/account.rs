@@ -3,7 +3,7 @@ use super::client::BinanceConnector;
 use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, conversion};
+use crate::core::types::{conversion, Balance, Position};
 use async_trait::async_trait;
 
 #[async_trait]

@@ -1,6 +1,6 @@
 use crate::core::types::{
-    Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, Position, PositionSide,
-    Symbol, Ticker, Trade, conversion,
+    conversion, Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, Position,
+    PositionSide, Symbol, Ticker, Trade,
 };
 use crate::exchanges::backpack::types::{
     BackpackBalance, BackpackMarket, BackpackOrderBook, BackpackPosition, BackpackRestKline,
@@ -44,7 +44,9 @@ pub fn convert_position(backpack_position: BackpackPosition) -> Position {
         entry_price: conversion::string_to_price(&backpack_position.entry_price),
         position_amount: conversion::string_to_quantity(&backpack_position.size),
         unrealized_pnl: conversion::string_to_decimal(&backpack_position.unrealized_pnl),
-        liquidation_price: Some(conversion::string_to_price(&backpack_position.liquidation_price)),
+        liquidation_price: Some(conversion::string_to_price(
+            &backpack_position.liquidation_price,
+        )),
         leverage: conversion::string_to_decimal(&backpack_position.leverage),
     }
 }

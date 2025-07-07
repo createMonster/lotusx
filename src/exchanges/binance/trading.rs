@@ -4,7 +4,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{OrderRequest, OrderResponse, OrderType, conversion};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -47,7 +47,8 @@ impl OrderPlacer for BinanceConnector {
                 .with_exchange_context(|| {
                     format!(
                         "Failed to sign order request: symbol={}, url={}",
-                        order.symbol.to_string(), url
+                        order.symbol.to_string(),
+                        url
                     )
                 })?;
         params.push(("signature", signature));
@@ -62,7 +63,8 @@ impl OrderPlacer for BinanceConnector {
             .with_exchange_context(|| {
                 format!(
                     "Failed to send order request: symbol={}, url={}",
-                    order.symbol.to_string(), url
+                    order.symbol.to_string(),
+                    url
                 )
             })?;
 
@@ -82,7 +84,10 @@ impl OrderPlacer for BinanceConnector {
 
         let binance_response: binance_types::BinanceOrderResponse =
             response.json().await.with_exchange_context(|| {
-                format!("Failed to parse order response: symbol={}", order.symbol.to_string())
+                format!(
+                    "Failed to parse order response: symbol={}",
+                    order.symbol.to_string()
+                )
             })?;
 
         Ok(OrderResponse {

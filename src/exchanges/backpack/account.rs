@@ -1,7 +1,7 @@
 use crate::core::{
     errors::{ExchangeError, ResultExt},
     traits::AccountInfo,
-    types::{Balance, Position, conversion},
+    types::{conversion, Balance, Position},
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,

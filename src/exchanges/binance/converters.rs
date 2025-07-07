@@ -1,7 +1,7 @@
 use super::types as binance_types;
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
-    Symbol, Ticker, TimeInForce, Trade, conversion,
+    conversion, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
+    Symbol, Ticker, TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -92,7 +92,8 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                     let symbol = conversion::string_to_symbol(&ticker.symbol);
                     let price = conversion::string_to_price(&ticker.price);
                     let price_change = conversion::string_to_price(&ticker.price_change);
-                    let price_change_percent = conversion::string_to_decimal(&ticker.price_change_percent);
+                    let price_change_percent =
+                        conversion::string_to_decimal(&ticker.price_change_percent);
                     let high_price = conversion::string_to_price(&ticker.high_price);
                     let low_price = conversion::string_to_price(&ticker.low_price);
                     let volume = conversion::string_to_volume(&ticker.volume);

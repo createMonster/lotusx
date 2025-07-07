@@ -1,10 +1,10 @@
 use super::client::BybitConnector;
 use super::converters::{convert_bybit_market, parse_websocket_message};
-use super::types::{self as bybit_types, BybitError, BybitResultExt};
+use super::types::{self as bybit_types, BybitResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig, conversion,
 };
 use crate::core::websocket::BybitWebSocketManager;
 use async_trait::async_trait;
@@ -14,8 +14,8 @@ use tracing::{instrument, warn};
 /// Helper to check API response status and convert to proper error
 #[cold]
 #[inline(never)]
-fn handle_api_response_error(ret_code: i32, ret_msg: String) -> BybitError {
-    BybitError::api_error(ret_code, ret_msg)
+fn handle_api_response_error(ret_code: i32, ret_msg: String) -> bybit_types::BybitError {
+    bybit_types::BybitError::api_error(ret_code, ret_msg)
 }
 
 #[async_trait]
@@ -191,16 +191,16 @@ impl MarketDataSource for BybitConnector {
                 let close_time = start_time + interval_ms;
 
                 Kline {
-                    symbol: symbol.clone(),
+                    symbol: conversion::string_to_symbol(&symbol),
                     open_time: start_time,
                     close_time,
-                    interval: interval_str.clone(),
-                    open_price: kline_vec.get(1).cloned().unwrap_or_else(|| "0".to_string()),
-                    high_price: kline_vec.get(2).cloned().unwrap_or_else(|| "0".to_string()),
-                    low_price: kline_vec.get(3).cloned().unwrap_or_else(|| "0".to_string()),
-                    close_price: kline_vec.get(4).cloned().unwrap_or_else(|| "0".to_string()),
-                    volume: kline_vec.get(5).cloned().unwrap_or_else(|| "0".to_string()),
-                    number_of_trades: 0, // Bybit doesn't provide this in kline endpoint
+                    interval: interval.to_bybit_format(),
+                    open_price: conversion::string_to_price(kline_vec.get(1).unwrap_or(&"0".to_string())),
+                    high_price: conversion::string_to_price(kline_vec.get(2).unwrap_or(&"0".to_string())),
+                    low_price: conversion::string_to_price(kline_vec.get(3).unwrap_or(&"0".to_string())),
+                    close_price: conversion::string_to_price(kline_vec.get(4).unwrap_or(&"0".to_string())),
+                    volume: conversion::string_to_volume(kline_vec.get(5).unwrap_or(&"0".to_string())),
+                    number_of_trades: 0,
                     final_bar: true,
                 }
             })

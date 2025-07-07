@@ -4,8 +4,7 @@ use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
-    WebSocketConfig, conversion,
+    conversion, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
