@@ -1,7 +1,7 @@
 use crate::core::{
     errors::{ExchangeError, ResultExt},
     traits::AccountInfo,
-    types::{Balance, Position},
+    types::{Balance, Position, conversion},
 };
 use crate::exchanges::backpack::{
     client::BackpackConnector,
@@ -75,12 +75,12 @@ impl AccountInfo for BackpackConnector {
             })
             .map(|(asset, balance)| Balance {
                 asset,
-                free: crate::core::types::conversion::string_to_quantity(&balance.available),
+                free: conversion::string_to_quantity(&balance.available),
                 locked: {
                     // Combine locked and staked for the locked field
                     let locked: f64 = balance.locked.parse().unwrap_or(0.0);
                     let staked: f64 = balance.staked.parse().unwrap_or(0.0);
-                    crate::core::types::conversion::string_to_quantity(&(locked + staked).to_string())
+                    conversion::string_to_quantity(&(locked + staked).to_string())
                 },
             })
             .collect();
@@ -136,17 +136,17 @@ impl AccountInfo for BackpackConnector {
                 };
 
                 Position {
-                    symbol: p.symbol,
+                    symbol: conversion::string_to_symbol(&p.symbol),
                     position_side,
-                    entry_price: p.entry_price,
-                    position_amount: p.net_quantity,
-                    unrealized_pnl: p.pnl_unrealized,
+                    entry_price: conversion::string_to_price(&p.entry_price),
+                    position_amount: conversion::string_to_quantity(&p.net_quantity),
+                    unrealized_pnl: conversion::string_to_decimal(&p.pnl_unrealized),
                     liquidation_price: if p.est_liquidation_price == "0" || p.est_liquidation_price.is_empty() {
                         None
                     } else {
-                        Some(p.est_liquidation_price)
+                        Some(conversion::string_to_price(&p.est_liquidation_price))
                     },
-                    leverage: "1".to_string(), // Default leverage, not provided by API
+                    leverage: conversion::string_to_decimal("1"), // Default leverage, not provided by API
                 }
             })
             .collect())
