@@ -83,7 +83,7 @@ pub mod validation {
     use lotusx::core::types::{Balance, Kline, Market, OrderResponse, Position};
 
     pub fn validate_market(market: &Market) -> Result<(), String> {
-        if market.symbol.symbol.is_empty() {
+        if market.symbol.to_string().is_empty() {
             return Err("Symbol should not be empty".to_string());
         }
         if market.symbol.base.is_empty() {
@@ -105,37 +105,37 @@ pub mod validation {
         if balance.asset.is_empty() {
             return Err("Asset should not be empty".to_string());
         }
-        if !super::utils::is_valid_non_negative_number(&balance.free) {
+        if !super::utils::is_valid_non_negative_number(&balance.free.to_string()) {
             return Err("Free balance should be a valid non-negative number".to_string());
         }
-        if !super::utils::is_valid_non_negative_number(&balance.locked) {
+        if !super::utils::is_valid_non_negative_number(&balance.locked.to_string()) {
             return Err("Locked balance should be a valid non-negative number".to_string());
         }
         Ok(())
     }
 
     pub fn validate_kline(kline: &Kline) -> Result<(), String> {
-        if kline.symbol.is_empty() {
+        if kline.symbol.to_string().is_empty() {
             return Err("Kline symbol should not be empty".to_string());
         }
-        if !super::utils::is_valid_positive_number(&kline.open_price) {
+        if !super::utils::is_valid_positive_number(&kline.open_price.to_string()) {
             return Err("Open price should be a valid positive number".to_string());
         }
-        if !super::utils::is_valid_positive_number(&kline.close_price) {
+        if !super::utils::is_valid_positive_number(&kline.close_price.to_string()) {
             return Err("Close price should be a valid positive number".to_string());
         }
-        if !super::utils::is_valid_positive_number(&kline.high_price) {
+        if !super::utils::is_valid_positive_number(&kline.high_price.to_string()) {
             return Err("High price should be a valid positive number".to_string());
         }
-        if !super::utils::is_valid_positive_number(&kline.low_price) {
+        if !super::utils::is_valid_positive_number(&kline.low_price.to_string()) {
             return Err("Low price should be a valid positive number".to_string());
         }
 
         // Validate price relationships
-        let open: f64 = kline.open_price.parse().unwrap();
-        let close: f64 = kline.close_price.parse().unwrap();
-        let high: f64 = kline.high_price.parse().unwrap();
-        let low: f64 = kline.low_price.parse().unwrap();
+        let open: f64 = kline.open_price.to_string().parse().unwrap();
+        let close: f64 = kline.close_price.to_string().parse().unwrap();
+        let high: f64 = kline.high_price.to_string().parse().unwrap();
+        let low: f64 = kline.low_price.to_string().parse().unwrap();
 
         if high < open || high < close || high < low {
             return Err("High price should be >= open, close, and low prices".to_string());
@@ -151,13 +151,13 @@ pub mod validation {
         if order.order_id.is_empty() {
             return Err("Order ID should not be empty".to_string());
         }
-        if order.symbol.is_empty() {
+        if order.symbol.to_string().is_empty() {
             return Err("Order symbol should not be empty".to_string());
         }
-        if order.quantity.is_empty() {
+        if order.quantity.to_string().is_empty() {
             return Err("Order quantity should not be empty".to_string());
         }
-        if !super::utils::is_valid_positive_number(&order.quantity) {
+        if !super::utils::is_valid_positive_number(&order.quantity.to_string()) {
             return Err("Order quantity should be a valid positive number".to_string());
         }
         if order.timestamp == 0 {
@@ -167,14 +167,14 @@ pub mod validation {
     }
 
     pub fn validate_position(position: &Position) -> Result<(), String> {
-        if position.symbol.is_empty() {
+        if position.symbol.to_string().is_empty() {
             return Err("Position symbol should not be empty".to_string());
         }
-        if !super::utils::is_valid_non_negative_number(&position.position_amount) {
+        if !super::utils::is_valid_non_negative_number(&position.position_amount.to_string()) {
             return Err("Position amount should be a valid non-negative number".to_string());
         }
-        if !position.entry_price.is_empty()
-            && !super::utils::is_valid_positive_number(&position.entry_price)
+        if !position.entry_price.to_string().is_empty()
+            && !super::utils::is_valid_positive_number(&position.entry_price.to_string())
         {
             return Err("Entry price should be a valid positive number".to_string());
         }

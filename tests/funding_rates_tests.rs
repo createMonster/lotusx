@@ -21,7 +21,7 @@ mod funding_rates_tests {
         );
         let rates = result.unwrap();
         assert_eq!(rates.len(), 1);
-        assert_eq!(rates[0].symbol, "BTCUSDT");
+        assert_eq!(rates[0].symbol.to_string(), "BTCUSDT");
         assert!(rates[0].funding_rate.is_some());
         assert!(rates[0].mark_price.is_some());
         assert!(rates[0].index_price.is_some());
@@ -124,7 +124,7 @@ mod funding_rates_tests {
                     match result {
                         Ok(rates) => {
                             assert_eq!(rates.len(), 1);
-                            assert_eq!(rates[0].symbol, "SOL_USDC");
+                            assert_eq!(rates[0].symbol.to_string(), "SOL_USDC");
                             assert!(rates[0].funding_rate.is_some());
                             assert!(rates[0].mark_price.is_some());
 
@@ -188,23 +188,30 @@ mod funding_rates_tests {
 
     #[tokio::test]
     async fn test_funding_rate_data_structure() {
-        use lotusx::core::types::FundingRate;
+        use lotusx::core::types::{conversion, FundingRate};
+        use rust_decimal::Decimal;
 
         let rate = FundingRate {
-            symbol: "BTCUSDT".to_string(),
-            funding_rate: Some("0.0001".to_string()),
-            previous_funding_rate: Some("0.00005".to_string()),
-            next_funding_rate: Some("0.00015".to_string()),
+            symbol: conversion::string_to_symbol("BTCUSDT"),
+            funding_rate: Some(Decimal::from_str_exact("0.0001").unwrap()),
+            previous_funding_rate: Some(Decimal::from_str_exact("0.00005").unwrap()),
+            next_funding_rate: Some(Decimal::from_str_exact("0.00015").unwrap()),
             funding_time: Some(1_699_876_800_000),
             next_funding_time: Some(1_699_905_600_000),
-            mark_price: Some("35000.0".to_string()),
-            index_price: Some("35001.0".to_string()),
+            mark_price: Some(conversion::string_to_price("35000.0")),
+            index_price: Some(conversion::string_to_price("35001.0")),
             timestamp: 1_699_876_800_000,
         };
 
-        assert_eq!(rate.symbol, "BTCUSDT");
-        assert_eq!(rate.funding_rate, Some("0.0001".to_string()));
-        assert_eq!(rate.mark_price, Some("35000.0".to_string()));
+        assert_eq!(rate.symbol.to_string(), "BTCUSDT");
+        assert_eq!(
+            rate.funding_rate,
+            Some(Decimal::from_str_exact("0.0001").unwrap())
+        );
+        assert_eq!(
+            rate.mark_price,
+            Some(conversion::string_to_price("35000.0"))
+        );
 
         println!("✅ Funding Rate Data Structure Test Passed");
     }
@@ -255,8 +262,8 @@ mod funding_rates_tests {
         let rates1 = result1.unwrap();
         let rates2 = result2.unwrap();
 
-        assert_eq!(rates1[0].symbol, "BTCUSDT");
-        assert_eq!(rates2[0].symbol, "ETHUSDT");
+        assert_eq!(rates1[0].symbol.to_string(), "BTCUSDT");
+        assert_eq!(rates2[0].symbol.to_string(), "ETHUSDT");
 
         println!("✅ Concurrent Funding Rate Requests Test Passed");
         println!("   BTC Rate: {:?}", rates1[0].funding_rate);
@@ -370,7 +377,7 @@ mod funding_rates_tests {
         match result {
             Ok(rates) => {
                 assert_eq!(rates.len(), 1);
-                assert_eq!(rates[0].symbol, "BTCUSDT");
+                assert_eq!(rates[0].symbol.to_string(), "BTCUSDT");
                 assert!(rates[0].funding_rate.is_some());
                 assert!(rates[0].mark_price.is_some());
                 assert!(rates[0].index_price.is_some());
@@ -513,7 +520,7 @@ mod funding_rates_tests {
         match result {
             Ok(rates) => {
                 assert_eq!(rates.len(), 1);
-                assert_eq!(rates[0].symbol, "BTC");
+                assert_eq!(rates[0].symbol.to_string(), "BTC");
                 assert!(rates[0].funding_rate.is_some());
                 assert!(rates[0].mark_price.is_some());
                 assert!(rates[0].index_price.is_some());

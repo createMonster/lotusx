@@ -62,7 +62,7 @@ mod bybit_spot_tests {
                 // Verify market structure
                 let first_market = &markets[0];
                 assert!(
-                    !first_market.symbol.symbol.is_empty(),
+                    !first_market.symbol.to_string().is_empty(),
                     "Symbol should not be empty"
                 );
                 assert!(
@@ -76,7 +76,7 @@ mod bybit_spot_tests {
 
                 println!(
                     "First market: {} ({}/{})",
-                    first_market.symbol.symbol, first_market.symbol.base, first_market.symbol.quote
+                    first_market.symbol, first_market.symbol.base, first_market.symbol.quote
                 );
             }
             Ok(Err(e)) => {
@@ -201,7 +201,7 @@ mod bybit_perp_tests {
                 // Verify market structure
                 let first_market = &markets[0];
                 assert!(
-                    !first_market.symbol.symbol.is_empty(),
+                    !first_market.symbol.to_string().is_empty(),
                     "Symbol should not be empty"
                 );
                 assert!(
@@ -215,7 +215,7 @@ mod bybit_perp_tests {
 
                 println!(
                     "First perpetual market: {} ({}/{})",
-                    first_market.symbol.symbol, first_market.symbol.base, first_market.symbol.quote
+                    first_market.symbol, first_market.symbol.base, first_market.symbol.quote
                 );
 
                 // Check if precision and limits are properly set
@@ -311,8 +311,8 @@ mod bybit_comprehensive_tests {
 
                 // Verify they return different types of markets
                 if !spot_markets.is_empty() && !perp_markets.is_empty() {
-                    println!("Spot example: {}", spot_markets[0].symbol.symbol);
-                    println!("Perp example: {}", perp_markets[0].symbol.symbol);
+                    println!("Spot example: {}", spot_markets[0].symbol);
+                    println!("Perp example: {}", perp_markets[0].symbol);
                 }
             }
             _ => {

@@ -38,16 +38,23 @@ impl Symbol {
 
     /// Create symbol from string like "BTCUSDT"  
     pub fn from_string(s: &str) -> Result<Self, TypesError> {
-        let base = s
-            .replace("USDT", "")
-            .replace("BTC", "")
-            .replace("ETH", "")
-            .replace("USD", "");
         match s {
-            s if s.ends_with("USDT") => Ok(Self::new(base, "USDT".to_string())?),
-            s if s.ends_with("BTC") => Ok(Self::new(base, "BTC".to_string())?),
-            s if s.ends_with("ETH") => Ok(Self::new(base, "ETH".to_string())?),
-            s if s.ends_with("USD") => Ok(Self::new(base, "USD".to_string())?),
+            s if s.ends_with("USDT") => {
+                let base = s.strip_suffix("USDT").unwrap_or("").to_string();
+                Ok(Self::new(base, "USDT".to_string())?)
+            }
+            s if s.ends_with("BTC") => {
+                let base = s.strip_suffix("BTC").unwrap_or("").to_string();
+                Ok(Self::new(base, "BTC".to_string())?)
+            }
+            s if s.ends_with("ETH") => {
+                let base = s.strip_suffix("ETH").unwrap_or("").to_string();
+                Ok(Self::new(base, "ETH".to_string())?)
+            }
+            s if s.ends_with("USD") && !s.ends_with("USDT") => {
+                let base = s.strip_suffix("USD").unwrap_or("").to_string();
+                Ok(Self::new(base, "USD".to_string())?)
+            }
             _ => Err(TypesError::InvalidSymbol(format!(
                 "Cannot parse symbol: {}",
                 s
