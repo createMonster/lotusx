@@ -3,7 +3,7 @@ use super::types::{HyperliquidError, InfoRequest};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
-    FundingRate, Kline, KlineInterval, Market, MarketDataType, Price, Quantity, SubscriptionType,
+    conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
     Symbol, WebSocketConfig,
 };
 use async_trait::async_trait;
@@ -37,10 +37,9 @@ impl MarketDataSource for HyperliquidClient {
                     status: "TRADING".to_string(),
                     base_precision: 8, // Default precision
                     quote_precision: 2,
-                    min_qty: Some(
-                        Quantity::from_str(&asset.sz_decimals.to_string())
-                            .unwrap_or(Quantity::new(Decimal::from(0))),
-                    ),
+                    min_qty: Some(conversion::string_to_quantity(
+                        &asset.sz_decimals.to_string(),
+                    )),
                     max_qty: None,
                     min_price: None,
                     max_price: None,
@@ -132,11 +131,16 @@ impl FundingRateSource for HyperliquidClient {
                 let mut result = Vec::with_capacity(funding_history.len());
                 for entry in funding_history {
                     result.push(FundingRate {
-                        symbol: Symbol::from_string(&entry.coin).unwrap_or(Symbol {
+                        symbol: Symbol::from_string(&entry.coin).unwrap_or_else(|_| Symbol {
                             base: entry.coin.clone(),
                             quote: "USD".to_string(),
                         }),
-                        funding_rate: Some(entry.funding_rate.parse().unwrap_or(Decimal::from(0))),
+                        funding_rate: Some(
+                            entry
+                                .funding_rate
+                                .parse()
+                                .unwrap_or_else(|_| Decimal::from(0)),
+                        ),
                         previous_funding_rate: None,
                         next_funding_rate: None,
                         funding_time: Some(i64::try_from(entry.time).unwrap_or(0)),
@@ -177,23 +181,19 @@ impl HyperliquidClient {
                     if asset.name == symbol {
                         if let Some(ctx) = response.asset_contexts.get(i) {
                             return Ok(FundingRate {
-                                symbol: Symbol::from_string(symbol).unwrap_or(Symbol {
+                                symbol: Symbol::from_string(symbol).unwrap_or_else(|_| Symbol {
                                     base: symbol.to_string(),
                                     quote: "USD".to_string(),
                                 }),
-                                funding_rate: Some(ctx.funding.parse().unwrap_or(Decimal::from(0))),
+                                funding_rate: Some(
+                                    ctx.funding.parse().unwrap_or_else(|_| Decimal::from(0)),
+                                ),
                                 previous_funding_rate: None,
                                 next_funding_rate: None,
                                 funding_time: None,
                                 next_funding_time: None,
-                                mark_price: Some(
-                                    Price::from_str(&ctx.mark_px)
-                                        .unwrap_or(Price::new(Decimal::from(0))),
-                                ),
-                                index_price: Some(
-                                    Price::from_str(&ctx.oracle_px)
-                                        .unwrap_or(Price::new(Decimal::from(0))),
-                                ),
+                                mark_price: Some(conversion::string_to_price(&ctx.mark_px)),
+                                index_price: Some(conversion::string_to_price(&ctx.oracle_px)),
                                 timestamp: chrono::Utc::now().timestamp_millis(),
                             });
                         }
@@ -235,23 +235,19 @@ impl HyperliquidClient {
                 for (i, asset) in response.universe.iter().enumerate() {
                     if let Some(ctx) = response.asset_contexts.get(i) {
                         result.push(FundingRate {
-                            symbol: Symbol::from_string(&asset.name).unwrap_or(Symbol {
+                            symbol: Symbol::from_string(&asset.name).unwrap_or_else(|_| Symbol {
                                 base: asset.name.clone(),
                                 quote: "USD".to_string(),
                             }),
-                            funding_rate: Some(ctx.funding.parse().unwrap_or(Decimal::from(0))),
+                            funding_rate: Some(
+                                ctx.funding.parse().unwrap_or_else(|_| Decimal::from(0)),
+                            ),
                             previous_funding_rate: None,
                             next_funding_rate: None,
                             funding_time: None,
                             next_funding_time: None,
-                            mark_price: Some(
-                                Price::from_str(&ctx.mark_px)
-                                    .unwrap_or(Price::new(Decimal::from(0))),
-                            ),
-                            index_price: Some(
-                                Price::from_str(&ctx.oracle_px)
-                                    .unwrap_or(Price::new(Decimal::from(0))),
-                            ),
+                            mark_price: Some(conversion::string_to_price(&ctx.mark_px)),
+                            index_price: Some(conversion::string_to_price(&ctx.oracle_px)),
                             timestamp: chrono::Utc::now().timestamp_millis(),
                         });
                     }

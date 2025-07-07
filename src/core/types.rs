@@ -26,80 +26,69 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    /// Create a new symbol with validation
-    pub fn new(base: impl Into<String>, quote: impl Into<String>) -> Result<Self, TypesError> {
-        let base = base.into();
-        let quote = quote.into();
-
+    /// Create a new symbol from base and quote assets
+    pub fn new(base: String, quote: String) -> Result<Self, TypesError> {
         if base.is_empty() || quote.is_empty() {
             return Err(TypesError::InvalidSymbol(
-                "Base and quote assets cannot be empty".to_string(),
+                "Base and quote cannot be empty".to_string(),
             ));
         }
-
-        Ok(Symbol { base, quote })
+        Ok(Self { base, quote })
     }
 
-    /// Create from symbol string like "BTCUSDT"
-    pub fn from_string(symbol: &str) -> Result<Self, TypesError> {
-        // This is a simplified parser - in practice, you'd need exchange-specific parsing
-        if symbol.len() < 6 {
-            return Err(TypesError::InvalidSymbol("Symbol too short".to_string()));
+    /// Create symbol from string like "BTCUSDT"  
+    pub fn from_string(s: &str) -> Result<Self, TypesError> {
+        let base = s
+            .replace("USDT", "")
+            .replace("BTC", "")
+            .replace("ETH", "")
+            .replace("USD", "");
+        match s {
+            s if s.ends_with("USDT") => Ok(Self::new(base, "USDT".to_string())?),
+            s if s.ends_with("BTC") => Ok(Self::new(base, "BTC".to_string())?),
+            s if s.ends_with("ETH") => Ok(Self::new(base, "ETH".to_string())?),
+            s if s.ends_with("USD") => Ok(Self::new(base, "USD".to_string())?),
+            _ => Err(TypesError::InvalidSymbol(format!(
+                "Cannot parse symbol: {}",
+                s
+            ))),
         }
-
-        // Common patterns for symbol separation
-        if symbol.ends_with("USDT") {
-            let base = symbol.strip_suffix("USDT").unwrap();
-            Ok(Symbol::new(base, "USDT")?)
-        } else if symbol.ends_with("BTC") {
-            let base = symbol.strip_suffix("BTC").unwrap();
-            Ok(Symbol::new(base, "BTC")?)
-        } else if symbol.ends_with("ETH") {
-            let base = symbol.strip_suffix("ETH").unwrap();
-            Ok(Symbol::new(base, "ETH")?)
-        } else if symbol.ends_with("USD") {
-            let base = symbol.strip_suffix("USD").unwrap();
-            Ok(Symbol::new(base, "USD")?)
-        } else {
-            Err(TypesError::InvalidSymbol(
-                "Unable to parse symbol".to_string(),
-            ))
-        }
-    }
-
-    /// Get the symbol string (base + quote)
-    pub fn to_string(&self) -> String {
-        format!("{}{}", self.base, self.quote)
     }
 
     /// Get as string reference for method calls expecting &str
     pub fn as_str(&self) -> String {
-        self.to_string()
+        format!("{}{}", self.base, self.quote)
     }
 }
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}/{}", self.base, self.quote)
+        write!(f, "{}{}", self.base, self.quote)
     }
 }
 
 /// Type-safe price representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Price(#[serde(with = "rust_decimal::serde::str")] pub Decimal);
+pub struct Price(Decimal);
 
 impl Price {
+    /// Create a new price
     pub fn new(value: Decimal) -> Self {
-        Price(value)
+        Self(value)
     }
 
-    pub fn from_str(s: &str) -> Result<Self, TypesError> {
-        Ok(Price(s.parse()?))
-    }
-
+    /// Get the decimal value
     pub fn value(&self) -> Decimal {
         self.0
+    }
+}
+
+impl std::str::FromStr for Price {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
     }
 }
 
@@ -109,28 +98,28 @@ impl fmt::Display for Price {
     }
 }
 
-impl Price {
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
-
 /// Type-safe quantity representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Quantity(#[serde(with = "rust_decimal::serde::str")] pub Decimal);
+pub struct Quantity(Decimal);
 
 impl Quantity {
+    /// Create a new quantity
     pub fn new(value: Decimal) -> Self {
-        Quantity(value)
+        Self(value)
     }
 
-    pub fn from_str(s: &str) -> Result<Self, TypesError> {
-        Ok(Quantity(s.parse()?))
-    }
-
+    /// Get the decimal value
     pub fn value(&self) -> Decimal {
         self.0
+    }
+}
+
+impl std::str::FromStr for Quantity {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
     }
 }
 
@@ -140,28 +129,28 @@ impl fmt::Display for Quantity {
     }
 }
 
-impl Quantity {
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
-
 /// Type-safe volume representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct Volume(#[serde(with = "rust_decimal::serde::str")] pub Decimal);
+pub struct Volume(Decimal);
 
 impl Volume {
+    /// Create a new volume
     pub fn new(value: Decimal) -> Self {
-        Volume(value)
+        Self(value)
     }
 
-    pub fn from_str(s: &str) -> Result<Self, TypesError> {
-        Ok(Volume(s.parse()?))
-    }
-
+    /// Get the decimal value
     pub fn value(&self) -> Decimal {
         self.0
+    }
+}
+
+impl std::str::FromStr for Volume {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
     }
 }
 
@@ -171,15 +160,10 @@ impl fmt::Display for Volume {
     }
 }
 
-impl Volume {
-    pub fn to_string(&self) -> String {
-        self.0.to_string()
-    }
-}
-
 /// HFT-compliant conversion helpers for safe type conversions
 pub mod conversion {
-    use super::*;
+    use super::{Decimal, Price, Quantity, Symbol, Volume};
+    use std::str::FromStr;
 
     /// Convert string to Symbol with fallback
     #[inline]

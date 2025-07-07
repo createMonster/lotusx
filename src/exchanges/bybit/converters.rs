@@ -1,7 +1,7 @@
 use super::types::{BybitKlineData, BybitMarket};
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderSide, OrderType, Symbol, Ticker, TimeInForce, Trade,
-    conversion,
+    conversion, Kline, Market, MarketDataType, OrderSide, OrderType, Symbol, Ticker, TimeInForce,
+    Trade,
 };
 use serde_json::Value;
 
@@ -92,43 +92,43 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                             ticker_data
                                 .get("lastPrice")
                                 .and_then(|p| p.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         price_change: conversion::string_to_price(
                             ticker_data
                                 .get("price24hChg")
                                 .and_then(|c| c.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         price_change_percent: conversion::string_to_decimal(
                             ticker_data
                                 .get("price24hPcnt")
                                 .and_then(|c| c.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         high_price: conversion::string_to_price(
                             ticker_data
                                 .get("highPrice24h")
                                 .and_then(|h| h.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         low_price: conversion::string_to_price(
                             ticker_data
                                 .get("lowPrice24h")
                                 .and_then(|l| l.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         volume: conversion::string_to_volume(
                             ticker_data
                                 .get("volume24h")
                                 .and_then(|v| v.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         quote_volume: conversion::string_to_volume(
                             ticker_data
                                 .get("turnover24h")
                                 .and_then(|q| q.as_str())
-                                .unwrap_or("0")
+                                .unwrap_or("0"),
                         ),
                         open_time: 0,
                         close_time: 0,
@@ -151,26 +151,16 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                                     .and_then(|s| s.parse::<i64>().ok())
                                     .unwrap_or(0),
                                 price: conversion::string_to_price(
-                                    trade_obj
-                                        .get("p")
-                                        .and_then(|p| p.as_str())
-                                        .unwrap_or("0")
+                                    trade_obj.get("p").and_then(|p| p.as_str()).unwrap_or("0"),
                                 ),
                                 quantity: conversion::string_to_quantity(
-                                    trade_obj
-                                        .get("v")
-                                        .and_then(|q| q.as_str())
-                                        .unwrap_or("0")
+                                    trade_obj.get("v").and_then(|q| q.as_str()).unwrap_or("0"),
                                 ),
-                                time: trade_obj
-                                    .get("T")
-                                    .and_then(|t| t.as_i64())
-                                    .unwrap_or(0),
+                                time: trade_obj.get("T").and_then(|t| t.as_i64()).unwrap_or(0),
                                 is_buyer_maker: trade_obj
                                     .get("S")
                                     .and_then(|s| s.as_str())
-                                    .map(|s| s == "Buy")
-                                    .unwrap_or(false),
+                                    .is_some_and(|s| s == "Buy"),
                             }));
                         }
                     }
@@ -197,36 +187,36 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                                         .get("end")
                                         .and_then(|t| t.as_i64())
                                         .unwrap_or(0),
-                                                                                                             interval,
+                                    interval,
                                     open_price: conversion::string_to_price(
                                         kline_obj
                                             .get("open")
                                             .and_then(|p| p.as_str())
-                                            .unwrap_or("0")
+                                            .unwrap_or("0"),
                                     ),
                                     high_price: conversion::string_to_price(
                                         kline_obj
                                             .get("high")
                                             .and_then(|p| p.as_str())
-                                            .unwrap_or("0")
+                                            .unwrap_or("0"),
                                     ),
                                     low_price: conversion::string_to_price(
                                         kline_obj
                                             .get("low")
                                             .and_then(|p| p.as_str())
-                                            .unwrap_or("0")
+                                            .unwrap_or("0"),
                                     ),
                                     close_price: conversion::string_to_price(
                                         kline_obj
                                             .get("close")
                                             .and_then(|p| p.as_str())
-                                            .unwrap_or("0")
+                                            .unwrap_or("0"),
                                     ),
                                     volume: conversion::string_to_volume(
                                         kline_obj
                                             .get("volume")
                                             .and_then(|v| v.as_str())
-                                            .unwrap_or("0")
+                                            .unwrap_or("0"),
                                     ),
                                     number_of_trades: 0,
                                     final_bar: true,

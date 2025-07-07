@@ -193,7 +193,7 @@ impl BinancePerpConnector {
             return Err(BinancePerpError::order_error(
                 status.as_u16() as i32,
                 error_text,
-                &order.symbol.to_string(),
+                order.symbol.to_string(),
             )
             .into());
         }

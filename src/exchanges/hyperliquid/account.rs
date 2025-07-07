@@ -2,7 +2,7 @@ use super::client::HyperliquidClient;
 use super::types::{InfoRequest, UserState};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, PositionSide, conversion};
+use crate::core::types::{conversion, Balance, Position, PositionSide};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -58,11 +58,15 @@ impl AccountInfo for HyperliquidClient {
                 Position {
                     symbol: conversion::string_to_symbol(&pos.position.coin),
                     position_side,
-                    entry_price: conversion::string_to_price(&pos.position.entry_px.unwrap_or_else(|| "0".to_string())),
+                    entry_price: conversion::string_to_price(
+                        &pos.position.entry_px.unwrap_or_else(|| "0".to_string()),
+                    ),
                     position_amount: conversion::string_to_quantity(&pos.position.szi),
                     unrealized_pnl: conversion::string_to_decimal(&pos.position.unrealized_pnl),
                     liquidation_price: None, // Not directly available in Hyperliquid response
-                    leverage: conversion::string_to_decimal(&pos.position.leverage.value.to_string()),
+                    leverage: conversion::string_to_decimal(
+                        &pos.position.leverage.value.to_string(),
+                    ),
                 }
             })
             .collect();

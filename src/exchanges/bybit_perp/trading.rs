@@ -3,7 +3,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types::{self as bybit_perp_types, BybitPerpError, BybitPerpResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{OrderRequest, OrderResponse, OrderType, conversion};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
 use crate::exchanges::bybit::auth; // Reuse auth from spot Bybit
 use async_trait::async_trait;
 use tracing::{error, instrument};
@@ -76,7 +76,11 @@ impl OrderPlacer for BybitPerpConnector {
             self.config.api_key(),
             timestamp,
         )
-        .with_position_context(&order.symbol.to_string(), &format!("{:?}", order.side), &order.quantity.to_string())?;
+        .with_position_context(
+            &order.symbol.to_string(),
+            &format!("{:?}", order.side),
+            &order.quantity.to_string(),
+        )?;
 
         let response = self
             .client
@@ -89,7 +93,11 @@ impl OrderPlacer for BybitPerpConnector {
             .body(body)
             .send()
             .await
-            .with_position_context(&order.symbol.to_string(), &format!("{:?}", order.side), &order.quantity.to_string())?;
+            .with_position_context(
+                &order.symbol.to_string(),
+                &format!("{:?}", order.side),
+                &order.quantity.to_string(),
+            )?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.with_position_context(
@@ -116,8 +124,12 @@ impl OrderPlacer for BybitPerpConnector {
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::Other(
-                handle_order_api_error(api_response.ret_code, api_response.ret_msg, &order.symbol.to_string())
-                    .to_string(),
+                handle_order_api_error(
+                    api_response.ret_code,
+                    api_response.ret_msg,
+                    &order.symbol.to_string(),
+                )
+                .to_string(),
             ));
         }
 

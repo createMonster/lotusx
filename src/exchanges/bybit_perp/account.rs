@@ -2,7 +2,7 @@ use super::client::BybitPerpConnector;
 use super::types as bybit_perp_types;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, PositionSide, conversion};
+use crate::core::types::{conversion, Balance, Position, PositionSide};
 use crate::exchanges::bybit::auth; // Reuse auth from spot Bybit
 use async_trait::async_trait;
 
@@ -163,7 +163,9 @@ impl AccountInfo for BybitPerpConnector {
                     entry_price: conversion::string_to_price(&position.entry_price),
                     position_amount: conversion::string_to_quantity(&position.size),
                     unrealized_pnl: conversion::string_to_decimal(&position.unrealised_pnl),
-                    liquidation_price: Some(conversion::string_to_price(&position.liquidation_price)),
+                    liquidation_price: Some(conversion::string_to_price(
+                        &position.liquidation_price,
+                    )),
                     leverage: conversion::string_to_decimal(&position.leverage),
                 }
             })

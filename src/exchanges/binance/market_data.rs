@@ -31,7 +31,7 @@ impl MarketDataSource for BinanceConnector {
             .into_iter()
             .map(convert_binance_market)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ExchangeError::Other(e))?;
+            .map_err(ExchangeError::Other)?;
 
         Ok(markets)
     }
@@ -157,7 +157,7 @@ impl MarketDataSource for BinanceConnector {
 
         let klines = klines_data
             .into_iter()
-            .filter_map(|kline_array| {
+            .map(|kline_array| {
                 // Binance returns k-lines as arrays, we need to parse them safely
                 let open_time = kline_array.first().and_then(|v| v.as_i64()).unwrap_or(0);
                 let open_price_str = kline_array.get(1).and_then(|v| v.as_str()).unwrap_or("0");
@@ -175,7 +175,7 @@ impl MarketDataSource for BinanceConnector {
                 let close_price = conversion::string_to_price(close_price_str);
                 let volume = conversion::string_to_volume(volume_str);
 
-                Some(Kline {
+                Kline {
                     symbol: symbol_obj.clone(),
                     open_time,
                     close_time,
@@ -187,7 +187,7 @@ impl MarketDataSource for BinanceConnector {
                     volume,
                     number_of_trades,
                     final_bar: true, // Historical k-lines are always final
-                })
+                }
             })
             .collect();
 

@@ -1,8 +1,8 @@
 use super::client::HyperliquidClient;
 use crate::core::errors::ExchangeError;
 use crate::core::types::{
-    Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
-    WebSocketConfig, conversion,
+    conversion, Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
+    WebSocketConfig,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};

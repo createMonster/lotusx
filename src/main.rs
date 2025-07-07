@@ -17,10 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Found {} markets", markets.len());
             // Print first 5 markets as example
             for market in markets.iter().take(5) {
-                println!(
-                    "Market: {}, Status: {}",
-                    market.symbol.to_string(), market.status
-                );
+                println!("Market: {}, Status: {}", market.symbol, market.status);
             }
         }
         Err(e) => {

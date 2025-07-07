@@ -3,7 +3,7 @@ use super::client::BybitConnector;
 use super::types as bybit_types;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, conversion};
+use crate::core::types::{conversion, Balance, Position};
 use async_trait::async_trait;
 
 #[async_trait]

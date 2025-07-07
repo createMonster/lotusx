@@ -64,10 +64,7 @@ impl OrderPlacer for BackpackConnector {
         // Create signed headers for the order request
         let instruction = "order";
         let params = serde_json::to_string(&backpack_order).with_exchange_context(|| {
-            format!(
-                "Failed to serialize order for symbol {}",
-                order.symbol.to_string()
-            )
+            format!("Failed to serialize order for symbol {}", order.symbol)
         })?;
 
         let headers = self
@@ -75,7 +72,7 @@ impl OrderPlacer for BackpackConnector {
             .with_exchange_context(|| {
                 format!(
                     "Failed to create signed headers for order: symbol={}",
-                    order.symbol.to_string()
+                    order.symbol
                 )
             })?;
 
@@ -91,8 +88,7 @@ impl OrderPlacer for BackpackConnector {
             .with_exchange_context(|| {
                 format!(
                     "Failed to send order request: url={}, symbol={}",
-                    url,
-                    order.symbol.to_string()
+                    url, order.symbol
                 )
             })?;
 
@@ -105,10 +101,7 @@ impl OrderPlacer for BackpackConnector {
 
         let api_response: BackpackApiResponse<BackpackOrderResponse> =
             response.json().await.with_exchange_context(|| {
-                format!(
-                    "Failed to parse order response for symbol {}",
-                    order.symbol.to_string()
-                )
+                format!("Failed to parse order response for symbol {}", order.symbol)
             })?;
 
         if !api_response.success {

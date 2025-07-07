@@ -81,6 +81,7 @@ pub fn convert_time_in_force(tif: &TimeInForce) -> String {
 }
 
 /// Parse websocket message from binance
+#[allow(clippy::too_many_lines)]
 pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
     if let Some(stream) = value.get("stream").and_then(|s| s.as_str()) {
         if let Some(data) = value.get("data") {

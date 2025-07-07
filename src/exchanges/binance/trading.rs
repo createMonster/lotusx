@@ -47,8 +47,7 @@ impl OrderPlacer for BinanceConnector {
                 .with_exchange_context(|| {
                     format!(
                         "Failed to sign order request: symbol={}, url={}",
-                        order.symbol.to_string(),
-                        url
+                        order.symbol, url
                     )
                 })?;
         params.push(("signature", signature));
@@ -63,8 +62,7 @@ impl OrderPlacer for BinanceConnector {
             .with_exchange_context(|| {
                 format!(
                     "Failed to send order request: symbol={}, url={}",
-                    order.symbol.to_string(),
-                    url
+                    order.symbol, url
                 )
             })?;
 
@@ -73,7 +71,7 @@ impl OrderPlacer for BinanceConnector {
             let error_text = response.text().await.with_exchange_context(|| {
                 format!(
                     "Failed to read error response for order: symbol={}",
-                    order.symbol.to_string()
+                    order.symbol
                 )
             })?;
             return Err(ExchangeError::ApiError {
@@ -84,10 +82,7 @@ impl OrderPlacer for BinanceConnector {
 
         let binance_response: binance_types::BinanceOrderResponse =
             response.json().await.with_exchange_context(|| {
-                format!(
-                    "Failed to parse order response: symbol={}",
-                    order.symbol.to_string()
-                )
+                format!("Failed to parse order response: symbol={}", order.symbol)
             })?;
 
         Ok(OrderResponse {

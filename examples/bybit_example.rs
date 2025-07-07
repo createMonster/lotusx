@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "  {}. {} (Status: {}, Base: {}, Quote: {})",
                     i + 1,
-                    market.symbol.symbol,
+                    market.symbol,
                     market.status,
                     market.symbol.base,
                     market.symbol.quote
@@ -163,7 +163,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!(
                     "  {}. {} (Status: {}, Min Qty: {:?}, Max Qty: {:?})",
                     i + 1,
-                    market.symbol.symbol,
+                    market.symbol,
                     market.status,
                     market.min_qty,
                     market.max_qty

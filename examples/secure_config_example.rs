@@ -100,7 +100,7 @@ async fn demo_authenticated_operations(
 
             // Show a few examples
             for market in markets.iter().take(3) {
-                println!("      - {} ({})", market.symbol.symbol, market.status);
+                println!("      - {} ({})", market.symbol, market.status);
             }
         }
         Err(e) => {
@@ -129,13 +129,10 @@ async fn demo_public_operations(
             // Find some popular markets
             let popular_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT"];
             for symbol in &popular_symbols {
-                if let Some(market) = markets.iter().find(|m| m.symbol.symbol == *symbol) {
+                if let Some(market) = markets.iter().find(|m| m.symbol.to_string() == *symbol) {
                     println!(
                         "      📈 {}: {} (Precision: {}/{})",
-                        market.symbol.symbol,
-                        market.status,
-                        market.base_precision,
-                        market.quote_precision
+                        market.symbol, market.status, market.base_precision, market.quote_precision
                     );
                 }
             }

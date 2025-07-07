@@ -91,7 +91,7 @@ async fn test_connectivity(connector: &ParadexConnector) -> Result<(), Box<dyn s
         let sample_market = &markets[0];
         info!(
             "  📊 Sample market: {} (status: {})",
-            sample_market.symbol.symbol, sample_market.status
+            sample_market.symbol, sample_market.status
         );
     }
 
@@ -105,7 +105,7 @@ async fn test_market_data(connector: &ParadexConnector) -> Result<(), Box<dyn st
         return Ok(());
     }
 
-    let test_symbol = &markets[0].symbol.symbol;
+    let test_symbol = markets[0].symbol.to_string();
     info!("  📊 Testing market data for symbol: {}", test_symbol);
 
     // Test klines
@@ -153,7 +153,7 @@ async fn test_funding_rates(
     // Test single symbol funding rate
     let markets = connector.get_markets().await?;
     if !markets.is_empty() {
-        let test_symbol = &markets[0].symbol.symbol;
+        let test_symbol = markets[0].symbol.to_string();
         info!("  🎯 Fetching funding rate for {}", test_symbol);
         match connector
             .get_funding_rates(Some(vec![test_symbol.clone()]))
@@ -183,7 +183,7 @@ async fn test_websocket(connector: &ParadexConnector) -> Result<(), Box<dyn std:
         return Ok(());
     }
 
-    let test_symbol = markets[0].symbol.symbol.clone();
+    let test_symbol = markets[0].symbol.to_string();
     info!("  🔗 Starting WebSocket connection for {}", test_symbol);
 
     let subscription_types = vec![
@@ -304,16 +304,16 @@ async fn test_order_placement(
         return Ok(());
     }
 
-    let test_symbol = &markets[0].symbol.symbol;
+    let test_symbol = markets[0].symbol.to_string();
     warn!("  ⚠️  This will place a real order on {}", test_symbol);
 
     // Create a small test order (modify as needed)
     let order = OrderRequest {
-        symbol: test_symbol.clone(),
+        symbol: lotusx::core::types::conversion::string_to_symbol(&test_symbol),
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
-        quantity: "0.001".to_string(),  // Very small quantity
-        price: Some("1.0".to_string()), // Very low price (unlikely to fill)
+        quantity: lotusx::core::types::conversion::string_to_quantity("0.001"), // Very small quantity
+        price: Some(lotusx::core::types::conversion::string_to_price("1.0")), // Very low price (unlikely to fill)
         time_in_force: Some(lotusx::core::types::TimeInForce::GTC),
         stop_price: None,
     };

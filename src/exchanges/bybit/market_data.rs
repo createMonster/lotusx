@@ -4,7 +4,7 @@ use super::types::{self as bybit_types, BybitResultExt};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig, conversion,
+    conversion, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
 use crate::core::websocket::BybitWebSocketManager;
 use async_trait::async_trait;
@@ -195,11 +195,21 @@ impl MarketDataSource for BybitConnector {
                     open_time: start_time,
                     close_time,
                     interval: interval.to_bybit_format(),
-                    open_price: conversion::string_to_price(kline_vec.get(1).unwrap_or(&"0".to_string())),
-                    high_price: conversion::string_to_price(kline_vec.get(2).unwrap_or(&"0".to_string())),
-                    low_price: conversion::string_to_price(kline_vec.get(3).unwrap_or(&"0".to_string())),
-                    close_price: conversion::string_to_price(kline_vec.get(4).unwrap_or(&"0".to_string())),
-                    volume: conversion::string_to_volume(kline_vec.get(5).unwrap_or(&"0".to_string())),
+                    open_price: conversion::string_to_price(
+                        kline_vec.get(1).map_or("0", |s| s.as_str()),
+                    ),
+                    high_price: conversion::string_to_price(
+                        kline_vec.get(2).map_or("0", |s| s.as_str()),
+                    ),
+                    low_price: conversion::string_to_price(
+                        kline_vec.get(3).map_or("0", |s| s.as_str()),
+                    ),
+                    close_price: conversion::string_to_price(
+                        kline_vec.get(4).map_or("0", |s| s.as_str()),
+                    ),
+                    volume: conversion::string_to_volume(
+                        kline_vec.get(5).map_or("0", |s| s.as_str()),
+                    ),
                     number_of_trades: 0,
                     final_bar: true,
                 }
