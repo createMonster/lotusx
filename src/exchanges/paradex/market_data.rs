@@ -44,8 +44,6 @@ impl MarketDataSource for ParadexConnector {
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to read response text: {}", e)))?;
 
-        tracing::info!("Raw markets response: {}", response_text);
-
         // Try to parse as different formats
         if let Ok(markets_array) = serde_json::from_str::<Vec<ParadexMarket>>(&response_text) {
             Ok(markets_array.into_iter().map(Into::into).collect())
