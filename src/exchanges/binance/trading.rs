@@ -4,7 +4,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{OrderRequest, OrderResponse, OrderType};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -14,17 +14,17 @@ impl OrderPlacer for BinanceConnector {
         let timestamp = auth::get_timestamp()?;
 
         let mut params = vec![
-            ("symbol", order.symbol.clone()),
+            ("symbol", order.symbol.to_string()),
             ("side", convert_order_side(&order.side)),
             ("type", convert_order_type(&order.order_type)),
-            ("quantity", order.quantity.clone()),
+            ("quantity", order.quantity.to_string()),
             ("timestamp", timestamp.to_string()),
         ];
 
         // Add price for limit orders
         if matches!(order.order_type, OrderType::Limit) {
             if let Some(price) = &order.price {
-                params.push(("price", price.clone()));
+                params.push(("price", price.to_string()));
             }
         }
 
@@ -39,7 +39,7 @@ impl OrderPlacer for BinanceConnector {
 
         // Add stop price for stop orders
         if let Some(stop_price) = &order.stop_price {
-            params.push(("stopPrice", stop_price.clone()));
+            params.push(("stopPrice", stop_price.to_string()));
         }
 
         let signature =
@@ -88,11 +88,11 @@ impl OrderPlacer for BinanceConnector {
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
             client_order_id: binance_response.client_order_id,
-            symbol: binance_response.symbol,
+            symbol: conversion::string_to_symbol(&binance_response.symbol),
             side: order.side,
             order_type: order.order_type,
-            quantity: binance_response.quantity,
-            price: Some(binance_response.price),
+            quantity: conversion::string_to_quantity(&binance_response.quantity),
+            price: Some(conversion::string_to_price(&binance_response.price)),
             status: binance_response.status,
             timestamp: binance_response.timestamp.into(),
         })

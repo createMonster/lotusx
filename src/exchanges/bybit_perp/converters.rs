@@ -20,18 +20,25 @@ pub fn convert_bybit_perp_market(bybit_perp_market: bybit_perp_types::BybitPerpM
         .unwrap_or(3);
 
     Market {
-        symbol: Symbol {
-            base: bybit_perp_market.base_coin,
-            quote: bybit_perp_market.quote_coin,
-            symbol: bybit_perp_market.symbol,
-        },
+        symbol: Symbol::new(bybit_perp_market.base_coin, bybit_perp_market.quote_coin)
+            .unwrap_or_else(|_| {
+                crate::core::types::conversion::string_to_symbol(&bybit_perp_market.symbol)
+            }),
         status: bybit_perp_market.status,
         base_precision,
         quote_precision: price_precision,
-        min_qty: Some(bybit_perp_market.lot_size_filter.min_order_qty),
-        max_qty: Some(bybit_perp_market.lot_size_filter.max_order_qty),
-        min_price: Some(bybit_perp_market.price_filter.min_price),
-        max_price: Some(bybit_perp_market.price_filter.max_price),
+        min_qty: Some(crate::core::types::conversion::string_to_quantity(
+            &bybit_perp_market.lot_size_filter.min_order_qty,
+        )),
+        max_qty: Some(crate::core::types::conversion::string_to_quantity(
+            &bybit_perp_market.lot_size_filter.max_order_qty,
+        )),
+        min_price: Some(crate::core::types::conversion::string_to_price(
+            &bybit_perp_market.price_filter.min_price,
+        )),
+        max_price: Some(crate::core::types::conversion::string_to_price(
+            &bybit_perp_market.price_filter.max_price,
+        )),
     }
 }
 
@@ -70,16 +77,18 @@ pub fn convert_bybit_perp_kline(
     interval: String,
     bybit_perp_kline: bybit_perp_types::BybitPerpRestKline,
 ) -> Kline {
+    use crate::core::types::conversion;
+
     Kline {
-        symbol,
+        symbol: conversion::string_to_symbol(&symbol),
         open_time: bybit_perp_kline.start_time,
         close_time: bybit_perp_kline.end_time,
         interval,
-        open_price: bybit_perp_kline.open_price,
-        high_price: bybit_perp_kline.high_price,
-        low_price: bybit_perp_kline.low_price,
-        close_price: bybit_perp_kline.close_price,
-        volume: bybit_perp_kline.volume,
+        open_price: conversion::string_to_price(&bybit_perp_kline.open_price),
+        high_price: conversion::string_to_price(&bybit_perp_kline.high_price),
+        low_price: conversion::string_to_price(&bybit_perp_kline.low_price),
+        close_price: conversion::string_to_price(&bybit_perp_kline.close_price),
+        volume: conversion::string_to_volume(&bybit_perp_kline.volume),
         number_of_trades: 0, // Bybit doesn't provide this in REST API
         final_bar: true,
     }
@@ -95,15 +104,17 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         if let Ok(ticker) =
             serde_json::from_value::<bybit_perp_types::BybitPerpTickerData>(data.clone())
         {
+            use crate::core::types::conversion;
+
             return Some(MarketDataType::Ticker(Ticker {
-                symbol: ticker.symbol,
-                price: ticker.last_price,
-                price_change: "0".to_string(), // Not provided in Bybit ticker
-                price_change_percent: ticker.price_24h_pcnt,
-                high_price: ticker.high_price_24h,
-                low_price: ticker.low_price_24h,
-                volume: ticker.volume_24h,
-                quote_volume: ticker.turnover_24h,
+                symbol: conversion::string_to_symbol(&ticker.symbol),
+                price: conversion::string_to_price(&ticker.last_price),
+                price_change: conversion::string_to_price("0"), // Not provided in Bybit ticker
+                price_change_percent: conversion::string_to_decimal(&ticker.price_24h_pcnt),
+                high_price: conversion::string_to_price(&ticker.high_price_24h),
+                low_price: conversion::string_to_price(&ticker.low_price_24h),
+                volume: conversion::string_to_volume(&ticker.volume_24h),
+                quote_volume: conversion::string_to_volume(&ticker.turnover_24h),
                 open_time: 0,  // Not provided in Bybit ticker
                 close_time: 0, // Not provided in Bybit ticker
                 count: 0,      // Not provided in Bybit ticker
@@ -113,12 +124,14 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         if let Ok(orderbook) =
             serde_json::from_value::<bybit_perp_types::BybitPerpOrderBookData>(data.clone())
         {
+            use crate::core::types::conversion;
+
             let bids = orderbook
                 .bids
                 .into_iter()
                 .map(|[price, qty]| OrderBookEntry {
-                    price,
-                    quantity: qty,
+                    price: conversion::string_to_price(&price),
+                    quantity: conversion::string_to_quantity(&qty),
                 })
                 .collect();
 
@@ -126,13 +139,13 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 .asks
                 .into_iter()
                 .map(|[price, qty]| OrderBookEntry {
-                    price,
-                    quantity: qty,
+                    price: conversion::string_to_price(&price),
+                    quantity: conversion::string_to_quantity(&qty),
                 })
                 .collect();
 
             return Some(MarketDataType::OrderBook(OrderBook {
-                symbol: orderbook.symbol,
+                symbol: conversion::string_to_symbol(&orderbook.symbol),
                 bids,
                 asks,
                 last_update_id: orderbook.u,
@@ -142,11 +155,13 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         if let Ok(trade) =
             serde_json::from_value::<bybit_perp_types::BybitPerpTradeData>(data.clone())
         {
+            use crate::core::types::conversion;
+
             return Some(MarketDataType::Trade(Trade {
-                symbol: trade.symbol,
+                symbol: conversion::string_to_symbol(&trade.symbol),
                 id: trade.trade_id.parse().unwrap_or(0),
-                price: trade.price,
-                quantity: trade.size,
+                price: conversion::string_to_price(&trade.price),
+                quantity: conversion::string_to_quantity(&trade.size),
                 time: trade.trade_time_ms,
                 is_buyer_maker: trade.side == "Sell",
             }));
@@ -155,16 +170,18 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         if let Ok(kline) =
             serde_json::from_value::<bybit_perp_types::BybitPerpKlineData>(data.clone())
         {
+            use crate::core::types::conversion;
+
             return Some(MarketDataType::Kline(Kline {
-                symbol: String::new(), // Extract from topic
+                symbol: conversion::string_to_symbol(""), // Extract from topic
                 open_time: kline.start_time,
                 close_time: kline.end_time,
                 interval: kline.interval,
-                open_price: kline.open_price,
-                high_price: kline.high_price,
-                low_price: kline.low_price,
-                close_price: kline.close_price,
-                volume: kline.volume,
+                open_price: conversion::string_to_price(&kline.open_price),
+                high_price: conversion::string_to_price(&kline.high_price),
+                low_price: conversion::string_to_price(&kline.low_price),
+                close_price: conversion::string_to_price(&kline.close_price),
+                volume: conversion::string_to_volume(&kline.volume),
                 number_of_trades: 0, // Not provided in Bybit kline
                 final_bar: true,
             }));
@@ -175,11 +192,11 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
 }
 
 pub fn convert_bybit_perp_market_to_symbol(bybit_perp_market: &BybitPerpMarket) -> Symbol {
-    Symbol {
-        symbol: bybit_perp_market.symbol.clone(),
-        base: bybit_perp_market.base_coin.clone(),
-        quote: bybit_perp_market.quote_coin.clone(),
-    }
+    Symbol::new(
+        bybit_perp_market.base_coin.clone(),
+        bybit_perp_market.quote_coin.clone(),
+    )
+    .unwrap_or_else(|_| crate::core::types::conversion::string_to_symbol(&bybit_perp_market.symbol))
 }
 
 pub fn convert_bybit_perp_kline_to_kline(
@@ -187,16 +204,18 @@ pub fn convert_bybit_perp_kline_to_kline(
     interval: String,
     bybit_kline: &BybitPerpKlineData,
 ) -> Kline {
+    use crate::core::types::conversion;
+
     Kline {
-        symbol,
+        symbol: conversion::string_to_symbol(&symbol),
         open_time: bybit_kline.start_time,
         close_time: bybit_kline.end_time,
         interval,
-        open_price: bybit_kline.open_price.clone(),
-        high_price: bybit_kline.high_price.clone(),
-        low_price: bybit_kline.low_price.clone(),
-        close_price: bybit_kline.close_price.clone(),
-        volume: bybit_kline.volume.clone(),
+        open_price: conversion::string_to_price(&bybit_kline.open_price),
+        high_price: conversion::string_to_price(&bybit_kline.high_price),
+        low_price: conversion::string_to_price(&bybit_kline.low_price),
+        close_price: conversion::string_to_price(&bybit_kline.close_price),
+        volume: conversion::string_to_volume(&bybit_kline.volume),
         number_of_trades: 0, // Bybit doesn't provide this
         final_bar: true,
     }

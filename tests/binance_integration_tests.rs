@@ -62,7 +62,7 @@ mod binance_spot_tests {
                 // Verify market structure
                 let first_market = &markets[0];
                 assert!(
-                    !first_market.symbol.symbol.is_empty(),
+                    !first_market.symbol.to_string().is_empty(),
                     "Symbol should not be empty"
                 );
                 assert!(
@@ -76,7 +76,7 @@ mod binance_spot_tests {
 
                 println!(
                     "First market: {} ({}/{})",
-                    first_market.symbol.symbol, first_market.symbol.base, first_market.symbol.quote
+                    first_market.symbol, first_market.symbol.base, first_market.symbol.quote
                 );
 
                 // Check precision settings
@@ -143,19 +143,19 @@ mod binance_spot_tests {
 
                 let first_kline = &klines[0];
                 assert!(
-                    !first_kline.open_price.is_empty(),
+                    !first_kline.open_price.to_string().is_empty(),
                     "Open price should not be empty"
                 );
                 assert!(
-                    !first_kline.close_price.is_empty(),
+                    !first_kline.close_price.to_string().is_empty(),
                     "Close price should not be empty"
                 );
                 assert!(
-                    !first_kline.high_price.is_empty(),
+                    !first_kline.high_price.to_string().is_empty(),
                     "High price should not be empty"
                 );
                 assert!(
-                    !first_kline.low_price.is_empty(),
+                    !first_kline.low_price.to_string().is_empty(),
                     "Low price should not be empty"
                 );
 
@@ -225,8 +225,8 @@ mod binance_spot_tests {
                     let non_zero_balances: Vec<_> = balances
                         .iter()
                         .filter(|b| {
-                            b.free.parse::<f64>().unwrap_or(0.0) > 0.0
-                                || b.locked.parse::<f64>().unwrap_or(0.0) > 0.0
+                            b.free.to_string().parse::<f64>().unwrap_or(0.0) > 0.0
+                                || b.locked.to_string().parse::<f64>().unwrap_or(0.0) > 0.0
                         })
                         .collect();
 
@@ -276,7 +276,7 @@ mod binance_perp_tests {
                 // Verify market structure
                 let first_market = &markets[0];
                 assert!(
-                    !first_market.symbol.symbol.is_empty(),
+                    !first_market.symbol.to_string().is_empty(),
                     "Symbol should not be empty"
                 );
                 assert!(
@@ -290,7 +290,7 @@ mod binance_perp_tests {
 
                 println!(
                     "First perpetual market: {} ({}/{})",
-                    first_market.symbol.symbol, first_market.symbol.base, first_market.symbol.quote
+                    first_market.symbol, first_market.symbol.base, first_market.symbol.quote
                 );
 
                 // Check precision and limits
@@ -344,7 +344,14 @@ mod binance_perp_tests {
                     // Show non-zero positions
                     let active_positions: Vec<_> = positions
                         .iter()
-                        .filter(|p| p.position_amount.parse::<f64>().unwrap_or(0.0).abs() > 0.0)
+                        .filter(|p| {
+                            p.position_amount
+                                .to_string()
+                                .parse::<f64>()
+                                .unwrap_or(0.0)
+                                .abs()
+                                > 0.0
+                        })
                         .collect();
 
                     println!("Active positions: {}", active_positions.len());
@@ -407,8 +414,8 @@ mod binance_comprehensive_tests {
 
                 // Verify market symbol formats
                 if !spot_markets.is_empty() && !perp_markets.is_empty() {
-                    println!("Spot symbol example: {}", spot_markets[0].symbol.symbol);
-                    println!("Perp symbol example: {}", perp_markets[0].symbol.symbol);
+                    println!("Spot symbol example: {}", spot_markets[0].symbol);
+                    println!("Perp symbol example: {}", perp_markets[0].symbol);
                 }
             }
             _ => {
@@ -483,7 +490,7 @@ mod binance_comprehensive_tests {
                     "Quote currency should not be empty"
                 );
                 assert_eq!(
-                    market.symbol.symbol,
+                    market.symbol.to_string(),
                     format!("{}{}", market.symbol.base, market.symbol.quote),
                     "Symbol should be base+quote concatenation"
                 );
@@ -557,25 +564,31 @@ mod binance_comprehensive_tests {
             for (i, kline) in klines.iter().enumerate() {
                 // Validate kline data structure
                 assert!(
-                    !kline.open_price.is_empty(),
+                    !kline.open_price.to_string().is_empty(),
                     "Open price should not be empty"
                 );
                 assert!(
-                    !kline.close_price.is_empty(),
+                    !kline.close_price.to_string().is_empty(),
                     "Close price should not be empty"
                 );
                 assert!(
-                    !kline.high_price.is_empty(),
+                    !kline.high_price.to_string().is_empty(),
                     "High price should not be empty"
                 );
-                assert!(!kline.low_price.is_empty(), "Low price should not be empty");
-                assert!(!kline.volume.is_empty(), "Volume should not be empty");
+                assert!(
+                    !kline.low_price.to_string().is_empty(),
+                    "Low price should not be empty"
+                );
+                assert!(
+                    !kline.volume.to_string().is_empty(),
+                    "Volume should not be empty"
+                );
 
                 // Validate price relationships
-                let open: f64 = kline.open_price.parse().unwrap_or(0.0);
-                let close: f64 = kline.close_price.parse().unwrap_or(0.0);
-                let high: f64 = kline.high_price.parse().unwrap_or(0.0);
-                let low: f64 = kline.low_price.parse().unwrap_or(0.0);
+                let open: f64 = kline.open_price.to_string().parse().unwrap_or(0.0);
+                let close: f64 = kline.close_price.to_string().parse().unwrap_or(0.0);
+                let high: f64 = kline.high_price.to_string().parse().unwrap_or(0.0);
+                let low: f64 = kline.low_price.to_string().parse().unwrap_or(0.0);
 
                 assert!(
                     high >= open && high >= close && high >= low,

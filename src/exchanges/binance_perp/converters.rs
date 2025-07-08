@@ -1,7 +1,7 @@
 use super::types as binance_perp_types;
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
-    TimeInForce, Trade,
+    conversion, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
+    Symbol, Ticker, TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -17,23 +17,32 @@ pub fn convert_binance_perp_market(
     for filter in &binance_market.filters {
         match filter.filter_type.as_str() {
             "LOT_SIZE" => {
-                min_qty = filter.min_qty.clone();
-                max_qty = filter.max_qty.clone();
+                min_qty = filter
+                    .min_qty
+                    .as_ref()
+                    .map(|q| conversion::string_to_quantity(q));
+                max_qty = filter
+                    .max_qty
+                    .as_ref()
+                    .map(|q| conversion::string_to_quantity(q));
             }
             "PRICE_FILTER" => {
-                min_price = filter.min_price.clone();
-                max_price = filter.max_price.clone();
+                min_price = filter
+                    .min_price
+                    .as_ref()
+                    .map(|p| conversion::string_to_price(p));
+                max_price = filter
+                    .max_price
+                    .as_ref()
+                    .map(|p| conversion::string_to_price(p));
             }
             _ => {}
         }
     }
 
     Market {
-        symbol: Symbol {
-            base: binance_market.base_asset,
-            quote: binance_market.quote_asset,
-            symbol: binance_market.symbol,
-        },
+        symbol: Symbol::new(binance_market.base_asset, binance_market.quote_asset)
+            .unwrap_or_else(|_| conversion::string_to_symbol(&binance_market.symbol)),
         status: binance_market.status,
         base_precision: binance_market.base_asset_precision,
         quote_precision: binance_market.quote_precision,
@@ -83,14 +92,16 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 >(data.clone())
                 {
                     return Some(MarketDataType::Ticker(Ticker {
-                        symbol: ticker.symbol,
-                        price: ticker.price,
-                        price_change: ticker.price_change,
-                        price_change_percent: ticker.price_change_percent,
-                        high_price: ticker.high_price,
-                        low_price: ticker.low_price,
-                        volume: ticker.volume,
-                        quote_volume: ticker.quote_volume,
+                        symbol: conversion::string_to_symbol(&ticker.symbol),
+                        price: conversion::string_to_price(&ticker.price),
+                        price_change: conversion::string_to_price(&ticker.price_change),
+                        price_change_percent: conversion::string_to_decimal(
+                            &ticker.price_change_percent,
+                        ),
+                        high_price: conversion::string_to_price(&ticker.high_price),
+                        low_price: conversion::string_to_price(&ticker.low_price),
+                        volume: conversion::string_to_volume(&ticker.volume),
+                        quote_volume: conversion::string_to_volume(&ticker.quote_volume),
                         open_time: ticker.open_time,
                         close_time: ticker.close_time,
                         count: ticker.count,
@@ -105,21 +116,21 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                         .bids
                         .into_iter()
                         .map(|b| OrderBookEntry {
-                            price: b[0].clone(),
-                            quantity: b[1].clone(),
+                            price: conversion::string_to_price(&b[0]),
+                            quantity: conversion::string_to_quantity(&b[1]),
                         })
                         .collect();
                     let asks = depth
                         .asks
                         .into_iter()
                         .map(|a| OrderBookEntry {
-                            price: a[0].clone(),
-                            quantity: a[1].clone(),
+                            price: conversion::string_to_price(&a[0]),
+                            quantity: conversion::string_to_quantity(&a[1]),
                         })
                         .collect();
 
                     return Some(MarketDataType::OrderBook(OrderBook {
-                        symbol: depth.symbol,
+                        symbol: conversion::string_to_symbol(&depth.symbol),
                         bids,
                         asks,
                         last_update_id: depth.final_update_id,
@@ -131,10 +142,10 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 >(data.clone())
                 {
                     return Some(MarketDataType::Trade(Trade {
-                        symbol: trade.symbol,
+                        symbol: conversion::string_to_symbol(&trade.symbol),
                         id: trade.id,
-                        price: trade.price,
-                        quantity: trade.quantity,
+                        price: conversion::string_to_price(&trade.price),
+                        quantity: conversion::string_to_quantity(&trade.quantity),
                         time: trade.time,
                         is_buyer_maker: trade.is_buyer_maker,
                     }));
@@ -145,15 +156,15 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
                 >(data.clone())
                 {
                     return Some(MarketDataType::Kline(Kline {
-                        symbol: kline_data.symbol,
+                        symbol: conversion::string_to_symbol(&kline_data.symbol),
                         open_time: kline_data.kline.open_time,
                         close_time: kline_data.kline.close_time,
                         interval: kline_data.kline.interval,
-                        open_price: kline_data.kline.open_price,
-                        high_price: kline_data.kline.high_price,
-                        low_price: kline_data.kline.low_price,
-                        close_price: kline_data.kline.close_price,
-                        volume: kline_data.kline.volume,
+                        open_price: conversion::string_to_price(&kline_data.kline.open_price),
+                        high_price: conversion::string_to_price(&kline_data.kline.high_price),
+                        low_price: conversion::string_to_price(&kline_data.kline.low_price),
+                        close_price: conversion::string_to_price(&kline_data.kline.close_price),
+                        volume: conversion::string_to_volume(&kline_data.kline.volume),
                         number_of_trades: kline_data.kline.number_of_trades,
                         final_bar: kline_data.kline.final_bar,
                     }));

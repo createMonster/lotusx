@@ -70,17 +70,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
                 MarketDataType::OrderBook(orderbook) => {
+                    let best_bid = orderbook
+                        .bids
+                        .first()
+                        .map_or("N/A".to_string(), |b| b.price.to_string());
+                    let best_ask = orderbook
+                        .asks
+                        .first()
+                        .map_or("N/A".to_string(), |a| a.price.to_string());
                     println!(
                         "📖 [SPOT] OrderBook: {} - Best Bid: {}, Best Ask: {}",
-                        orderbook.symbol,
-                        orderbook
-                            .bids
-                            .first()
-                            .map_or(&"N/A".to_string(), |b| &b.price),
-                        orderbook
-                            .asks
-                            .first()
-                            .map_or(&"N/A".to_string(), |a| &a.price)
+                        orderbook.symbol, best_bid, best_ask
                     );
                 }
                 MarketDataType::Trade(trade) => {
@@ -123,17 +123,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                 }
                 MarketDataType::OrderBook(orderbook) => {
+                    let best_bid = orderbook
+                        .bids
+                        .first()
+                        .map_or("N/A".to_string(), |b| b.price.to_string());
+                    let best_ask = orderbook
+                        .asks
+                        .first()
+                        .map_or("N/A".to_string(), |a| a.price.to_string());
                     println!(
                         "📖 [PERP] OrderBook: {} - Best Bid: {}, Best Ask: {}",
-                        orderbook.symbol,
-                        orderbook
-                            .bids
-                            .first()
-                            .map_or(&"N/A".to_string(), |b| &b.price),
-                        orderbook
-                            .asks
-                            .first()
-                            .map_or(&"N/A".to_string(), |a| &a.price)
+                        orderbook.symbol, best_bid, best_ask
                     );
                 }
                 MarketDataType::Trade(trade) => {

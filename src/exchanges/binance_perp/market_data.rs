@@ -6,7 +6,8 @@ use super::types::{
 use crate::core::errors::ExchangeError;
 use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
-    FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
+    WebSocketConfig,
 };
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
@@ -241,15 +242,15 @@ impl BinancePerpConnector {
             let number_of_trades = kline_array.get(8).and_then(|v| v.as_i64()).unwrap_or(0);
 
             klines.push(Kline {
-                symbol: symbol.clone(),
+                symbol: conversion::string_to_symbol(&symbol),
                 open_time,
                 close_time,
                 interval: interval.clone(),
-                open_price,
-                high_price,
-                low_price,
-                close_price,
-                volume,
+                open_price: conversion::string_to_price(&open_price),
+                high_price: conversion::string_to_price(&high_price),
+                low_price: conversion::string_to_price(&low_price),
+                close_price: conversion::string_to_price(&close_price),
+                volume: conversion::string_to_volume(&volume),
                 number_of_trades,
                 final_bar: true, // Historical k-lines are always final
             });
@@ -339,8 +340,8 @@ impl FundingRateSource for BinancePerpConnector {
         let mut result = Vec::with_capacity(funding_rates.len());
         for rate in funding_rates {
             result.push(FundingRate {
-                symbol: rate.symbol,
-                funding_rate: Some(rate.funding_rate),
+                symbol: conversion::string_to_symbol(&rate.symbol),
+                funding_rate: Some(conversion::string_to_decimal(&rate.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: Some(rate.funding_time),
@@ -371,14 +372,16 @@ impl BinancePerpConnector {
             })?;
 
         Ok(FundingRate {
-            symbol: premium_index.symbol,
-            funding_rate: Some(premium_index.last_funding_rate),
+            symbol: conversion::string_to_symbol(&premium_index.symbol),
+            funding_rate: Some(conversion::string_to_decimal(
+                &premium_index.last_funding_rate,
+            )),
             previous_funding_rate: None,
             next_funding_rate: None,
             funding_time: None,
             next_funding_time: Some(premium_index.next_funding_time),
-            mark_price: Some(premium_index.mark_price),
-            index_price: Some(premium_index.index_price),
+            mark_price: Some(conversion::string_to_price(&premium_index.mark_price)),
+            index_price: Some(conversion::string_to_price(&premium_index.index_price)),
             timestamp: premium_index.time,
         })
     }
@@ -400,14 +403,16 @@ impl BinancePerpConnector {
         let mut result = Vec::with_capacity(premium_indices.len());
         for premium_index in premium_indices {
             result.push(FundingRate {
-                symbol: premium_index.symbol,
-                funding_rate: Some(premium_index.last_funding_rate),
+                symbol: conversion::string_to_symbol(&premium_index.symbol),
+                funding_rate: Some(conversion::string_to_decimal(
+                    &premium_index.last_funding_rate,
+                )),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: None,
                 next_funding_time: Some(premium_index.next_funding_time),
-                mark_price: Some(premium_index.mark_price),
-                index_price: Some(premium_index.index_price),
+                mark_price: Some(conversion::string_to_price(&premium_index.mark_price)),
+                index_price: Some(conversion::string_to_price(&premium_index.index_price)),
                 timestamp: premium_index.time,
             });
         }

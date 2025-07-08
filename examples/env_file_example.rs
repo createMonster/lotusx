@@ -116,7 +116,7 @@ async fn demo_with_connector(
 
             // Show a few example markets
             for market in markets.iter().take(3) {
-                println!("      - {} ({})", market.symbol.symbol, market.status);
+                println!("      - {} ({})", market.symbol, market.status);
             }
         }
         Err(e) => {

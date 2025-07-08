@@ -1,6 +1,6 @@
 use lotusx::core::traits::{AccountInfo, MarketDataSource, OrderPlacer};
 use lotusx::core::types::{
-    KlineInterval, OrderRequest, OrderSide, OrderType, SubscriptionType, TimeInForce,
+    conversion, KlineInterval, OrderRequest, OrderSide, OrderType, SubscriptionType, TimeInForce,
     WebSocketConfig,
 };
 use lotusx::exchanges::hyperliquid::HyperliquidClient;
@@ -29,12 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Ok(markets) => {
             println!("Available markets: {}", markets.len());
             for (i, market) in markets.iter().take(5).enumerate() {
-                println!(
-                    "  {}. {} (status: {})",
-                    i + 1,
-                    market.symbol.symbol,
-                    market.status
-                );
+                println!("  {}. {} (status: {})", i + 1, market.symbol, market.status);
             }
         }
         Err(e) => println!("Error getting markets: {}", e),
@@ -87,11 +82,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             // Example: Place a limit order (this will likely fail on testnet without funds)
             let order = OrderRequest {
-                symbol: "BTC".to_string(),
+                symbol: conversion::string_to_symbol("BTC"),
                 side: OrderSide::Buy,
                 order_type: OrderType::Limit,
-                quantity: "0.001".to_string(),
-                price: Some("30000".to_string()),
+                quantity: conversion::string_to_quantity("0.001"),
+                price: Some(conversion::string_to_price("30000")),
                 time_in_force: Some(TimeInForce::GTC),
                 stop_price: None,
             };

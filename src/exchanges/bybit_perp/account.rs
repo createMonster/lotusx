@@ -2,7 +2,7 @@ use super::client::BybitPerpConnector;
 use super::types as bybit_perp_types;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position, PositionSide};
+use crate::core::types::{conversion, Balance, Position, PositionSide};
 use crate::exchanges::bybit::auth; // Reuse auth from spot Bybit
 use async_trait::async_trait;
 
@@ -77,8 +77,8 @@ impl AccountInfo for BybitPerpConnector {
             })
             .map(|balance| Balance {
                 asset: balance.coin,
-                free: balance.equity, // Use equity as available balance (after margin)
-                locked: balance.locked,
+                free: conversion::string_to_quantity(&balance.equity), // Use equity as available balance (after margin)
+                locked: conversion::string_to_quantity(&balance.locked),
             })
             .collect();
 
@@ -158,13 +158,15 @@ impl AccountInfo for BybitPerpConnector {
                 };
 
                 Position {
-                    symbol: position.symbol,
+                    symbol: conversion::string_to_symbol(&position.symbol),
                     position_side,
-                    entry_price: position.entry_price,
-                    position_amount: position.size,
-                    unrealized_pnl: position.unrealised_pnl,
-                    liquidation_price: Some(position.liquidation_price),
-                    leverage: position.leverage,
+                    entry_price: conversion::string_to_price(&position.entry_price),
+                    position_amount: conversion::string_to_quantity(&position.size),
+                    unrealized_pnl: conversion::string_to_decimal(&position.unrealised_pnl),
+                    liquidation_price: Some(conversion::string_to_price(
+                        &position.liquidation_price,
+                    )),
+                    leverage: conversion::string_to_decimal(&position.leverage),
                 }
             })
             .collect();

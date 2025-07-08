@@ -3,7 +3,7 @@ use super::converters::{convert_order_side, convert_order_type, convert_time_in_
 use super::types::{self as binance_perp_types, BinancePerpError};
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
-use crate::core::types::{OrderRequest, OrderResponse, OrderType};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
 use crate::exchanges::binance::auth; // Reuse auth from spot Binance
 use async_trait::async_trait;
 use tracing::{error, instrument};
@@ -24,7 +24,7 @@ impl OrderPlacer for BinancePerpConnector {
         let timestamp = auth::get_timestamp().map_err(|e| {
             BinancePerpError::auth_error(
                 format!("Failed to generate timestamp: {}", e),
-                Some(order.symbol.clone()),
+                Some(order.symbol.to_string()),
             )
         })?;
 
@@ -35,19 +35,19 @@ impl OrderPlacer for BinancePerpConnector {
         let timestamp_str = timestamp.to_string();
 
         params.extend_from_slice(&[
-            ("symbol", order.symbol.as_str()),
-            ("side", side_str.as_str()),
-            ("type", type_str.as_str()),
-            ("quantity", order.quantity.as_str()),
-            ("timestamp", timestamp_str.as_str()),
+            ("symbol", order.symbol.to_string()),
+            ("side", side_str),
+            ("type", type_str),
+            ("quantity", order.quantity.to_string()),
+            ("timestamp", timestamp_str),
         ]);
 
         // Add conditional parameters without heap allocation in most cases
         let price_str;
         if matches!(order.order_type, OrderType::Limit) {
             if let Some(ref price) = order.price {
-                price_str = price.clone();
-                params.push(("price", price_str.as_str()));
+                price_str = price.to_string();
+                params.push(("price", price_str));
             }
         }
 
@@ -55,22 +55,22 @@ impl OrderPlacer for BinancePerpConnector {
         if matches!(order.order_type, OrderType::Limit) {
             if let Some(ref tif) = order.time_in_force {
                 tif_str = convert_time_in_force(tif);
-                params.push(("timeInForce", tif_str.as_str()));
+                params.push(("timeInForce", tif_str));
             } else {
-                params.push(("timeInForce", "GTC"));
+                params.push(("timeInForce", "GTC".to_string()));
             }
         }
 
         let stop_price_str;
         if let Some(ref stop_price) = order.stop_price {
-            stop_price_str = stop_price.clone();
-            params.push(("stopPrice", stop_price_str.as_str()));
+            stop_price_str = stop_price.to_string();
+            params.push(("stopPrice", stop_price_str));
         }
 
         let signature = auth::sign_request(
             &params
                 .iter()
-                .map(|(k, v)| (*k, (*v).to_string()))
+                .map(|(k, v)| (*k, v.to_string()))
                 .collect::<Vec<_>>(),
             self.config.secret_key(),
             "POST",
@@ -79,12 +79,12 @@ impl OrderPlacer for BinancePerpConnector {
         .map_err(|e| {
             BinancePerpError::auth_error(
                 format!("Failed to sign order request: {}", e),
-                Some(order.symbol.clone()),
+                Some(order.symbol.to_string()),
             )
         })?;
 
         let signature_str = signature;
-        params.push(("signature", signature_str.as_str()));
+        params.push(("signature", signature_str));
 
         let response = self
             .client
@@ -120,16 +120,16 @@ impl OrderPlacer for BinancePerpConnector {
         })?;
 
         let timestamp_str = timestamp.to_string();
-        let params = [
-            ("symbol", symbol.as_str()),
-            ("orderId", order_id.as_str()),
-            ("timestamp", timestamp_str.as_str()),
+        let params = vec![
+            ("symbol", symbol.clone()),
+            ("orderId", order_id.clone()),
+            ("timestamp", timestamp_str),
         ];
 
         let signature = auth::sign_request(
             &params
                 .iter()
-                .map(|(k, v)| (*k, (*v).to_string()))
+                .map(|(k, v)| (*k, v.clone()))
                 .collect::<Vec<_>>(),
             self.config.secret_key(),
             "DELETE",
@@ -143,8 +143,8 @@ impl OrderPlacer for BinancePerpConnector {
         })?;
 
         let signature_str = signature;
-        let mut form_params = params.to_vec();
-        form_params.push(("signature", signature_str.as_str()));
+        let mut form_params = params;
+        form_params.push(("signature", signature_str));
 
         let response = self
             .client
@@ -193,7 +193,7 @@ impl BinancePerpConnector {
             return Err(BinancePerpError::order_error(
                 status.as_u16() as i32,
                 error_text,
-                &order.symbol,
+                order.symbol.to_string(),
             )
             .into());
         }
@@ -202,18 +202,18 @@ impl BinancePerpConnector {
             response.json().await.map_err(|e| {
                 BinancePerpError::parse_error(
                     format!("Failed to parse order response: {}", e),
-                    Some(order.symbol.clone()),
+                    Some(order.symbol.to_string()),
                 )
             })?;
 
         Ok(OrderResponse {
             order_id: binance_response.order_id.to_string(),
             client_order_id: binance_response.client_order_id,
-            symbol: binance_response.symbol,
+            symbol: conversion::string_to_symbol(&binance_response.symbol),
             side: order.side.clone(),
             order_type: order.order_type.clone(),
-            quantity: binance_response.orig_qty,
-            price: Some(binance_response.price),
+            quantity: conversion::string_to_quantity(&binance_response.orig_qty),
+            price: Some(conversion::string_to_price(&binance_response.price)),
             status: binance_response.status,
             timestamp: binance_response.update_time,
         })

@@ -1,7 +1,7 @@
 use super::client::ParadexConnector;
 use crate::core::errors::ExchangeError;
 use crate::core::types::{
-    Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
+    conversion, Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
     WebSocketConfig,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -204,14 +204,16 @@ fn convert_ws_data(channel: &str, data: &Value, symbol: &str) -> Option<MarketDa
 // Convert ticker data
 fn convert_ticker_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let ticker = Ticker {
-        symbol: symbol.to_string(),
-        price: data.get("price")?.as_str()?.to_string(),
-        price_change: data.get("price_change")?.as_str()?.to_string(),
-        price_change_percent: data.get("price_change_percent")?.as_str()?.to_string(),
-        high_price: data.get("high")?.as_str()?.to_string(),
-        low_price: data.get("low")?.as_str()?.to_string(),
-        volume: data.get("volume")?.as_str()?.to_string(),
-        quote_volume: data.get("quote_volume")?.as_str()?.to_string(),
+        symbol: conversion::string_to_symbol(symbol),
+        price: conversion::string_to_price(data.get("price")?.as_str()?),
+        price_change: conversion::string_to_price(data.get("price_change")?.as_str()?),
+        price_change_percent: conversion::string_to_decimal(
+            data.get("price_change_percent")?.as_str()?,
+        ),
+        high_price: conversion::string_to_price(data.get("high")?.as_str()?),
+        low_price: conversion::string_to_price(data.get("low")?.as_str()?),
+        volume: conversion::string_to_volume(data.get("volume")?.as_str()?),
+        quote_volume: conversion::string_to_volume(data.get("quote_volume")?.as_str()?),
         open_time: data.get("open_time")?.as_i64()?,
         close_time: data.get("close_time")?.as_i64()?,
         count: data.get("count")?.as_i64()?,
@@ -228,8 +230,8 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
         .filter_map(|bid| {
             if let [price, quantity] = bid.as_array()?.as_slice() {
                 Some(OrderBookEntry {
-                    price: price.as_str()?.to_string(),
-                    quantity: quantity.as_str()?.to_string(),
+                    price: conversion::string_to_price(price.as_str()?),
+                    quantity: conversion::string_to_quantity(quantity.as_str()?),
                 })
             } else {
                 None
@@ -244,8 +246,8 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
         .filter_map(|ask| {
             if let [price, quantity] = ask.as_array()?.as_slice() {
                 Some(OrderBookEntry {
-                    price: price.as_str()?.to_string(),
-                    quantity: quantity.as_str()?.to_string(),
+                    price: conversion::string_to_price(price.as_str()?),
+                    quantity: conversion::string_to_quantity(quantity.as_str()?),
                 })
             } else {
                 None
@@ -254,7 +256,7 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
         .collect();
 
     let order_book = OrderBook {
-        symbol: symbol.to_string(),
+        symbol: conversion::string_to_symbol(symbol),
         bids,
         asks,
         last_update_id: data.get("last_update_id")?.as_i64()?,
@@ -266,10 +268,10 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
 // Convert trade data
 fn convert_trade_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let trade = Trade {
-        symbol: symbol.to_string(),
+        symbol: conversion::string_to_symbol(symbol),
         id: data.get("id")?.as_i64()?,
-        price: data.get("price")?.as_str()?.to_string(),
-        quantity: data.get("quantity")?.as_str()?.to_string(),
+        price: conversion::string_to_price(data.get("price")?.as_str()?),
+        quantity: conversion::string_to_quantity(data.get("quantity")?.as_str()?),
         time: data.get("time")?.as_i64()?,
         is_buyer_maker: data.get("is_buyer_maker")?.as_bool()?,
     };
@@ -279,15 +281,15 @@ fn convert_trade_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
 // Convert kline data
 fn convert_kline_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let kline = Kline {
-        symbol: symbol.to_string(),
+        symbol: conversion::string_to_symbol(symbol),
         open_time: data.get("open_time")?.as_i64()?,
         close_time: data.get("close_time")?.as_i64()?,
         interval: data.get("interval")?.as_str()?.to_string(),
-        open_price: data.get("open")?.as_str()?.to_string(),
-        high_price: data.get("high")?.as_str()?.to_string(),
-        low_price: data.get("low")?.as_str()?.to_string(),
-        close_price: data.get("close")?.as_str()?.to_string(),
-        volume: data.get("volume")?.as_str()?.to_string(),
+        open_price: conversion::string_to_price(data.get("open")?.as_str()?),
+        high_price: conversion::string_to_price(data.get("high")?.as_str()?),
+        low_price: conversion::string_to_price(data.get("low")?.as_str()?),
+        close_price: conversion::string_to_price(data.get("close")?.as_str()?),
+        volume: conversion::string_to_volume(data.get("volume")?.as_str()?),
         number_of_trades: data.get("trades")?.as_i64()?,
         final_bar: data.get("final")?.as_bool()?,
     };

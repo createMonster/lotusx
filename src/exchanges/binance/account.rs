@@ -3,7 +3,7 @@ use super::client::BinanceConnector;
 use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position};
+use crate::core::types::{conversion, Balance, Position};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -62,8 +62,8 @@ impl AccountInfo for BinanceConnector {
                 if free > 0.0 || locked > 0.0 {
                     Some(Balance {
                         asset: balance.asset,
-                        free: balance.free,
-                        locked: balance.locked,
+                        free: conversion::string_to_quantity(&balance.free),
+                        locked: conversion::string_to_quantity(&balance.locked),
                     })
                 } else {
                     None

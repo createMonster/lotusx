@@ -3,7 +3,7 @@ use super::client::BybitConnector;
 use super::types as bybit_types;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position};
+use crate::core::types::{conversion, Balance, Position};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -76,8 +76,8 @@ impl AccountInfo for BybitConnector {
             })
             .map(|balance| Balance {
                 asset: balance.coin,
-                free: balance.equity, // Use equity as available balance (after margin)
-                locked: balance.locked,
+                free: conversion::string_to_quantity(&balance.equity), // Use equity as available balance (after margin)
+                locked: conversion::string_to_quantity(&balance.locked),
             })
             .collect();
 

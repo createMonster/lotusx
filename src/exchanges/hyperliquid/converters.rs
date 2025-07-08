@@ -1,5 +1,6 @@
+use super::types::OrderRequest as HyperliquidOrderRequest;
 use super::types::{LimitOrder, OrderType, TimeInForce as HLTimeInForce};
-use crate::core::types::{OrderRequest, OrderResponse, OrderSide, TimeInForce};
+use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderSide, TimeInForce};
 
 /// Convert core `OrderRequest` to Hyperliquid `OrderRequest`
 /// This is a hot path function for trading, so it's marked inline
@@ -33,19 +34,21 @@ pub fn convert_to_hyperliquid_order(order: &OrderRequest) -> super::types::Order
     let price = match order.order_type {
         crate::core::types::OrderType::Market => {
             if is_buy {
-                "999999999".to_string()
+                conversion::string_to_price("999999999")
             } else {
-                "0.000001".to_string()
+                conversion::string_to_price("0.000001")
             }
         }
-        _ => order.price.clone().unwrap_or_else(|| "0".to_string()),
+        _ => order
+            .price
+            .unwrap_or_else(|| conversion::string_to_price("0")),
     };
 
-    super::types::OrderRequest {
-        coin: order.symbol.clone(),
+    HyperliquidOrderRequest {
+        coin: order.symbol.to_string(),
         is_buy,
-        sz: order.quantity.clone(),
-        limit_px: price,
+        sz: order.quantity.to_string(),
+        limit_px: price.to_string(),
         order_type,
         reduce_only: false,
     }
@@ -64,8 +67,8 @@ pub fn convert_from_hyperliquid_response(
         symbol: original_order.symbol.clone(),
         side: original_order.side.clone(),
         order_type: original_order.order_type.clone(),
-        quantity: original_order.quantity.clone(),
-        price: original_order.price.clone(),
+        quantity: original_order.quantity,
+        price: original_order.price,
         status: if response.status == "ok" {
             "NEW".to_string()
         } else {

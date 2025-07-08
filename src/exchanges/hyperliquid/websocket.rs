@@ -1,7 +1,7 @@
 use super::client::HyperliquidClient;
 use crate::core::errors::ExchangeError;
 use crate::core::types::{
-    Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
+    conversion, Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
     WebSocketConfig,
 };
 use futures_util::{SinkExt, StreamExt};
@@ -234,16 +234,16 @@ fn convert_all_mids_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
     let price = mids.get(symbol)?.as_str()?;
 
     Some(MarketDataType::Ticker(Ticker {
-        symbol: symbol.to_string(),
-        price: price.to_string(),
-        price_change: "0".to_string(),
-        price_change_percent: "0".to_string(),
-        high_price: price.to_string(),
-        low_price: price.to_string(),
-        volume: "0".to_string(),
-        quote_volume: "0".to_string(),
-        open_time: chrono::Utc::now().timestamp_millis(),
-        close_time: chrono::Utc::now().timestamp_millis(),
+        symbol: conversion::string_to_symbol(symbol),
+        price: conversion::string_to_price(price),
+        price_change: conversion::string_to_price("0"),
+        price_change_percent: conversion::string_to_decimal("0"),
+        high_price: conversion::string_to_price("0"),
+        low_price: conversion::string_to_price("0"),
+        volume: conversion::string_to_volume("0"),
+        quote_volume: conversion::string_to_volume("0"),
+        open_time: 0,
+        close_time: 0,
         count: 0,
     }))
 }
@@ -262,7 +262,7 @@ fn convert_orderbook_data(data: &Value, symbol: &str) -> Option<MarketDataType> 
     let asks = extract_order_book_levels(levels.get(1)?)?;
 
     Some(MarketDataType::OrderBook(OrderBook {
-        symbol: symbol.to_string(),
+        symbol: conversion::string_to_symbol(coin),
         bids,
         asks,
         last_update_id: time,
@@ -278,8 +278,8 @@ fn extract_order_book_levels(level_data: &Value) -> Option<Vec<OrderBookEntry>> 
         let px = level.get("px")?.as_str()?;
         let sz = level.get("sz")?.as_str()?;
         entries.push(OrderBookEntry {
-            price: px.to_string(),
-            quantity: sz.to_string(),
+            price: conversion::string_to_price(px),
+            quantity: conversion::string_to_quantity(sz),
         });
     }
 
@@ -303,10 +303,10 @@ fn convert_trades_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
         let tid = trade.get("tid")?.as_i64()?;
 
         return Some(MarketDataType::Trade(Trade {
-            symbol: symbol.to_string(),
+            symbol: conversion::string_to_symbol(coin),
             id: tid,
-            price: px.to_string(),
-            quantity: sz.to_string(),
+            price: conversion::string_to_price(px),
+            quantity: conversion::string_to_quantity(sz),
             time,
             is_buyer_maker: side == "B",
         }));
@@ -334,15 +334,15 @@ fn convert_candle_data(data: &Value, symbol: &str) -> Option<MarketDataType> {
         let volume = candle.get("v")?.as_f64()?;
 
         return Some(MarketDataType::Kline(Kline {
-            symbol: symbol.to_string(),
+            symbol: conversion::string_to_symbol(coin),
             open_time,
             close_time,
             interval: "1m".to_string(),
-            open_price: open.to_string(),
-            high_price: high.to_string(),
-            low_price: low.to_string(),
-            close_price: close.to_string(),
-            volume: volume.to_string(),
+            open_price: conversion::string_to_price(&open.to_string()),
+            high_price: conversion::string_to_price(&high.to_string()),
+            low_price: conversion::string_to_price(&low.to_string()),
+            close_price: conversion::string_to_price(&close.to_string()),
+            volume: conversion::string_to_volume(&volume.to_string()),
             number_of_trades: candle.get("n").and_then(|n| n.as_i64()).unwrap_or(0),
             final_bar: true,
         }));

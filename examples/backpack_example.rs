@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(markets) => {
             println!("Found {} markets:", markets.len());
             for (i, market) in markets.iter().take(5).enumerate() {
-                println!("  {}. {} ({})", i + 1, market.symbol.symbol, market.status);
+                println!("  {}. {} ({})", i + 1, market.symbol, market.status);
             }
             if markets.len() > 5 {
                 println!("  ... and {} more", markets.len() - 5);
@@ -120,8 +120,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(balances) => {
             println!("Account Balances:");
             for balance in balances.iter().take(10) {
-                if balance.free.parse::<f64>().unwrap_or(0.0) > 0.0
-                    || balance.locked.parse::<f64>().unwrap_or(0.0) > 0.0
+                if balance.free.to_string().parse::<f64>().unwrap_or(0.0) > 0.0
+                    || balance.locked.to_string().parse::<f64>().unwrap_or(0.0) > 0.0
                 {
                     println!(
                         "  {}: Free: {}, Locked: {}",

@@ -1,16 +1,211 @@
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use thiserror::Error;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// HFT-compliant typed errors for the types subsystem
+#[derive(Error, Debug)]
+pub enum TypesError {
+    #[error("Invalid symbol: {0}")]
+    InvalidSymbol(String),
+    #[error("Invalid price: {0}")]
+    InvalidPrice(#[from] rust_decimal::Error),
+    #[error("Invalid quantity: {0}")]
+    InvalidQuantity(String),
+    #[error("Invalid volume: {0}")]
+    InvalidVolume(String),
+    #[error("Parsing error: {0}")]
+    ParseError(String),
+}
+
+/// Type-safe symbol representation with validation
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Symbol {
     pub base: String,
     pub quote: String,
-    pub symbol: String,
+}
+
+impl Symbol {
+    /// Create a new symbol from base and quote assets
+    pub fn new(base: String, quote: String) -> Result<Self, TypesError> {
+        if base.is_empty() || quote.is_empty() {
+            return Err(TypesError::InvalidSymbol(
+                "Base and quote cannot be empty".to_string(),
+            ));
+        }
+        Ok(Self { base, quote })
+    }
+
+    /// Create symbol from string like "BTCUSDT"  
+    pub fn from_string(s: &str) -> Result<Self, TypesError> {
+        match s {
+            s if s.ends_with("USDT") => {
+                let base = s.strip_suffix("USDT").unwrap_or("").to_string();
+                Ok(Self::new(base, "USDT".to_string())?)
+            }
+            s if s.ends_with("BTC") => {
+                let base = s.strip_suffix("BTC").unwrap_or("").to_string();
+                Ok(Self::new(base, "BTC".to_string())?)
+            }
+            s if s.ends_with("ETH") => {
+                let base = s.strip_suffix("ETH").unwrap_or("").to_string();
+                Ok(Self::new(base, "ETH".to_string())?)
+            }
+            s if s.ends_with("USD") && !s.ends_with("USDT") => {
+                let base = s.strip_suffix("USD").unwrap_or("").to_string();
+                Ok(Self::new(base, "USD".to_string())?)
+            }
+            _ => Err(TypesError::InvalidSymbol(format!(
+                "Cannot parse symbol: {}",
+                s
+            ))),
+        }
+    }
+
+    /// Get as string reference for method calls expecting &str
+    pub fn as_str(&self) -> String {
+        format!("{}{}", self.base, self.quote)
+    }
 }
 
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.symbol)
+        write!(f, "{}{}", self.base, self.quote)
+    }
+}
+
+/// Type-safe price representation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Price(Decimal);
+
+impl Price {
+    /// Create a new price
+    pub fn new(value: Decimal) -> Self {
+        Self(value)
+    }
+
+    /// Get the decimal value
+    pub fn value(&self) -> Decimal {
+        self.0
+    }
+}
+
+impl std::str::FromStr for Price {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+
+impl fmt::Display for Price {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Type-safe quantity representation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Quantity(Decimal);
+
+impl Quantity {
+    /// Create a new quantity
+    pub fn new(value: Decimal) -> Self {
+        Self(value)
+    }
+
+    /// Get the decimal value
+    pub fn value(&self) -> Decimal {
+        self.0
+    }
+}
+
+impl std::str::FromStr for Quantity {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+
+impl fmt::Display for Quantity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Type-safe volume representation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Volume(Decimal);
+
+impl Volume {
+    /// Create a new volume
+    pub fn new(value: Decimal) -> Self {
+        Self(value)
+    }
+
+    /// Get the decimal value
+    pub fn value(&self) -> Decimal {
+        self.0
+    }
+}
+
+impl std::str::FromStr for Volume {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+
+impl fmt::Display for Volume {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// HFT-compliant conversion helpers for safe type conversions
+pub mod conversion {
+    use super::{Decimal, Price, Quantity, Symbol, Volume};
+    use std::str::FromStr;
+
+    /// Convert string to Symbol with fallback
+    #[inline]
+    pub fn string_to_symbol(s: &str) -> Symbol {
+        Symbol::from_string(s).unwrap_or_else(|_| {
+            // Fallback: treat as base asset with USD quote
+            Symbol {
+                base: s.to_string(),
+                quote: "USD".to_string(),
+            }
+        })
+    }
+
+    /// Convert string to Price with fallback
+    #[inline]
+    pub fn string_to_price(s: &str) -> Price {
+        Price::from_str(s).unwrap_or_else(|_| Price::new(Decimal::from(0)))
+    }
+
+    /// Convert string to Quantity with fallback
+    #[inline]
+    pub fn string_to_quantity(s: &str) -> Quantity {
+        Quantity::from_str(s).unwrap_or_else(|_| Quantity::new(Decimal::from(0)))
+    }
+
+    /// Convert string to Volume with fallback
+    #[inline]
+    pub fn string_to_volume(s: &str) -> Volume {
+        Volume::from_str(s).unwrap_or_else(|_| Volume::new(Decimal::from(0)))
+    }
+
+    /// Convert string to Decimal with fallback
+    #[inline]
+    pub fn string_to_decimal(s: &str) -> Decimal {
+        s.parse().unwrap_or_else(|_| Decimal::from(0))
     }
 }
 
@@ -20,10 +215,10 @@ pub struct Market {
     pub status: String,
     pub base_precision: i32,
     pub quote_precision: i32,
-    pub min_qty: Option<String>,
-    pub max_qty: Option<String>,
-    pub min_price: Option<String>,
-    pub max_price: Option<String>,
+    pub min_qty: Option<Quantity>,
+    pub max_qty: Option<Quantity>,
+    pub min_price: Option<Price>,
+    pub max_price: Option<Price>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,24 +246,24 @@ pub enum TimeInForce {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderRequest {
-    pub symbol: String,
+    pub symbol: Symbol,
     pub side: OrderSide,
     pub order_type: OrderType,
-    pub quantity: String,
-    pub price: Option<String>,
+    pub quantity: Quantity,
+    pub price: Option<Price>,
     pub time_in_force: Option<TimeInForce>,
-    pub stop_price: Option<String>,
+    pub stop_price: Option<Price>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderResponse {
     pub order_id: String,
     pub client_order_id: String,
-    pub symbol: String,
+    pub symbol: Symbol,
     pub side: OrderSide,
     pub order_type: OrderType,
-    pub quantity: String,
-    pub price: Option<String>,
+    pub quantity: Quantity,
+    pub price: Option<Price>,
     pub status: String,
     pub timestamp: i64,
 }
@@ -76,14 +271,14 @@ pub struct OrderResponse {
 // WebSocket Market Data Types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Ticker {
-    pub symbol: String,
-    pub price: String,
-    pub price_change: String,
-    pub price_change_percent: String,
-    pub high_price: String,
-    pub low_price: String,
-    pub volume: String,
-    pub quote_volume: String,
+    pub symbol: Symbol,
+    pub price: Price,
+    pub price_change: Price,
+    pub price_change_percent: Decimal,
+    pub high_price: Price,
+    pub low_price: Price,
+    pub volume: Volume,
+    pub quote_volume: Volume,
     pub open_time: i64,
     pub close_time: i64,
     pub count: i64,
@@ -91,13 +286,13 @@ pub struct Ticker {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBookEntry {
-    pub price: String,
-    pub quantity: String,
+    pub price: Price,
+    pub quantity: Quantity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderBook {
-    pub symbol: String,
+    pub symbol: Symbol,
     pub bids: Vec<OrderBookEntry>,
     pub asks: Vec<OrderBookEntry>,
     pub last_update_id: i64,
@@ -105,25 +300,25 @@ pub struct OrderBook {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trade {
-    pub symbol: String,
+    pub symbol: Symbol,
     pub id: i64,
-    pub price: String,
-    pub quantity: String,
+    pub price: Price,
+    pub quantity: Quantity,
     pub time: i64,
     pub is_buyer_maker: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Kline {
-    pub symbol: String,
+    pub symbol: Symbol,
     pub open_time: i64,
     pub close_time: i64,
     pub interval: String,
-    pub open_price: String,
-    pub high_price: String,
-    pub low_price: String,
-    pub close_price: String,
-    pub volume: String,
+    pub open_price: Price,
+    pub high_price: Price,
+    pub low_price: Price,
+    pub close_price: Price,
+    pub volume: Volume,
     pub number_of_trades: i64,
     pub final_bar: bool,
 }
@@ -307,8 +502,8 @@ pub struct WebSocketConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Balance {
     pub asset: String,
-    pub free: String,
-    pub locked: String,
+    pub free: Quantity,
+    pub locked: Quantity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -321,27 +516,27 @@ pub enum PositionSide {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Position {
-    pub symbol: String,
+    pub symbol: Symbol,
     pub position_side: PositionSide,
-    pub entry_price: String,
-    pub position_amount: String,
-    pub unrealized_pnl: String,
-    pub liquidation_price: Option<String>,
-    pub leverage: String,
+    pub entry_price: Price,
+    pub position_amount: Quantity,
+    pub unrealized_pnl: Decimal,
+    pub liquidation_price: Option<Price>,
+    pub leverage: Decimal,
 }
 
 /// Funding rate information for perpetual futures
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FundingRate {
-    pub symbol: String,
-    pub funding_rate: Option<String>, // Current/upcoming funding rate
-    pub previous_funding_rate: Option<String>, // Most recently applied rate
-    pub next_funding_rate: Option<String>, // Predicted next rate (if available)
-    pub funding_time: Option<i64>,    // When current rate applies
+    pub symbol: Symbol,
+    pub funding_rate: Option<Decimal>, // Current/upcoming funding rate
+    pub previous_funding_rate: Option<Decimal>, // Most recently applied rate
+    pub next_funding_rate: Option<Decimal>, // Predicted next rate (if available)
+    pub funding_time: Option<i64>,     // When current rate applies
     pub next_funding_time: Option<i64>, // When next rate applies
-    pub mark_price: Option<String>,   // Current mark price
-    pub index_price: Option<String>,  // Current index price
-    pub timestamp: i64,               // Response timestamp
+    pub mark_price: Option<Price>,     // Current mark price
+    pub index_price: Option<Price>,    // Current index price
+    pub timestamp: i64,                // Response timestamp
 }
 
 /// Funding rate interval for historical queries

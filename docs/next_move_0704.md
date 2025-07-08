@@ -26,7 +26,7 @@ This document focuses **exclusively on the *connector layer*** of LotusX and out
 
 | Topic                 | Current State                  | Action Items                                                                             |
 | :-------------------- | :----------------------------- | :--------------------------------------------------------------------------------------- |
-| **Unified Types**     | `price/qty` often `String`     | Switch to `rust_decimal::Decimal` with `serde` helpers; new-type-safe `Symbol`           |
+| **Unified Types**     | ✅ **COMPLETED** `price/qty` now use `rust_decimal::Decimal` with type-safe `Symbol` | ✅ All core types updated, Binance implemented, comprehensive tests added. See `UNIFIED_TYPES_IMPLEMENTATION.md` |
 | **REST / WS Kernel**  | Each connector rolls its own   | Extract `RestClient` / `WsSession` traits handling signing, retries, rate limiting       |
 | **Feature Gating**    | Single crate builds everything | Convert to Cargo **workspace** (`lotusx-core` + `connector-*`), enable with `--features` |
 | **Error Granularity** | Generic `Other(String)`        | Use `thiserror` + fine-grained mapping of exchange error codes                           |

@@ -25,12 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             for market in markets.iter().take(10) {
                 println!(
                     "  {} ({} -> {}) - Status: {}",
-                    market.symbol.symbol, market.symbol.base, market.symbol.quote, market.status
+                    market.symbol, market.symbol.base, market.symbol.quote, market.status
                 );
             }
 
             // Find BTCUSDT market as an example
-            if let Some(btc_market) = markets.iter().find(|m| m.symbol.symbol == "BTCUSDT") {
+            if let Some(btc_market) = markets.iter().find(|m| m.symbol.to_string() == "BTCUSDT") {
                 println!("\nBTCUSDT Market Details:");
                 println!("  Base Precision: {}", btc_market.base_precision);
                 println!("  Quote Precision: {}", btc_market.quote_precision);

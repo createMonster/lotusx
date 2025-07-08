@@ -60,7 +60,6 @@ async fn run_public_streams() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("🔗 Connecting to: {}", ws_url);
 
-    // Create a more robust connection with better error handling
     let (ws_stream, _response) = match connect_async(ws_url).await {
         Ok((stream, response)) => {
             println!("✅ Connected successfully, status: {}", response.status());
@@ -68,18 +67,13 @@ async fn run_public_streams() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => {
             println!("❌ Connection failed: {}", e);
-            println!("💡 This might be due to:");
-            println!("   • Network connectivity issues");
-            println!("   • Firewall blocking the connection");
-            println!("   • The exchange endpoint being temporarily unavailable");
-            println!("   • TLS configuration issues");
             return Err(e.into());
         }
     };
 
     let (mut write, mut read) = ws_stream.split();
 
-    // Subscribe to multiple public streams based on official documentation
+    // Subscribe to multiple public streams
     let subscription = json!({
         "method": "SUBSCRIBE",
         "params": [
@@ -111,7 +105,6 @@ async fn run_public_streams() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(data) = serde_json::from_str::<Value>(&text) {
                     handle_public_message(data, message_count);
 
-                    // Limit output for demo purposes
                     if message_count >= 20 {
                         println!(
                             "📈 Received {} messages, stopping public streams...",
@@ -132,7 +125,6 @@ async fn run_public_streams() -> Result<(), Box<dyn std::error::Error>> {
             _ => {}
         }
 
-        // Add timeout to prevent hanging
         timeout_count += 1;
         if timeout_count > 100 {
             println!("⏰ Timeout reached, stopping...");
@@ -143,13 +135,12 @@ async fn run_public_streams() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// Handles and displays public WebSocket messages according to Backpack API format
+/// Handles and displays public WebSocket messages
 #[allow(clippy::too_many_lines)]
 fn handle_public_message(data: Value, count: usize) {
     if let Some(event_type) = data.get("e").and_then(|e| e.as_str()) {
         match event_type {
             "ticker" => {
-                // Format: {"e":"ticker","E":1694687692980000,"s":"SOL_USD","o":"18.75","c":"19.24","h":"19.80","l":"18.50","v":"32123","V":"928190","n":93828}
                 if let (Some(symbol), Some(last_price), Some(volume)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("c").and_then(|p| p.as_str()),
@@ -164,7 +155,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "bookTicker" => {
-                // Format: {"e":"bookTicker","E":1694687965941000,"s":"SOL_USDC","a":"18.70","A":"1.000","b":"18.67","B":"2.000","u":"111063070525358080","T":1694687965940999}
                 if let (Some(symbol), Some(bid), Some(ask)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("b").and_then(|b| b.as_str()),
@@ -179,7 +169,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "depth" => {
-                // Format: {"e":"depth","E":1694687965941000,"s":"SOL_USDC","a":[["18.70","0.000"]],"b":[["18.67","0.832"],["18.68","0.000"]],"U":94978271,"u":94978271,"T":1694687965940999}
                 if let Some(symbol) = data.get("s").and_then(|s| s.as_str()) {
                     let asks_count = data
                         .get("a")
@@ -197,7 +186,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "trade" => {
-                // Format: {"e":"trade","E":1694688638091000,"s":"SOL_USDC","p":"18.68","q":"0.122","b":"111063114377265150","a":"111063114585735170","t":12345,"T":1694688638089000,"m":true}
                 if let (Some(symbol), Some(price), Some(quantity)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("p").and_then(|p| p.as_str()),
@@ -213,7 +201,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "kline" => {
-                // Format: {"e":"kline","E":1694687692980000,"s":"SOL_USD","t":123400000,"T":123460000,"o":"18.75","c":"19.25","h":"19.80","l":"18.50","v":"32123","n":93828,"X":false}
                 if let (Some(symbol), Some(open), Some(close), Some(high), Some(low)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("o").and_then(|o| o.as_str()),
@@ -230,7 +217,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "markPrice" => {
-                // Format: {"e":"markPrice","E":1694687965941000,"s":"SOL_USDC","p":"18.70","f":"1.70","i":"19.70","n":1694687965941000}
                 if let (Some(symbol), Some(mark_price)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("p").and_then(|p| p.as_str()),
@@ -244,7 +230,6 @@ fn handle_public_message(data: Value, count: usize) {
                 }
             }
             "openInterest" => {
-                // Format: {"e":"openInterest","E":1694687965941000,"s":"SOL_USDC_PERP","o":"100"}
                 if let (Some(symbol), Some(open_interest)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("o").and_then(|o| o.as_str()),
@@ -273,7 +258,6 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
 
     println!("🔗 Connecting to authenticated WebSocket: {}", ws_url);
 
-    // Create a more robust connection with better error handling
     let (ws_stream, _response) = match connect_async(ws_url).await {
         Ok((stream, response)) => {
             println!(
@@ -284,28 +268,54 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
         }
         Err(e) => {
             println!("❌ Authenticated connection failed: {}", e);
-            println!("💡 This might be due to:");
-            println!("   • Network connectivity issues");
-            println!("   • Firewall blocking the connection");
-            println!("   • The exchange endpoint being temporarily unavailable");
-            println!("   • TLS configuration issues");
             return Err(e.into());
         }
     };
 
     let (mut write, mut read) = ws_stream.split();
 
-    // Create authenticated subscription for private streams
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_millis() as i64;
-    let window = 5000;
+    // Use the new authentication method
+    let auth_msg = connector.create_websocket_auth_message()?;
+    write.send(Message::Text(auth_msg)).await?;
 
-    // Sign the subscription request according to Backpack API docs
-    let instruction = "subscribe";
-    let params_str = "";
-    let signature = connector.generate_signature(instruction, params_str, timestamp, window)?;
+    println!("🔐 Sending authentication...");
 
+    // Wait for authentication response
+    let mut auth_confirmed = false;
+    let mut auth_timeout = 0;
+
+    while auth_timeout < 10 {
+        if let Some(msg) = read.next().await {
+            match msg? {
+                Message::Text(text) => {
+                    if let Ok(data) = serde_json::from_str::<Value>(&text) {
+                        if data.get("result").is_some() {
+                            println!("✅ Authentication successful");
+                            auth_confirmed = true;
+                            break;
+                        } else if data.get("error").is_some() {
+                            println!("❌ Authentication failed: {:?}", data.get("error"));
+                            return Err("Authentication failed".into());
+                        }
+                    }
+                }
+                Message::Close(_) => {
+                    println!("🔌 WebSocket connection closed during auth");
+                    return Err("Connection closed during authentication".into());
+                }
+                _ => {}
+            }
+        }
+        auth_timeout += 1;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
+
+    if !auth_confirmed {
+        println!("⏰ Authentication timeout");
+        return Err("Authentication timeout".into());
+    }
+
+    // Subscribe to private streams
     let subscription = json!({
         "method": "SUBSCRIBE",
         "params": [
@@ -313,12 +323,6 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
             "account.orderUpdate.SOL_USDC",  // Order updates for specific symbol
             "account.position"               // Position updates
         ],
-        "signature": {
-            "instruction": instruction,
-            "timestamp": timestamp,
-            "window": window,
-            "signature": signature
-        },
         "id": 2
     });
 
@@ -339,7 +343,6 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
                 if let Ok(data) = serde_json::from_str::<Value>(&text) {
                     handle_private_message(data, message_count);
 
-                    // Limit output for demo purposes
                     if message_count >= 10 {
                         println!(
                             "🔐 Received {} private messages, stopping...",
@@ -360,7 +363,6 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
             _ => {}
         }
 
-        // Add timeout to prevent hanging
         timeout_count += 1;
         if timeout_count > 50 {
             println!("⏰ Timeout reached for private streams, stopping...");
@@ -371,12 +373,11 @@ async fn run_private_streams(config: ExchangeConfig) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-/// Handles and displays private WebSocket messages according to Backpack API format
+/// Handles and displays private WebSocket messages
 fn handle_private_message(data: Value, count: usize) {
     if let Some(event_type) = data.get("e").and_then(|e| e.as_str()) {
         match event_type {
             "orderUpdate" => {
-                // Order update format from documentation
                 if let (Some(symbol), Some(side), Some(status)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("S").and_then(|s| s.as_str()),
@@ -392,7 +393,6 @@ fn handle_private_message(data: Value, count: usize) {
                 }
             }
             "positionUpdate" => {
-                // Position update format from documentation
                 if let (Some(symbol), Some(side)) = (
                     data.get("s").and_then(|s| s.as_str()),
                     data.get("S").and_then(|s| s.as_str()),
@@ -407,7 +407,6 @@ fn handle_private_message(data: Value, count: usize) {
                 }
             }
             "rfqUpdate" | "rfqActive" | "rfqAccepted" | "rfqFilled" => {
-                // RFQ update formats from documentation
                 if let Some(symbol) = data.get("s").and_then(|s| s.as_str()) {
                     let rfq_id = data.get("R").and_then(|r| r.as_str()).unwrap_or("N/A");
                     let side = data.get("S").and_then(|s| s.as_str()).unwrap_or("N/A");

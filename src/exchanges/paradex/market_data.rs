@@ -3,10 +3,12 @@ use super::types::{ParadexError, ParadexFundingRate, ParadexFundingRateHistory, 
 use crate::core::errors::ExchangeError;
 use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
-    FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
+    WebSocketConfig,
 };
 use async_trait::async_trait;
 use futures_util::{SinkExt, StreamExt};
+use serde_json;
 use tokio::sync::mpsc;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use tracing::{error, instrument, warn};
@@ -41,8 +43,6 @@ impl MarketDataSource for ParadexConnector {
             .text()
             .await
             .map_err(|e| ExchangeError::Other(format!("Failed to read response text: {}", e)))?;
-
-        tracing::info!("Raw markets response: {}", response_text);
 
         // Try to parse as different formats
         if let Ok(markets_array) = serde_json::from_str::<Vec<ParadexMarket>>(&response_text) {
@@ -250,14 +250,14 @@ impl FundingRateSource for ParadexConnector {
         let mut result = Vec::with_capacity(funding_rates.len());
         for rate in funding_rates {
             result.push(FundingRate {
-                symbol: rate.symbol,
-                funding_rate: Some(rate.funding_rate),
+                symbol: conversion::string_to_symbol(&rate.symbol),
+                funding_rate: Some(conversion::string_to_decimal(&rate.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
                 funding_time: None,
                 next_funding_time: Some(rate.next_funding_time),
-                mark_price: Some(rate.mark_price),
-                index_price: Some(rate.index_price),
+                mark_price: Some(conversion::string_to_price(&rate.mark_price)),
+                index_price: Some(conversion::string_to_price(&rate.index_price)),
                 timestamp: rate.timestamp,
             });
         }
@@ -323,11 +323,11 @@ impl FundingRateSource for ParadexConnector {
         let mut result = Vec::with_capacity(funding_rates.len());
         for rate in funding_rates {
             result.push(FundingRate {
-                symbol: rate.symbol,
-                funding_rate: Some(rate.funding_rate),
+                symbol: conversion::string_to_symbol(&rate.symbol),
+                funding_rate: Some(conversion::string_to_decimal(&rate.funding_rate)),
                 previous_funding_rate: None,
                 next_funding_rate: None,
-                funding_time: Some(rate.funding_time),
+                funding_time: None,
                 next_funding_time: None,
                 mark_price: None,
                 index_price: None,
@@ -377,14 +377,14 @@ impl ParadexConnector {
         })?;
 
         Ok(FundingRate {
-            symbol: funding_rate.symbol,
-            funding_rate: Some(funding_rate.funding_rate),
+            symbol: conversion::string_to_symbol(&funding_rate.symbol),
+            funding_rate: Some(conversion::string_to_decimal(&funding_rate.funding_rate)),
             previous_funding_rate: None,
             next_funding_rate: None,
             funding_time: None,
             next_funding_time: Some(funding_rate.next_funding_time),
-            mark_price: Some(funding_rate.mark_price),
-            index_price: Some(funding_rate.index_price),
+            mark_price: Some(conversion::string_to_price(&funding_rate.mark_price)),
+            index_price: Some(conversion::string_to_price(&funding_rate.index_price)),
             timestamp: funding_rate.timestamp,
         })
     }

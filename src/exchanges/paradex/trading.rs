@@ -151,11 +151,13 @@ impl ParadexConnector {
         Ok(OrderResponse {
             order_id: paradex_response.id,
             client_order_id: paradex_response.client_id,
-            symbol: paradex_response.market,
+            symbol: crate::core::types::conversion::string_to_symbol(&paradex_response.market),
             side: order.side.clone(),
             order_type: order.order_type.clone(),
-            quantity: paradex_response.size,
-            price: Some(paradex_response.price),
+            quantity: crate::core::types::conversion::string_to_quantity(&paradex_response.size),
+            price: Some(crate::core::types::conversion::string_to_price(
+                &paradex_response.price,
+            )),
             status: paradex_response.status,
             timestamp: chrono::DateTime::parse_from_rfc3339(&paradex_response.created_at)
                 .unwrap_or_else(|_| chrono::Utc::now().into())
@@ -213,10 +215,10 @@ fn convert_order_request(order: &OrderRequest) -> serde_json::Value {
     };
 
     let mut paradex_order = serde_json::json!({
-        "market": order.symbol,
+        "market": order.symbol.to_string(),
         "side": side,
         "order_type": order_type,
-        "size": order.quantity,
+        "size": order.quantity.to_string(),
     });
 
     // Add price for limit orders
@@ -227,7 +229,7 @@ fn convert_order_request(order: &OrderRequest) -> serde_json::Value {
                 | crate::core::types::OrderType::StopLossLimit
                 | crate::core::types::OrderType::TakeProfitLimit
         ) {
-            paradex_order["price"] = serde_json::Value::String(price.clone());
+            paradex_order["price"] = serde_json::Value::String(price.to_string());
         }
     }
 
@@ -240,7 +242,7 @@ fn convert_order_request(order: &OrderRequest) -> serde_json::Value {
                 | crate::core::types::OrderType::TakeProfit
                 | crate::core::types::OrderType::TakeProfitLimit
         ) {
-            paradex_order["stop_price"] = serde_json::Value::String(stop_price.clone());
+            paradex_order["stop_price"] = serde_json::Value::String(stop_price.to_string());
         }
     }
 

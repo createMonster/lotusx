@@ -4,7 +4,7 @@ use super::types as binance_types;
 use crate::core::errors::{ExchangeError, ResultExt};
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    conversion, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
 };
 use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
 use async_trait::async_trait;
@@ -30,7 +30,8 @@ impl MarketDataSource for BinanceConnector {
             .symbols
             .into_iter()
             .map(convert_binance_market)
-            .collect();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ExchangeError::Other)?;
 
         Ok(markets)
     }
@@ -152,41 +153,30 @@ impl MarketDataSource for BinanceConnector {
                 format!("Failed to parse klines response for symbol {}", symbol)
             })?;
 
+        let symbol_obj = conversion::string_to_symbol(&symbol);
+
         let klines = klines_data
             .into_iter()
             .map(|kline_array| {
                 // Binance returns k-lines as arrays, we need to parse them safely
                 let open_time = kline_array.first().and_then(|v| v.as_i64()).unwrap_or(0);
-                let open_price = kline_array
-                    .get(1)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-                    .to_string();
-                let high_price = kline_array
-                    .get(2)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-                    .to_string();
-                let low_price = kline_array
-                    .get(3)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-                    .to_string();
-                let close_price = kline_array
-                    .get(4)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-                    .to_string();
-                let volume = kline_array
-                    .get(5)
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("0")
-                    .to_string();
+                let open_price_str = kline_array.get(1).and_then(|v| v.as_str()).unwrap_or("0");
+                let high_price_str = kline_array.get(2).and_then(|v| v.as_str()).unwrap_or("0");
+                let low_price_str = kline_array.get(3).and_then(|v| v.as_str()).unwrap_or("0");
+                let close_price_str = kline_array.get(4).and_then(|v| v.as_str()).unwrap_or("0");
+                let volume_str = kline_array.get(5).and_then(|v| v.as_str()).unwrap_or("0");
                 let close_time = kline_array.get(6).and_then(|v| v.as_i64()).unwrap_or(0);
                 let number_of_trades = kline_array.get(8).and_then(|v| v.as_i64()).unwrap_or(0);
 
+                // Parse all price/volume fields to proper types
+                let open_price = conversion::string_to_price(open_price_str);
+                let high_price = conversion::string_to_price(high_price_str);
+                let low_price = conversion::string_to_price(low_price_str);
+                let close_price = conversion::string_to_price(close_price_str);
+                let volume = conversion::string_to_volume(volume_str);
+
                 Kline {
-                    symbol: symbol.clone(),
+                    symbol: symbol_obj.clone(),
                     open_time,
                     close_time,
                     interval: interval_str.clone(),
