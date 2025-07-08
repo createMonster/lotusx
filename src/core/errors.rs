@@ -31,6 +31,15 @@ pub enum ExchangeError {
 
     #[error("Context error: {0}")]
     ContextError(#[from] anyhow::Error),
+
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("Deserialization error: {0}")]
+    DeserializationError(String),
 }
 
 // Add conversions for new typed errors
