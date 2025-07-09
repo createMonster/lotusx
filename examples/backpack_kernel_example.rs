@@ -23,18 +23,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get markets
     let markets = backpack.get_markets().await?;
-    let market_count = markets.as_array().map_or(0, |arr| arr.len());
+    let market_count = markets.len();
     println!("Found {} markets", market_count);
 
     // Extract a valid symbol from the markets response
-    let valid_symbol = markets.as_array().map_or("SOL_USDC", |markets_array| {
-        markets_array.first().map_or("SOL_USDC", |first_market| {
-            first_market
-                .get("symbol")
-                .and_then(|s| s.as_str())
-                .unwrap_or("SOL_USDC")
-        })
-    });
+    let valid_symbol = markets
+        .first()
+        .map_or("SOL_USDC", |market| market.symbol.as_str());
 
     println!("Using symbol: {}", valid_symbol);
 

@@ -47,7 +47,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n💰 Getting SOL-USDC ticker (raw JSON)...");
     match backpack.get_ticker("SOL_USDC").await {
         Ok(ticker) => {
-            println!("SOL-USDC Ticker (raw JSON): {}", ticker);
+            println!("SOL-USDC Ticker (raw JSON): {:?}", ticker);
         }
         Err(e) => eprintln!("Error getting ticker: {}", e),
     }

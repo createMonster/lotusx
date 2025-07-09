@@ -6,6 +6,11 @@ use crate::core::{
     types::{OrderRequest, OrderResponse},
 };
 use crate::exchanges::backpack::codec::{BackpackCodec, BackpackMessage};
+use crate::exchanges::backpack::types::{
+    BackpackBalanceMap, BackpackDepthResponse, BackpackFill, BackpackFundingRate,
+    BackpackKlineResponse, BackpackMarketResponse, BackpackOrder, BackpackOrderResponse,
+    BackpackPositionResponse, BackpackTickerResponse, BackpackTradeResponse,
+};
 use async_trait::async_trait;
 
 /// Backpack connector using kernel architecture
@@ -125,16 +130,16 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
 /// REST API functionality for Backpack
 impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
     /// Get markets from REST API
-    pub async fn get_markets(&self) -> Result<serde_json::Value, ExchangeError> {
+    pub async fn get_markets(&self) -> Result<Vec<BackpackMarketResponse>, ExchangeError> {
         let endpoint = "/api/v1/markets";
-        self.rest.get(endpoint, &[], false).await
+        self.rest.get_json(endpoint, &[], false).await
     }
 
     /// Get ticker for a specific symbol
-    pub async fn get_ticker(&self, symbol: &str) -> Result<serde_json::Value, ExchangeError> {
+    pub async fn get_ticker(&self, symbol: &str) -> Result<BackpackTickerResponse, ExchangeError> {
         let endpoint = "/api/v1/ticker";
         let params = [("symbol", symbol)];
-        self.rest.get(endpoint, &params, false).await
+        self.rest.get_json(endpoint, &params, false).await
     }
 
     /// Get order book for a specific symbol
@@ -142,7 +147,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         &self,
         symbol: &str,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<BackpackDepthResponse, ExchangeError> {
         let endpoint = "/api/v1/depth";
         let limit_str = limit.map(|l| l.to_string());
         let mut params = vec![("symbol", symbol)];
@@ -151,7 +156,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, false).await
+        self.rest.get_json(endpoint, &params, false).await
     }
 
     /// Get recent trades for a specific symbol
@@ -159,7 +164,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         &self,
         symbol: &str,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<Vec<BackpackTradeResponse>, ExchangeError> {
         let endpoint = "/api/v1/trades";
         let limit_str = limit.map(|l| l.to_string());
         let mut params = vec![("symbol", symbol)];
@@ -168,7 +173,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, false).await
+        self.rest.get_json(endpoint, &params, false).await
     }
 
     /// Get klines for a specific symbol
@@ -179,7 +184,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         start_time: Option<i64>,
         end_time: Option<i64>,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<Vec<BackpackKlineResponse>, ExchangeError> {
         let endpoint = "/api/v1/klines";
         let start_str = start_time.map(|t| t.to_string());
         let end_str = end_time.map(|t| t.to_string());
@@ -196,13 +201,13 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, false).await
+        self.rest.get_json(endpoint, &params, false).await
     }
 
     /// Get funding rates
-    pub async fn get_funding_rates(&self) -> Result<serde_json::Value, ExchangeError> {
+    pub async fn get_funding_rates(&self) -> Result<Vec<BackpackFundingRate>, ExchangeError> {
         let endpoint = "/api/v1/funding/rates";
-        self.rest.get(endpoint, &[], false).await
+        self.rest.get_json(endpoint, &[], false).await
     }
 
     /// Get funding rate history for a specific symbol
@@ -212,7 +217,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         start_time: Option<i64>,
         end_time: Option<i64>,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<Vec<BackpackFundingRate>, ExchangeError> {
         let endpoint = "/api/v1/funding/rates/history";
         let start_str = start_time.map(|t| t.to_string());
         let end_str = end_time.map(|t| t.to_string());
@@ -229,7 +234,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, false).await
+        self.rest.get_json(endpoint, &params, false).await
     }
 }
 
@@ -277,15 +282,15 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> OrderPlacer for BackpackConnect
 /// Authenticated endpoints for Backpack
 impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
     /// Get account balances
-    pub async fn get_balances(&self) -> Result<serde_json::Value, ExchangeError> {
+    pub async fn get_balances(&self) -> Result<BackpackBalanceMap, ExchangeError> {
         let endpoint = "/api/v1/balances";
-        self.rest.get(endpoint, &[], true).await
+        self.rest.get_json(endpoint, &[], true).await
     }
 
     /// Get account positions
-    pub async fn get_positions(&self) -> Result<serde_json::Value, ExchangeError> {
+    pub async fn get_positions(&self) -> Result<Vec<BackpackPositionResponse>, ExchangeError> {
         let endpoint = "/api/v1/positions";
-        self.rest.get(endpoint, &[], true).await
+        self.rest.get_json(endpoint, &[], true).await
     }
 
     /// Get order history
@@ -293,7 +298,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         &self,
         symbol: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<Vec<BackpackOrder>, ExchangeError> {
         let endpoint = "/api/v1/orders";
         let limit_str = limit.map(|l| l.to_string());
         let mut params = vec![];
@@ -305,16 +310,16 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, true).await
+        self.rest.get_json(endpoint, &params, true).await
     }
 
     /// Place a new order
     pub async fn place_order(
         &self,
         body: &serde_json::Value,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<BackpackOrderResponse, ExchangeError> {
         let endpoint = "/api/v1/order";
-        self.rest.post(endpoint, body, true).await
+        self.rest.post_json(endpoint, body, true).await
     }
 
     /// Cancel an order
@@ -323,7 +328,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         symbol: &str,
         order_id: Option<i64>,
         client_order_id: Option<&str>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<BackpackOrderResponse, ExchangeError> {
         let endpoint = "/api/v1/order";
         let mut params = vec![("symbol", symbol)];
 
@@ -335,7 +340,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("clientOrderId", client_order_id));
         }
 
-        self.rest.delete(endpoint, &params, true).await
+        self.rest.delete_json(endpoint, &params, true).await
     }
 
     /// Get fills
@@ -343,7 +348,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         &self,
         symbol: Option<&str>,
         limit: Option<u32>,
-    ) -> Result<serde_json::Value, ExchangeError> {
+    ) -> Result<Vec<BackpackFill>, ExchangeError> {
         let endpoint = "/api/v1/fills";
         let limit_str = limit.map(|l| l.to_string());
         let mut params = vec![];
@@ -355,6 +360,6 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
             params.push(("limit", limit.as_str()));
         }
 
-        self.rest.get(endpoint, &params, true).await
+        self.rest.get_json(endpoint, &params, true).await
     }
 }

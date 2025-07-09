@@ -2,6 +2,7 @@ use crate::core::errors::ExchangeError;
 use crate::core::kernel::signer::Signer;
 use async_trait::async_trait;
 use reqwest::{Client, Method, Response};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -31,6 +32,22 @@ pub trait RestClient: Send + Sync {
         authenticated: bool,
     ) -> Result<Value, ExchangeError>;
 
+    /// Make a GET request with strongly-typed response
+    ///
+    /// # Arguments
+    /// * `endpoint` - The API endpoint path
+    /// * `query_params` - Query parameters as key-value pairs
+    /// * `authenticated` - Whether to sign the request
+    ///
+    /// # Returns
+    /// The response body deserialized to the specified type
+    async fn get_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        authenticated: bool,
+    ) -> Result<T, ExchangeError>;
+
     /// Make a POST request
     ///
     /// # Arguments
@@ -46,6 +63,22 @@ pub trait RestClient: Send + Sync {
         body: &Value,
         authenticated: bool,
     ) -> Result<Value, ExchangeError>;
+
+    /// Make a POST request with strongly-typed response
+    ///
+    /// # Arguments
+    /// * `endpoint` - The API endpoint path
+    /// * `body` - Request body as JSON value
+    /// * `authenticated` - Whether to sign the request
+    ///
+    /// # Returns
+    /// The response body deserialized to the specified type
+    async fn post_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        body: &Value,
+        authenticated: bool,
+    ) -> Result<T, ExchangeError>;
 
     /// Make a PUT request
     ///
@@ -63,6 +96,22 @@ pub trait RestClient: Send + Sync {
         authenticated: bool,
     ) -> Result<Value, ExchangeError>;
 
+    /// Make a PUT request with strongly-typed response
+    ///
+    /// # Arguments
+    /// * `endpoint` - The API endpoint path
+    /// * `body` - Request body as JSON value
+    /// * `authenticated` - Whether to sign the request
+    ///
+    /// # Returns
+    /// The response body deserialized to the specified type
+    async fn put_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        body: &Value,
+        authenticated: bool,
+    ) -> Result<T, ExchangeError>;
+
     /// Make a DELETE request
     ///
     /// # Arguments
@@ -78,6 +127,22 @@ pub trait RestClient: Send + Sync {
         query_params: &[(&str, &str)],
         authenticated: bool,
     ) -> Result<Value, ExchangeError>;
+
+    /// Make a DELETE request with strongly-typed response
+    ///
+    /// # Arguments
+    /// * `endpoint` - The API endpoint path
+    /// * `query_params` - Query parameters as key-value pairs
+    /// * `authenticated` - Whether to sign the request
+    ///
+    /// # Returns
+    /// The response body deserialized to the specified type
+    async fn delete_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        authenticated: bool,
+    ) -> Result<T, ExchangeError>;
 
     /// Make a signed request with custom method
     ///
@@ -96,6 +161,24 @@ pub trait RestClient: Send + Sync {
         query_params: &[(&str, &str)],
         body: &[u8],
     ) -> Result<Value, ExchangeError>;
+
+    /// Make a signed request with custom method and strongly-typed response
+    ///
+    /// # Arguments
+    /// * `method` - HTTP method
+    /// * `endpoint` - The API endpoint path
+    /// * `query_params` - Query parameters as key-value pairs
+    /// * `body` - Request body as raw bytes
+    ///
+    /// # Returns
+    /// The response body deserialized to the specified type
+    async fn signed_request_json<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        body: &[u8],
+    ) -> Result<T, ExchangeError>;
 }
 
 /// Configuration for the REST client
@@ -342,6 +425,25 @@ impl RestClient for ReqwestRest {
             .await
     }
 
+    #[instrument(skip(self, query_params), fields(exchange = %self.config.exchange_name, endpoint = %endpoint, param_count = query_params.len()))]
+    async fn get_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        authenticated: bool,
+    ) -> Result<T, ExchangeError> {
+        self.make_request(Method::GET, endpoint, query_params, &[], authenticated)
+            .await
+            .and_then(|value| {
+                serde_json::from_value(value).map_err(|e| {
+                    ExchangeError::DeserializationError(format!(
+                        "Failed to deserialize JSON: {}",
+                        e
+                    ))
+                })
+            })
+    }
+
     #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, endpoint = %endpoint))]
     async fn post(
         &self,
@@ -355,6 +457,29 @@ impl RestClient for ReqwestRest {
 
         self.make_request(Method::POST, endpoint, &[], &body_bytes, authenticated)
             .await
+    }
+
+    #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, endpoint = %endpoint))]
+    async fn post_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        body: &Value,
+        authenticated: bool,
+    ) -> Result<T, ExchangeError> {
+        let body_bytes = serde_json::to_vec(body).map_err(|e| {
+            ExchangeError::SerializationError(format!("Failed to serialize request body: {}", e))
+        })?;
+
+        self.make_request(Method::POST, endpoint, &[], &body_bytes, authenticated)
+            .await
+            .and_then(|value| {
+                serde_json::from_value(value).map_err(|e| {
+                    ExchangeError::DeserializationError(format!(
+                        "Failed to deserialize JSON: {}",
+                        e
+                    ))
+                })
+            })
     }
 
     #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, endpoint = %endpoint))]
@@ -372,6 +497,29 @@ impl RestClient for ReqwestRest {
             .await
     }
 
+    #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, endpoint = %endpoint))]
+    async fn put_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        body: &Value,
+        authenticated: bool,
+    ) -> Result<T, ExchangeError> {
+        let body_bytes = serde_json::to_vec(body).map_err(|e| {
+            ExchangeError::SerializationError(format!("Failed to serialize request body: {}", e))
+        })?;
+
+        self.make_request(Method::PUT, endpoint, &[], &body_bytes, authenticated)
+            .await
+            .and_then(|value| {
+                serde_json::from_value(value).map_err(|e| {
+                    ExchangeError::DeserializationError(format!(
+                        "Failed to deserialize JSON: {}",
+                        e
+                    ))
+                })
+            })
+    }
+
     #[instrument(skip(self, query_params), fields(exchange = %self.config.exchange_name, endpoint = %endpoint, param_count = query_params.len()))]
     async fn delete(
         &self,
@@ -381,6 +529,25 @@ impl RestClient for ReqwestRest {
     ) -> Result<Value, ExchangeError> {
         self.make_request(Method::DELETE, endpoint, query_params, &[], authenticated)
             .await
+    }
+
+    #[instrument(skip(self, query_params), fields(exchange = %self.config.exchange_name, endpoint = %endpoint, param_count = query_params.len()))]
+    async fn delete_json<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        authenticated: bool,
+    ) -> Result<T, ExchangeError> {
+        self.make_request(Method::DELETE, endpoint, query_params, &[], authenticated)
+            .await
+            .and_then(|value| {
+                serde_json::from_value(value).map_err(|e| {
+                    ExchangeError::DeserializationError(format!(
+                        "Failed to deserialize JSON: {}",
+                        e
+                    ))
+                })
+            })
     }
 
     #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, method = %method, endpoint = %endpoint))]
@@ -393,6 +560,26 @@ impl RestClient for ReqwestRest {
     ) -> Result<Value, ExchangeError> {
         self.make_request(method, endpoint, query_params, body, true)
             .await
+    }
+
+    #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, method = %method, endpoint = %endpoint))]
+    async fn signed_request_json<T: DeserializeOwned>(
+        &self,
+        method: Method,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        body: &[u8],
+    ) -> Result<T, ExchangeError> {
+        self.make_request(method, endpoint, query_params, body, true)
+            .await
+            .and_then(|value| {
+                serde_json::from_value(value).map_err(|e| {
+                    ExchangeError::DeserializationError(format!(
+                        "Failed to deserialize JSON: {}",
+                        e
+                    ))
+                })
+            })
     }
 }
 

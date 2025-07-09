@@ -20,11 +20,8 @@ use tokio::sync::mpsc;
 #[async_trait]
 impl<R: RestClient, W: WsSession<BackpackCodec>> MarketDataSource for BackpackConnector<R, W> {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let response: serde_json::Value = self.rest().get("/api/v1/markets", &[], false).await?;
         let markets: Vec<BackpackMarketResponse> =
-            serde_json::from_value(response).map_err(|e| {
-                ExchangeError::DeserializationError(format!("Failed to parse markets: {}", e))
-            })?;
+            self.rest().get_json("/api/v1/markets", &[], false).await?;
 
         Ok(markets
             .into_iter()
@@ -132,10 +129,10 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> MarketDataSource for BackpackCo
             params.push(("limit", limit.as_str()));
         }
 
-        let response: serde_json::Value = self.rest().get("/api/v1/klines", &params, false).await?;
-        let klines: Vec<BackpackKlineResponse> = serde_json::from_value(response).map_err(|e| {
-            ExchangeError::DeserializationError(format!("Failed to parse klines: {}", e))
-        })?;
+        let klines: Vec<BackpackKlineResponse> = self
+            .rest()
+            .get_json("/api/v1/klines", &params, false)
+            .await?;
 
         Ok(klines
             .into_iter()
@@ -197,17 +194,10 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> FundingRateSource for BackpackC
             params.push(("limit", limit.as_str()));
         }
 
-        let response: serde_json::Value = self
+        let funding_rates: Vec<BackpackFundingRate> = self
             .rest()
-            .get("/api/v1/funding/rates/history", &params, false)
+            .get_json("/api/v1/funding/rates/history", &params, false)
             .await?;
-        let funding_rates: Vec<BackpackFundingRate> =
-            serde_json::from_value(response).map_err(|e| {
-                ExchangeError::DeserializationError(format!(
-                    "Failed to parse funding rate history: {}",
-                    e
-                ))
-            })?;
 
         Ok(funding_rates
             .into_iter()
@@ -226,12 +216,10 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> FundingRateSource for BackpackC
     }
 
     async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError> {
-        let response: serde_json::Value =
-            self.rest().get("/api/v1/funding/rates", &[], false).await?;
-        let funding_rates: Vec<BackpackFundingRate> =
-            serde_json::from_value(response).map_err(|e| {
-                ExchangeError::DeserializationError(format!("Failed to parse funding rates: {}", e))
-            })?;
+        let funding_rates: Vec<BackpackFundingRate> = self
+            .rest()
+            .get_json("/api/v1/funding/rates", &[], false)
+            .await?;
 
         Ok(funding_rates
             .into_iter()
@@ -253,14 +241,10 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> FundingRateSource for BackpackC
 impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
     async fn get_single_funding_rate(&self, symbol: &str) -> Result<FundingRate, ExchangeError> {
         let params = [("symbol", symbol)];
-        let response: serde_json::Value = self
+        let funding_rates: Vec<BackpackFundingRate> = self
             .rest()
-            .get("/api/v1/funding/rates", &params, false)
+            .get_json("/api/v1/funding/rates", &params, false)
             .await?;
-        let funding_rates: Vec<BackpackFundingRate> =
-            serde_json::from_value(response).map_err(|e| {
-                ExchangeError::DeserializationError(format!("Failed to parse funding rate: {}", e))
-            })?;
         let funding_rate = funding_rates
             .into_iter()
             .next()
