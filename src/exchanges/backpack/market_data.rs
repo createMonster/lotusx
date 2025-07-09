@@ -143,7 +143,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> MarketDataSource for BackpackCo
                 symbol: conversion::string_to_symbol(&symbol),
                 open_time: k.start.parse::<i64>().unwrap_or(0),
                 close_time: k.end.parse::<i64>().unwrap_or(0),
-                interval: interval.to_backpack_format().to_string(),
+                interval: interval.to_backpack_format(),
                 open_price: conversion::string_to_price(&k.open),
                 high_price: conversion::string_to_price(&k.high),
                 low_price: conversion::string_to_price(&k.low),
@@ -282,7 +282,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
 
 /// Helper functions for working with Backpack WebSocket messages
 impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
-    /// Convert a BackpackMessage to MarketDataType
+    /// Convert a `BackpackMessage` to `MarketDataType`
     pub fn convert_message_to_market_data(
         message: &BackpackMessage,
         _symbol: &str,

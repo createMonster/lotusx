@@ -2,8 +2,8 @@ use crate::core::{
     config::ExchangeConfig,
     errors::ExchangeError,
     kernel::{RestClient, WsSession},
-    traits::{AccountInfo, ExchangeConnector, OrderPlacer},
-    types::{Balance, OrderRequest, OrderResponse, Position},
+    traits::{ExchangeConnector, OrderPlacer},
+    types::{OrderRequest, OrderResponse},
 };
 use crate::exchanges::backpack::codec::{BackpackCodec, BackpackMessage};
 use async_trait::async_trait;
@@ -230,26 +230,6 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> BackpackConnector<R, W> {
         }
 
         self.rest.get(endpoint, &params, false).await
-    }
-}
-
-/// Implement AccountInfo trait for Backpack
-#[async_trait]
-impl<R: RestClient, W: WsSession<BackpackCodec>> AccountInfo for BackpackConnector<R, W> {
-    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
-        let _response = self.get_balances().await?;
-
-        // For now, return an empty vector as Backpack balance parsing would need specific types
-        // This maintains trait compliance while allowing compilation
-        Ok(vec![])
-    }
-
-    async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
-        let _response = self.get_positions().await?;
-
-        // For now, return an empty vector as Backpack position parsing would need specific types
-        // This maintains trait compliance while allowing compilation
-        Ok(vec![])
     }
 }
 
