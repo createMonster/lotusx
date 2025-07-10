@@ -1,196 +1,159 @@
-use super::client::BinanceConnector;
-use super::converters::{convert_binance_market, parse_websocket_message};
+use super::codec::BinanceCodec;
+use super::connector::BinanceConnector;
 use super::types as binance_types;
-use crate::core::errors::{ExchangeError, ResultExt};
-use crate::core::traits::MarketDataSource;
-use crate::core::types::{
-    conversion, Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
-};
-use crate::core::websocket::{build_binance_stream_url, WebSocketManager};
-use async_trait::async_trait;
-use tokio::sync::mpsc;
+use crate::core::errors::ExchangeError;
+use crate::core::kernel::{RestClient, WsSession};
+use tracing::instrument;
 
-#[async_trait]
-impl MarketDataSource for BinanceConnector {
-    async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let url = format!("{}/api/v3/exchangeInfo", self.base_url);
+// The MarketDataSource trait is now implemented directly in connector.rs
+// This file is kept for backwards compatibility but could be removed in the future
 
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .with_exchange_context(|| format!("Failed to send exchange info request to {}", url))?;
-        let exchange_info: binance_types::BinanceExchangeInfo = response
-            .json()
-            .await
-            .with_exchange_context(|| "Failed to parse exchange info response".to_string())?;
-
-        let markets = exchange_info
-            .symbols
-            .into_iter()
-            .map(convert_binance_market)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(ExchangeError::Other)?;
-
-        Ok(markets)
-    }
-
-    async fn subscribe_market_data(
+/// Extended market data functionality for Binance
+impl<R: RestClient, W: WsSession<BinanceCodec>> BinanceConnector<R, W> {
+    /// Get all tickers from Binance
+    #[instrument(skip(self), fields(exchange = "binance"))]
+    pub async fn get_all_tickers(
         &self,
-        symbols: Vec<String>,
-        subscription_types: Vec<SubscriptionType>,
-        _config: Option<WebSocketConfig>,
-    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // Build streams for combined stream format
-        let mut streams = Vec::new();
-
-        for symbol in &symbols {
-            let lower_symbol = symbol.to_lowercase();
-            for sub_type in &subscription_types {
-                match sub_type {
-                    SubscriptionType::Ticker => {
-                        streams.push(format!("{}@ticker", lower_symbol));
-                    }
-                    SubscriptionType::OrderBook { depth } => {
-                        if let Some(d) = depth {
-                            streams.push(format!("{}@depth{}@100ms", lower_symbol, d));
-                        } else {
-                            streams.push(format!("{}@depth@100ms", lower_symbol));
-                        }
-                    }
-                    SubscriptionType::Trades => {
-                        streams.push(format!("{}@trade", lower_symbol));
-                    }
-                    SubscriptionType::Klines { interval } => {
-                        streams.push(format!(
-                            "{}@kline_{}",
-                            lower_symbol,
-                            interval.to_binance_format()
-                        ));
-                    }
-                }
-            }
-        }
-
-        let ws_url = self.get_websocket_url();
-        let full_url = build_binance_stream_url(&ws_url, &streams);
-
-        let ws_manager = WebSocketManager::new(full_url);
-        ws_manager
-            .start_stream(parse_websocket_message)
+    ) -> Result<Vec<binance_types::BinanceWebSocketTicker>, ExchangeError> {
+        self.rest()
+            .get_json("/api/v3/ticker/24hr", &[], false)
             .await
-            .with_exchange_context(|| {
-                format!(
-                    "Failed to start WebSocket stream for symbols: {:?}",
-                    symbols
-                )
-            })
     }
 
-    fn get_websocket_url(&self) -> String {
-        if self.config.testnet {
-            "wss://testnet.binance.vision/ws".to_string()
-        } else {
-            "wss://stream.binance.com:443/ws".to_string()
-        }
-    }
-
-    async fn get_klines(
+    /// Get a specific ticker by symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_ticker_by_symbol(
         &self,
-        symbol: String,
-        interval: KlineInterval,
+        symbol: &str,
+    ) -> Result<binance_types::BinanceWebSocketTicker, ExchangeError> {
+        let params = [("symbol", symbol)];
+        self.rest()
+            .get_json("/api/v3/ticker/24hr", &params, false)
+            .await
+    }
+
+    /// Get order book depth for a symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_depth(
+        &self,
+        symbol: &str,
         limit: Option<u32>,
+    ) -> Result<binance_types::BinanceWebSocketOrderBook, ExchangeError> {
+        let limit_str = limit.map(|l| l.to_string());
+        let mut params = vec![("symbol", symbol)];
+
+        if let Some(ref limit) = limit_str {
+            params.push(("limit", limit.as_str()));
+        }
+
+        self.rest().get_json("/api/v3/depth", &params, false).await
+    }
+
+    /// Get recent trades for a symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_recent_trades(
+        &self,
+        symbol: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<binance_types::BinanceWebSocketTrade>, ExchangeError> {
+        let limit_str = limit.map(|l| l.to_string());
+        let mut params = vec![("symbol", symbol)];
+
+        if let Some(ref limit) = limit_str {
+            params.push(("limit", limit.as_str()));
+        }
+
+        self.rest().get_json("/api/v3/trades", &params, false).await
+    }
+
+    /// Get historical trades for a symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_historical_trades(
+        &self,
+        symbol: &str,
+        limit: Option<u32>,
+        from_id: Option<u64>,
+    ) -> Result<Vec<binance_types::BinanceWebSocketTrade>, ExchangeError> {
+        let limit_str = limit.map(|l| l.to_string());
+        let from_id_str = from_id.map(|id| id.to_string());
+        let mut params = vec![("symbol", symbol)];
+
+        if let Some(ref limit) = limit_str {
+            params.push(("limit", limit.as_str()));
+        }
+
+        if let Some(ref from_id) = from_id_str {
+            params.push(("fromId", from_id.as_str()));
+        }
+
+        self.rest()
+            .get_json("/api/v3/historicalTrades", &params, false)
+            .await
+    }
+
+    /// Get aggregate trades for a symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_aggregate_trades(
+        &self,
+        symbol: &str,
+        from_id: Option<u64>,
         start_time: Option<i64>,
         end_time: Option<i64>,
-    ) -> Result<Vec<Kline>, ExchangeError> {
-        let interval_str = interval.to_binance_format();
-        let url = format!("{}/api/v3/klines", self.base_url);
+        limit: Option<u32>,
+    ) -> Result<Vec<serde_json::Value>, ExchangeError> {
+        let from_id_str = from_id.map(|id| id.to_string());
+        let start_time_str = start_time.map(|t| t.to_string());
+        let end_time_str = end_time.map(|t| t.to_string());
+        let limit_str = limit.map(|l| l.to_string());
+        let mut params = vec![("symbol", symbol)];
 
-        let mut query_params = vec![
-            ("symbol", symbol.clone()),
-            ("interval", interval_str.clone()),
-        ];
-
-        if let Some(limit_val) = limit {
-            query_params.push(("limit", limit_val.to_string()));
+        if let Some(ref from_id) = from_id_str {
+            params.push(("fromId", from_id.as_str()));
         }
 
-        if let Some(start) = start_time {
-            query_params.push(("startTime", start.to_string()));
+        if let Some(ref start_time) = start_time_str {
+            params.push(("startTime", start_time.as_str()));
         }
 
-        if let Some(end) = end_time {
-            query_params.push(("endTime", end.to_string()));
+        if let Some(ref end_time) = end_time_str {
+            params.push(("endTime", end_time.as_str()));
         }
 
-        let response = self
-            .client
-            .get(&url)
-            .query(&query_params)
-            .send()
+        if let Some(ref limit) = limit_str {
+            params.push(("limit", limit.as_str()));
+        }
+
+        self.rest()
+            .get_json("/api/v3/aggTrades", &params, false)
             .await
-            .with_exchange_context(|| {
-                format!(
-                    "Failed to send klines request: url={}, symbol={}",
-                    url, symbol
-                )
-            })?;
+    }
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let error_text = response.text().await.with_exchange_context(|| {
-                format!("Failed to read klines error response for symbol {}", symbol)
-            })?;
-            return Err(ExchangeError::ApiError {
-                code: status.as_u16() as i32,
-                message: format!("K-lines request failed: {}", error_text),
-            });
+    /// Get 24hr ticker price change statistics
+    #[instrument(skip(self), fields(exchange = "binance"))]
+    pub async fn get_24hr_ticker_stats(
+        &self,
+        symbol: Option<&str>,
+    ) -> Result<serde_json::Value, ExchangeError> {
+        let mut params = vec![];
+
+        if let Some(symbol) = symbol {
+            params.push(("symbol", symbol));
         }
 
-        let klines_data: Vec<Vec<serde_json::Value>> =
-            response.json().await.with_exchange_context(|| {
-                format!("Failed to parse klines response for symbol {}", symbol)
-            })?;
+        self.rest()
+            .get_json("/api/v3/ticker/24hr", &params, false)
+            .await
+    }
 
-        let symbol_obj = conversion::string_to_symbol(&symbol);
-
-        let klines = klines_data
-            .into_iter()
-            .map(|kline_array| {
-                // Binance returns k-lines as arrays, we need to parse them safely
-                let open_time = kline_array.first().and_then(|v| v.as_i64()).unwrap_or(0);
-                let open_price_str = kline_array.get(1).and_then(|v| v.as_str()).unwrap_or("0");
-                let high_price_str = kline_array.get(2).and_then(|v| v.as_str()).unwrap_or("0");
-                let low_price_str = kline_array.get(3).and_then(|v| v.as_str()).unwrap_or("0");
-                let close_price_str = kline_array.get(4).and_then(|v| v.as_str()).unwrap_or("0");
-                let volume_str = kline_array.get(5).and_then(|v| v.as_str()).unwrap_or("0");
-                let close_time = kline_array.get(6).and_then(|v| v.as_i64()).unwrap_or(0);
-                let number_of_trades = kline_array.get(8).and_then(|v| v.as_i64()).unwrap_or(0);
-
-                // Parse all price/volume fields to proper types
-                let open_price = conversion::string_to_price(open_price_str);
-                let high_price = conversion::string_to_price(high_price_str);
-                let low_price = conversion::string_to_price(low_price_str);
-                let close_price = conversion::string_to_price(close_price_str);
-                let volume = conversion::string_to_volume(volume_str);
-
-                Kline {
-                    symbol: symbol_obj.clone(),
-                    open_time,
-                    close_time,
-                    interval: interval_str.clone(),
-                    open_price,
-                    high_price,
-                    low_price,
-                    close_price,
-                    volume,
-                    number_of_trades,
-                    final_bar: true, // Historical k-lines are always final
-                }
-            })
-            .collect();
-
-        Ok(klines)
+    /// Get current average price for a symbol
+    #[instrument(skip(self), fields(exchange = "binance", symbol = %symbol))]
+    pub async fn get_average_price(
+        &self,
+        symbol: &str,
+    ) -> Result<serde_json::Value, ExchangeError> {
+        let params = [("symbol", symbol)];
+        self.rest()
+            .get_json("/api/v3/avgPrice", &params, false)
+            .await
     }
 }

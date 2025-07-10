@@ -390,6 +390,127 @@ cargo run --example memory_benchmark
 - ✅ **Type safety** with compile-time guarantees
 - ✅ **Reduced code complexity** (~60% less boilerplate)
 
+## 🔄 File Organization Strategies
+
+### Option A: Consolidated Architecture
+All trait implementations in `connector.rs` (~600 lines):
+```
+connector.rs  - MarketDataSource + AccountInfo + OrderPlacer + core methods
+auth.rs       - Exchange-specific signer
+codec.rs      - WebSocket message handling
+types.rs      - Response type definitions
+converters.rs - Type conversion utilities
+mod.rs        - Factory functions and exports
+```
+
+**Pros:**
+- Single source of truth for all exchange functionality
+- Consistent with some existing patterns (e.g., Backpack)
+- Easier to understand the complete exchange implementation
+- Less file navigation during development
+
+**Cons:**
+- Large files that may be harder to navigate
+- Potential merge conflicts when multiple developers work on different traits
+- May violate single responsibility principle
+
+### Option B: Separated Architecture
+Trait implementations distributed across specialized files:
+```
+connector.rs  - MarketDataSource + core methods (~350 lines)
+account.rs    - AccountInfo trait implementation (~150 lines)
+trading.rs    - OrderPlacer trait implementation (~200 lines)
+auth.rs       - Exchange-specific signer
+codec.rs      - WebSocket message handling
+types.rs      - Response type definitions
+converters.rs - Type conversion utilities
+mod.rs        - Factory functions and exports
+```
+
+**Pros:**
+- Clear separation of concerns (market data vs account vs trading)
+- Smaller, more focused files
+- Easier for teams to work in parallel
+- Reduced merge conflicts
+- Better testability (can test traits independently)
+
+**Cons:**
+- More file navigation required
+- Potential code duplication across trait implementations
+- Need to ensure consistent patterns across files
+
+### Recommendation
+**Choose Option B for larger exchanges** with many endpoints (>10 methods per trait). **Choose Option A for smaller exchanges** with fewer endpoints or simpler APIs.
+
+## 🏗️ Factory Function Patterns
+
+### Basic Factory
+```rust
+pub fn create_exchange_connector(
+    config: ExchangeConfig,
+) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
+```
+
+### WebSocket-Optional Factory
+```rust
+pub fn create_exchange_connector_with_websocket(
+    config: ExchangeConfig,
+    enable_websocket: bool,
+) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
+```
+
+### Advanced Factory with Reconnection
+```rust
+pub fn create_exchange_connector_with_reconnection(
+    config: ExchangeConfig,
+    max_retries: usize,
+    retry_delay: Duration,
+) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
+```
+
+## 🔧 Implementation Patterns
+
+### Type System Requirements
+Ensure all WebSocket message types implement `Clone`:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExchangeWebSocketMessage {
+    // ... fields
+}
+```
+
+### Authentication Checks
+Always verify credentials before attempting authenticated requests:
+```rust
+fn ensure_authenticated(&self) -> Result<(), ExchangeError> {
+    if !self.config.has_credentials() {
+        return Err(ExchangeError::AuthenticationRequired);
+    }
+    Ok(())
+}
+```
+
+### Error Handling Pattern
+Use consistent error handling across all methods:
+```rust
+#[instrument(skip(self), fields(exchange = "exchange_name"))]
+pub async fn exchange_method(&self) -> Result<ResponseType, ExchangeError> {
+    self.ensure_authenticated()?;
+    self.rest.get_json("/endpoint", &[], true).await
+}
+```
+
+### WebSocket Integration
+Proper WebSocket initialization with the kernel:
+```rust
+let ws = if with_websocket {
+    let codec = ExchangeCodec::new();
+    Some(TungsteniteWs::new(ws_url, exchange_name, codec)?)
+} else {
+    None
+};
+```
+
 ## 🚀 Exchange-Specific Considerations
 
 ### Authentication Patterns
@@ -435,6 +556,51 @@ fn decode_message(&self, text: &str) -> Result<Self::Message, ExchangeError> {
     // ... parse message
 }
 ```
+
+## 📊 Lessons Learned from Production Refactoring
+
+### Key Insights from Binance Migration
+
+1. **File Organization Impact**: Option B (separated architecture) proved more maintainable for large exchanges with 15+ endpoints across multiple traits.
+
+2. **Dependency Injection Benefits**: Generic type parameters `<R: RestClient, W: WsSession<ExchangeCodec>>` enabled flexible testing and configuration.
+
+3. **WebSocket Integration Complexity**: TungsteniteWs constructor pattern requires careful coordination with codec initialization.
+
+4. **Type Safety Requirements**: All WebSocket message types must implement `Clone` for codec compatibility.
+
+5. **Authentication Patterns**: Consistent credential checking patterns prevent runtime errors and improve user experience.
+
+6. **Factory Function Value**: Multiple factory functions with different configuration options significantly improve developer experience.
+
+### Common Pitfalls and Solutions
+
+**Pitfall**: Large connector files become difficult to navigate
+**Solution**: Use Option B architecture for exchanges with >10 methods per trait
+
+**Pitfall**: Missing `Clone` implementations on WebSocket types
+**Solution**: Add `#[derive(Clone)]` to all message types used in codecs
+
+**Pitfall**: Inconsistent error handling across methods
+**Solution**: Establish authentication check patterns and use consistent instrumentation
+
+**Pitfall**: Complex factory functions with too many parameters
+**Solution**: Create multiple focused factory functions for different use cases
+
+### Performance Considerations
+
+- **Zero-copy deserialization**: Kernel's `get_json()` method eliminates intermediate `serde_json::Value` allocations
+- **Reduced boilerplate**: ~60% code reduction compared to manual JSON parsing
+- **Type safety**: Compile-time guarantees eliminate runtime serialization errors
+- **Observability**: Built-in tracing adds minimal overhead while providing valuable insights
+
+### Recommended Migration Order
+
+1. **Phase 1**: Implement codec and signer (exchange-specific components)
+2. **Phase 2**: Refactor connector with MarketDataSource trait
+3. **Phase 3**: Add AccountInfo and OrderPlacer traits (separate files for Option B)
+4. **Phase 4**: Create factory functions and update module exports
+5. **Phase 5**: Add comprehensive error handling and instrumentation
 
 ## 📝 Summary
 

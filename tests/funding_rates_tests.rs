@@ -2,14 +2,13 @@
 mod funding_rates_tests {
     use lotusx::core::{config::ExchangeConfig, traits::FundingRateSource};
     use lotusx::exchanges::{
-        binance_perp::client::BinancePerpConnector, bybit_perp::client::BybitPerpConnector,
-        hyperliquid::client::HyperliquidClient,
+        bybit_perp::client::BybitPerpConnector, hyperliquid::client::HyperliquidClient,
     };
 
     #[tokio::test]
     async fn test_binance_perp_get_funding_rates_single_symbol() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         let symbols = vec!["BTCUSDT".to_string()];
         let result = exchange.get_funding_rates(Some(symbols)).await;
@@ -35,7 +34,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_binance_perp_get_all_funding_rates() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         let result = exchange.get_funding_rates(None).await;
 
@@ -70,7 +69,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_binance_perp_get_funding_rate_history() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         let result = exchange
             .get_funding_rate_history(
@@ -160,7 +159,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_funding_rate_error_handling() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         // Test with invalid symbol
         let result = exchange
@@ -186,7 +185,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_concurrent_funding_rate_requests() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         // Test concurrent requests
         let symbols1 = vec!["BTCUSDT".to_string()];
@@ -214,7 +213,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_performance_timing() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         let start = std::time::Instant::now();
         let result = exchange
@@ -236,7 +235,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_binance_perp_get_all_funding_rates_direct() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BinancePerpConnector::new(config);
+        let exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
 
         let result = exchange.get_all_funding_rates().await;
 
@@ -537,7 +536,7 @@ mod funding_rates_tests {
         // Test Binance Perp
         let start = Instant::now();
         let config = ExchangeConfig::read_only().testnet(true);
-        let binance_exchange = BinancePerpConnector::new(config);
+        let binance_exchange = lotusx::exchanges::binance_perp::build_connector(config).unwrap();
         if let Ok(rates) = binance_exchange.get_all_funding_rates().await {
             let duration = start.elapsed();
             println!("   Binance Perp: {} symbols in {:?}", rates.len(), duration);

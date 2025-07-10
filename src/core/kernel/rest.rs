@@ -182,6 +182,7 @@ pub trait RestClient: Send + Sync {
 }
 
 /// Configuration for the REST client
+#[derive(Clone)]
 pub struct RestClientConfig {
     /// Base URL for the API
     pub base_url: String,
@@ -278,7 +279,8 @@ impl RestClientBuilder {
     }
 }
 
-/// Reqwest-based REST client implementation
+/// Implementation of `RestClient` using reqwest
+#[derive(Clone)]
 pub struct ReqwestRest {
     client: Client,
     config: RestClientConfig,

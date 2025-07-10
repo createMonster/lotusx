@@ -1,7 +1,7 @@
 use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
 use crate::exchanges::{
-    backpack, binance::BinanceConnector, binance_perp::BinancePerpConnector, bybit::BybitConnector,
-    bybit_perp::BybitPerpConnector, hyperliquid::HyperliquidClient, paradex::ParadexConnector,
+    backpack, bybit::BybitConnector, bybit_perp::BybitPerpConnector,
+    hyperliquid::HyperliquidClient, paradex::ParadexConnector,
 };
 
 /// Configuration for an exchange in the latency test
@@ -54,11 +54,15 @@ impl ExchangeFactory {
         match exchange_type {
             ExchangeType::Binance => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BinanceConnector::new(cfg)))
+                Ok(Box::new(
+                    crate::exchanges::binance::create_binance_connector(cfg)?,
+                ))
             }
             ExchangeType::BinancePerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BinancePerpConnector::new(cfg)))
+                Ok(Box::new(
+                    crate::exchanges::binance_perp::create_binance_perp_connector(cfg)?,
+                ))
             }
             ExchangeType::Bybit => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));

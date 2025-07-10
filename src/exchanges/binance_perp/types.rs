@@ -182,7 +182,7 @@ pub struct BinancePerpOrderResponse {
 }
 
 // WebSocket Types for Perpetual Futures
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpWebSocketTicker {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -208,7 +208,7 @@ pub struct BinancePerpWebSocketTicker {
     pub count: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpWebSocketOrderBook {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -224,7 +224,7 @@ pub struct BinancePerpWebSocketOrderBook {
     pub asks: Vec<[String; 2]>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpWebSocketTrade {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -240,7 +240,7 @@ pub struct BinancePerpWebSocketTrade {
     pub is_buyer_maker: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpWebSocketKline {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -248,7 +248,7 @@ pub struct BinancePerpWebSocketKline {
     pub kline: BinancePerpKlineData,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpKlineData {
     #[serde(rename = "t")]
     pub open_time: i64,
@@ -270,6 +270,29 @@ pub struct BinancePerpKlineData {
     pub number_of_trades: i64,
     #[serde(rename = "x")]
     pub final_bar: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinancePerpAccountInfo {
+    pub assets: Vec<BinancePerpBalance>,
+    pub positions: Vec<BinancePerpPosition>,
+    #[serde(rename = "canTrade")]
+    pub can_trade: bool,
+    #[serde(rename = "canWithdraw")]
+    pub can_withdraw: bool,
+    #[serde(rename = "canDeposit")]
+    pub can_deposit: bool,
+    #[serde(rename = "updateTime")]
+    pub update_time: i64,
+    #[serde(rename = "totalInitialMargin")]
+    pub total_initial_margin: String,
+    #[serde(rename = "totalMaintMargin")]
+    pub total_maint_margin: String,
+    #[serde(rename = "totalWalletBalance")]
+    pub total_wallet_balance: String,
+    #[serde(rename = "totalUnrealizedPnl")]
+    pub total_unrealized_pnl: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -297,7 +320,7 @@ pub struct BinancePerpPosition {
 }
 
 // Funding Rate Types
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinancePerpFundingRate {
     pub symbol: String,
     #[serde(rename = "fundingRate")]
