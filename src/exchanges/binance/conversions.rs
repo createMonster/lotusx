@@ -80,6 +80,27 @@ pub fn convert_time_in_force(tif: &TimeInForce) -> String {
     }
 }
 
+/// Convert binance REST kline to core kline type
+pub fn convert_binance_rest_kline(
+    kline: &binance_types::BinanceRestKline,
+    symbol: &str,
+    interval: &str,
+) -> Kline {
+    Kline {
+        symbol: conversion::string_to_symbol(symbol),
+        open_time: kline.open_time,
+        close_time: kline.close_time,
+        interval: interval.to_string(),
+        open_price: conversion::string_to_price(&kline.open_price),
+        high_price: conversion::string_to_price(&kline.high_price),
+        low_price: conversion::string_to_price(&kline.low_price),
+        close_price: conversion::string_to_price(&kline.close_price),
+        volume: conversion::string_to_volume(&kline.volume),
+        number_of_trades: kline.number_of_trades,
+        final_bar: true, // REST klines are always final
+    }
+}
+
 /// Parse websocket message from binance
 #[allow(clippy::too_many_lines)]
 pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {

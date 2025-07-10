@@ -1,23 +1,35 @@
-use super::connector::BackpackConnector;
-use crate::core::errors::ExchangeError;
-use crate::core::kernel::{RestClient, WsSession};
-use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position};
-use crate::exchanges::backpack::codec::BackpackCodec;
+use crate::core::{
+    errors::ExchangeError,
+    kernel::RestClient,
+    traits::AccountInfo,
+    types::{Balance, Position},
+};
+use crate::exchanges::backpack::rest::BackpackRestClient;
 use async_trait::async_trait;
 use tracing::instrument;
 
+/// Account implementation for Backpack
+pub struct Account<R: RestClient> {
+    rest: BackpackRestClient<R>,
+}
+
+impl<R: RestClient> Account<R> {
+    /// Create a new account manager
+    pub fn new(rest: &R) -> Self
+    where
+        R: Clone,
+    {
+        Self {
+            rest: BackpackRestClient::new(rest.clone()),
+        }
+    }
+}
+
 #[async_trait]
-impl<R: RestClient, W: WsSession<BackpackCodec>> AccountInfo for BackpackConnector<R, W> {
+impl<R: RestClient> AccountInfo for Account<R> {
     #[instrument(skip(self), fields(exchange = "backpack"))]
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
-        if !self.can_authenticate() {
-            return Err(ExchangeError::AuthError(
-                "Missing API credentials for account access".to_string(),
-            ));
-        }
-
-        let balance_map = self.get_balances().await?;
+        let balance_map = self.rest.get_balances().await?;
 
         // Convert BackpackBalanceMap to Vec<Balance>
         let balances: Vec<Balance> = balance_map
@@ -35,13 +47,7 @@ impl<R: RestClient, W: WsSession<BackpackCodec>> AccountInfo for BackpackConnect
 
     #[instrument(skip(self), fields(exchange = "backpack"))]
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
-        if !self.can_authenticate() {
-            return Err(ExchangeError::AuthError(
-                "Missing API credentials for position access".to_string(),
-            ));
-        }
-
-        let position_responses = self.get_positions().await?;
+        let position_responses = self.rest.get_positions().await?;
 
         // Convert Vec<BackpackPositionResponse> to Vec<Position>
         let positions: Vec<Position> = position_responses

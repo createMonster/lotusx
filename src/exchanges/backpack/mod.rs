@@ -1,23 +1,23 @@
-pub mod account;
-pub mod auth;
 pub mod codec;
-pub mod connector;
-pub mod converters;
-pub mod market_data;
+pub mod conversions;
+pub mod signer;
 pub mod types;
 
-use crate::core::{
-    config::ExchangeConfig,
-    errors::ExchangeError,
-    kernel::{Ed25519Signer, ReqwestRest, RestClientBuilder, RestClientConfig, TungsteniteWs},
-};
-use codec::BackpackCodec;
-use std::sync::Arc;
+pub mod builder;
+pub mod connector;
+pub mod rest;
 
-// Re-export main types for easier importing
-pub use auth::*;
-pub use connector::BackpackConnector;
-pub use converters::*;
+// Re-export main components
+pub use builder::{
+    build_connector,
+    build_connector_with_reconnection,
+    build_connector_with_websocket,
+    // Legacy compatibility exports
+    create_backpack_connector,
+    create_backpack_connector_with_reconnection,
+};
+pub use codec::BackpackCodec;
+pub use connector::{Account, BackpackConnector, MarketData, Trading};
 pub use types::{
     BackpackBalance, BackpackExchangeInfo, BackpackKlineData, BackpackMarket, BackpackOrderRequest,
     BackpackOrderResponse, BackpackPosition, BackpackRestKline, BackpackWebSocketKline,
@@ -25,90 +25,6 @@ pub use types::{
     BackpackWebSocketOrderBook, BackpackWebSocketRFQ, BackpackWebSocketRFQUpdate,
     BackpackWebSocketTicker, BackpackWebSocketTrade,
 };
-
-/// Factory function to create a Backpack connector with kernel dependencies
-pub fn create_backpack_connector(
-    config: ExchangeConfig,
-    with_websocket: bool,
-) -> Result<connector::BackpackConnector<ReqwestRest, TungsteniteWs<BackpackCodec>>, ExchangeError>
-{
-    // Create REST client with Backpack configuration
-    let rest_config = RestClientConfig::new(
-        config
-            .base_url
-            .clone()
-            .unwrap_or_else(|| "https://api.backpack.exchange".to_string()),
-        "backpack".to_string(),
-    );
-
-    let mut rest_builder = RestClientBuilder::new(rest_config);
-
-    // Add authentication if available
-    if !config.api_key().is_empty() && !config.secret_key().is_empty() {
-        let signer = Ed25519Signer::new(config.secret_key())?;
-        rest_builder = rest_builder.with_signer(Arc::new(signer));
-    }
-
-    let rest = rest_builder.build()?;
-
-    // Create WebSocket session if requested
-    let ws = if with_websocket {
-        let ws_url = "wss://ws.backpack.exchange".to_string();
-        let codec = BackpackCodec::new();
-        Some(TungsteniteWs::new(ws_url, "backpack".to_string(), codec))
-    } else {
-        None
-    };
-
-    Ok(connector::BackpackConnector::new(rest, ws, config))
-}
-
-/// Factory function to create a Backpack connector with reconnection support
-pub fn create_backpack_connector_with_reconnection(
-    config: ExchangeConfig,
-    with_websocket: bool,
-) -> Result<
-    connector::BackpackConnector<
-        ReqwestRest,
-        crate::core::kernel::ReconnectWs<BackpackCodec, TungsteniteWs<BackpackCodec>>,
-    >,
-    ExchangeError,
-> {
-    // Create REST client with Backpack configuration
-    let rest_config = RestClientConfig::new(
-        config
-            .base_url
-            .clone()
-            .unwrap_or_else(|| "https://api.backpack.exchange".to_string()),
-        "backpack".to_string(),
-    );
-
-    let mut rest_builder = RestClientBuilder::new(rest_config);
-
-    // Add authentication if available
-    if !config.api_key().is_empty() && !config.secret_key().is_empty() {
-        let signer = Ed25519Signer::new(config.secret_key())?;
-        rest_builder = rest_builder.with_signer(Arc::new(signer));
-    }
-
-    let rest = rest_builder.build()?;
-
-    // Create WebSocket session with reconnection if requested
-    let ws = if with_websocket {
-        let ws_url = "wss://ws.backpack.exchange".to_string();
-        let codec = BackpackCodec::new();
-        let base_ws = TungsteniteWs::new(ws_url, "backpack".to_string(), codec);
-        let reconnect_ws = crate::core::kernel::ReconnectWs::new(base_ws)
-            .with_max_reconnect_attempts(10)
-            .with_reconnect_delay(std::time::Duration::from_secs(2))
-            .with_auto_resubscribe(true);
-        Some(reconnect_ws)
-    } else {
-        None
-    };
-
-    Ok(connector::BackpackConnector::new(rest, ws, config))
-}
 
 /// Helper function to create WebSocket stream identifiers for Backpack
 pub fn create_backpack_stream_identifiers(

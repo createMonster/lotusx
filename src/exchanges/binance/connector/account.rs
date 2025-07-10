@@ -1,18 +1,35 @@
-use super::connector::BinanceConnector;
-use crate::core::errors::ExchangeError;
-use crate::core::kernel::{RestClient, WsSession};
-use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position};
-use crate::exchanges::binance::codec::BinanceCodec;
+use crate::core::{
+    errors::ExchangeError,
+    kernel::RestClient,
+    traits::AccountInfo,
+    types::{Balance, Position},
+};
+use crate::exchanges::binance::rest::BinanceRestClient;
 use async_trait::async_trait;
 use tracing::instrument;
 
-/// AccountInfo trait implementation for Binance
+/// Account implementation for Binance
+pub struct Account<R: RestClient> {
+    rest: BinanceRestClient<R>,
+}
+
+impl<R: RestClient> Account<R> {
+    /// Create a new account manager
+    pub fn new(rest: &R) -> Self
+    where
+        R: Clone,
+    {
+        Self {
+            rest: BinanceRestClient::new(rest.clone()),
+        }
+    }
+}
+
 #[async_trait]
-impl<R: RestClient, W: WsSession<BinanceCodec>> AccountInfo for BinanceConnector<R, W> {
+impl<R: RestClient> AccountInfo for Account<R> {
     #[instrument(skip(self), fields(exchange = "binance"))]
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
-        let account_info = self.get_account_info().await?;
+        let account_info = self.rest.get_account_info().await?;
 
         let balances = account_info
             .balances
