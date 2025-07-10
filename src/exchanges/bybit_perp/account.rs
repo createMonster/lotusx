@@ -3,21 +3,21 @@ use super::types as bybit_perp_types;
 use crate::core::errors::ExchangeError;
 use crate::core::traits::AccountInfo;
 use crate::core::types::{conversion, Balance, Position, PositionSide};
-use crate::exchanges::bybit::auth; // Reuse auth from spot Bybit
+use crate::exchanges::bybit::signer;
 use async_trait::async_trait;
 
 #[async_trait]
 impl AccountInfo for BybitPerpConnector {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
         let url = format!("{}/v5/account/wallet-balance", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = signer::get_timestamp();
 
         let params = vec![
             ("accountType".to_string(), "UNIFIED".to_string()),
             ("timestamp".to_string(), timestamp.to_string()),
         ];
 
-        let signature = auth::sign_request(
+        let signature = signer::sign_request(
             &params,
             self.config.secret_key(),
             self.config.api_key(),
@@ -87,7 +87,7 @@ impl AccountInfo for BybitPerpConnector {
 
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
         let url = format!("{}/v5/position/list", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = signer::get_timestamp();
 
         let params = vec![
             ("category".to_string(), "linear".to_string()),
@@ -95,7 +95,7 @@ impl AccountInfo for BybitPerpConnector {
             ("timestamp".to_string(), timestamp.to_string()),
         ];
 
-        let signature = auth::sign_request(
+        let signature = signer::sign_request(
             &params,
             self.config.secret_key(),
             self.config.api_key(),

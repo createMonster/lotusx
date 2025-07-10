@@ -4,7 +4,7 @@ use super::types::{self as bybit_perp_types, BybitPerpError, BybitPerpResultExt}
 use crate::core::errors::ExchangeError;
 use crate::core::traits::OrderPlacer;
 use crate::core::types::{conversion, OrderRequest, OrderResponse, OrderType};
-use crate::exchanges::bybit::auth; // Reuse auth from spot Bybit
+use crate::exchanges::bybit::signer;
 use async_trait::async_trait;
 use tracing::{error, instrument};
 
@@ -33,7 +33,7 @@ impl OrderPlacer for BybitPerpConnector {
     #[instrument(skip(self), fields(exchange = "bybit_perp", contract = %order.symbol, side = ?order.side, order_type = ?order.order_type))]
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         let url = format!("{}/v5/order/create", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = signer::get_timestamp();
 
         // Build the request body for V5 API
         let mut request_body = bybit_perp_types::BybitPerpOrderRequest {
@@ -70,7 +70,7 @@ impl OrderPlacer for BybitPerpConnector {
         )?;
 
         // V5 API signature
-        let signature = auth::sign_v5_request(
+        let signature = signer::sign_v5_request(
             &body,
             self.config.secret_key(),
             self.config.api_key(),
@@ -151,7 +151,7 @@ impl OrderPlacer for BybitPerpConnector {
     #[instrument(skip(self), fields(exchange = "bybit_perp", contract = %symbol, order_id = %order_id))]
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         let url = format!("{}/v5/order/cancel", self.base_url);
-        let timestamp = auth::get_timestamp();
+        let timestamp = signer::get_timestamp();
 
         let request_body = serde_json::json!({
             "category": "linear",
@@ -160,7 +160,7 @@ impl OrderPlacer for BybitPerpConnector {
         });
 
         let body = request_body.to_string();
-        let signature = auth::sign_v5_request(
+        let signature = signer::sign_v5_request(
             &body,
             self.config.secret_key(),
             self.config.api_key(),

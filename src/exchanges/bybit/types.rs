@@ -119,6 +119,53 @@ pub struct BybitMarket {
     pub base_coin: String,
     #[serde(rename = "quoteCoin")]
     pub quote_coin: String,
+    #[serde(rename = "basePrecision")]
+    pub base_precision: Option<u8>,
+    #[serde(rename = "quotePrecision")]
+    pub quote_precision: Option<u8>,
+    #[serde(rename = "minOrderQty")]
+    pub min_qty: Option<String>,
+    #[serde(rename = "maxOrderQty")]
+    pub max_qty: Option<String>,
+    #[serde(rename = "qtyStep")]
+    pub step_size: Option<String>,
+    #[serde(rename = "minPrice")]
+    pub min_price: Option<String>,
+    #[serde(rename = "maxPrice")]
+    pub max_price: Option<String>,
+    #[serde(rename = "tickSize")]
+    pub tick_size: Option<String>,
+    #[serde(rename = "isSpotTradingAllowed")]
+    pub is_spot_trading_allowed: Option<bool>,
+    #[serde(rename = "isMarginTradingAllowed")]
+    pub is_margin_trading_allowed: Option<bool>,
+}
+
+// Ticker data type
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitTicker {
+    pub symbol: String,
+    #[serde(rename = "lastPrice")]
+    pub last_price: String,
+    #[serde(rename = "highPrice24h")]
+    pub high_price_24h: Option<String>,
+    #[serde(rename = "lowPrice24h")]
+    pub low_price_24h: Option<String>,
+    #[serde(rename = "volume24h")]
+    pub volume_24h: Option<String>,
+    #[serde(rename = "priceChangePercent24h")]
+    pub price_change_percent_24h: Option<String>,
+    pub time: Option<i64>,
+}
+
+// Trade data type
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BybitTrade {
+    pub id: String,
+    pub price: String,
+    pub qty: String,
+    pub time: i64,
+    pub is_buyer_maker: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -180,7 +227,7 @@ pub struct BybitPriceFilter {
     pub tick_size: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct BybitAccountInfo {
     #[serde(rename = "retCode")]
     pub ret_code: i32,
@@ -238,7 +285,7 @@ pub struct BybitOrderResponse {
 }
 
 // WebSocket Types
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketTicker {
     pub symbol: String,
     pub price: String,
@@ -252,7 +299,7 @@ pub struct BybitWebSocketTicker {
     pub timestamp: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketOrderBook {
     pub symbol: String,
     pub bids: Vec<[String; 2]>,
@@ -261,7 +308,7 @@ pub struct BybitWebSocketOrderBook {
     pub update_id: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketTrade {
     pub symbol: String,
     pub price: String,
@@ -271,13 +318,13 @@ pub struct BybitWebSocketTrade {
     pub trade_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketKline {
     pub symbol: String,
     pub kline: BybitKlineData,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitKlineData {
     pub start_time: i64,
     pub end_time: i64,

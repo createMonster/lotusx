@@ -1,616 +1,352 @@
-# Exchange Refactor Guide: Migrating to Kernel Architecture
+# Exchange Refactor Guide: Kernel Architecture Implementation
 
-This guide provides a comprehensive blueprint for refactoring any exchange connector to use the LotusX Kernel Architecture, based on the successful Backpack migration. The kernel provides a unified, type-safe, and observable foundation for all exchange integrations.
+This guide provides a **comprehensive blueprint** for refactoring any exchange connector to the **LotusX Kernel Architecture**. It's based on the proven `structure_exchange.md` template and successful refactoring of **Binance** and **Backpack** exchanges.
 
 ## 🎯 Overview
 
-The kernel architecture separates **transport concerns** from **exchange-specific logic**, enabling:
-- **Zero-copy typed deserialization** for optimal performance
-- **Unified error handling** across all exchanges
-- **Pluggable authentication** with exchange-specific signers
-- **Observable operations** with built-in tracing
-- **Testable components** through dependency injection
+The kernel architecture achieves **one responsibility per file** while maintaining **compile-time type safety** and avoiding transport-level details leaking into business logic:
 
-## 🏗️ Architecture Principles
+- **✅ Zero-copy typed deserialization** for HFT performance
+- **✅ Unified error handling** across all exchanges  
+- **✅ Pluggable authentication** with exchange-specific signers
+- **✅ Observable operations** with built-in tracing
+- **✅ Testable components** through dependency injection
 
-### 1. Separation of Concerns
+## 🏗️ Template Structure (Proven & Battle-Tested)
+
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Application   │◄──►│    Connector     │◄──►│   Kernel        │
-│   (Traits)      │    │  (Exchange-Specific) │    │   (Transport)   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+src/exchanges/<exchange>/         # e.g., binance, bybit, okx
+├── mod.rs                       # public façade, re-exports
+├── types.rs                     # serde structs ← raw JSON  
+├── conversions.rs              # String ↔︎ Decimal, Symbol, etc.
+├── signer.rs                   # Hmac / Ed25519 / JWT
+├── codec.rs                    # impl WsCodec (WebSocket dialect)
+├── rest.rs                     # thin typed wrapper around RestClient
+├── connector/
+│   ├── market_data.rs          # impl MarketDataSource
+│   ├── trading.rs              # impl TradingEngine (orders)
+│   ├── account.rs              # impl AccountInfoSource
+│   └── mod.rs                  # re-export, compose sub-traits
+└── builder.rs                  # fluent builder → concrete connector
 ```
 
-- **Kernel**: Transport, authentication, observability (exchange-agnostic)
-- **Connector**: Field mapping, endpoint configuration (exchange-specific)  
-- **Application**: Business logic via traits (exchange-agnostic)
+## 📋 Refactoring Checklist
 
-### 2. Key Kernel Components
+### Phase 1: File Structure Migration
+- [ ] **Rename files** following template (auth.rs → signer.rs, converters.rs → conversions.rs)
+- [ ] **Create connector/ subdirectory** with sub-trait implementations
+- [ ] **Create rest.rs** with thin typed wrapper around RestClient
+- [ ] **Create builder.rs** with fluent builder pattern
+- [ ] **Delete legacy files** (client.rs, connector.rs if monolithic)
 
-| Component | Purpose | Exchange Implementation Required |
-|-----------|---------|----------------------------------|
-| `RestClient` | HTTP transport with signing | ❌ (provided by kernel) |
-| `WsSession` | WebSocket transport | ❌ (provided by kernel) |
-| `WsCodec` | Message encoding/decoding | ✅ (exchange-specific) |
-| `Signer` | Request authentication | ✅ (exchange-specific) |
+### Phase 2: Core Implementation
+- [ ] **Update types.rs** to match actual API response schemas
+- [ ] **Implement codec.rs** for WebSocket message encode/decode
+- [ ] **Implement signer.rs** for exchange-specific authentication
+- [ ] **Implement rest.rs** with strongly-typed endpoint methods
+- [ ] **Update conversions.rs** with type-safe conversion utilities
 
-## 📋 Migration Checklist
+### Phase 3: Sub-Trait Implementation  
+- [ ] **Implement connector/market_data.rs** with MarketDataSource trait
+- [ ] **Implement connector/trading.rs** with OrderPlacer trait (if supported)
+- [ ] **Implement connector/account.rs** with AccountInfo trait
+- [ ] **Implement connector/mod.rs** with composition pattern
+- [ ] **Update mod.rs** to act as public facade with re-exports
 
-### Phase 1: Kernel Integration
-- [ ] Create exchange-specific `WsCodec` implementation
-- [ ] Create exchange-specific `Signer` implementation  
-- [ ] Refactor connector to use kernel `RestClient`
-- [ ] Refactor connector to use kernel `WsSession`
-- [ ] Update all methods to return strongly-typed responses
+### Phase 4: Builder & Factory
+- [ ] **Implement builder.rs** with dependency injection pattern
+- [ ] **Add legacy compatibility functions** for backward compatibility
+- [ ] **Test all build variants** (REST-only, WebSocket, reconnection)
 
-### Phase 2: Trait Compliance
-- [ ] Implement `MarketDataSource` trait
-- [ ] Implement `AccountInfo` trait
-- [ ] Implement `OrderPlacer` trait (if supported)
-- [ ] Implement `FundingRateSource` trait (if supported)
+### Phase 5: Quality Assurance
+- [ ] **Run quality checks** (`make quality`)
+- [ ] **Fix compilation errors** and clippy warnings
+- [ ] **Verify trait implementations** work correctly
+- [ ] **Test examples** work with new API
 
-### Phase 3: Quality & Testing
-- [ ] Add comprehensive error handling
-- [ ] Add tracing instrumentation
-- [ ] Create factory functions
-- [ ] Update examples and tests
-- [ ] Verify performance benchmarks
+## 🔧 Implementation Guide
 
-## 🔧 Step-by-Step Refactoring
+### 1. REST Client Wrapper (rest.rs)
 
-### Step 1: Define Exchange Types
-
-Create strongly-typed response structures in `types.rs`:
+Create a **thin typed wrapper** around the kernel's RestClient:
 
 ```rust
-// Response types matching API schema
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExchangeMarketResponse {
-    pub symbol: String,
-    pub base_asset: String,
-    pub quote_asset: String,
-    // ... other fields
+use crate::core::kernel::RestClient;
+use crate::core::errors::ExchangeError;
+use crate::exchanges::<exchange>::types::*;
+
+/// Thin typed wrapper around `RestClient` for <Exchange> API
+pub struct <Exchange>RestClient<R: RestClient> {
+    client: R,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExchangeTickerResponse {
-    pub symbol: String,
-    pub price: String,
-    pub volume: String,
-    // ... other fields
+impl<R: RestClient> <Exchange>RestClient<R> {
+    pub fn new(client: R) -> Self {
+        Self { client }
+    }
+
+    /// Get all markets
+    pub async fn get_markets(&self) -> Result<Vec<<Exchange>MarketResponse>, ExchangeError> {
+        self.client.get_json("/api/v1/markets", &[], false).await
+    }
+
+    /// Get ticker for symbol
+    pub async fn get_ticker(&self, symbol: &str) -> Result<<Exchange>TickerResponse, ExchangeError> {
+        let params = [("symbol", symbol)];
+        self.client.get_json("/api/v1/ticker", &params, false).await
+    }
+
+    // Add other endpoints...
 }
 ```
 
-### Step 2: Implement WsCodec
+### 2. Sub-Trait Implementations (connector/)
 
-Create `codec.rs` with exchange-specific message handling:
+#### market_data.rs - MarketDataSource Implementation
 
 ```rust
-use crate::core::kernel::WsCodec;
+use crate::core::traits::MarketDataSource;
+use crate::exchanges::<exchange>::rest::<Exchange>RestClient;
 
-pub struct ExchangeCodec;
+/// Market data implementation for <Exchange>
+pub struct MarketData<R: RestClient, W = ()> {
+    rest: <Exchange>RestClient<R>,
+    ws: Option<W>,
+}
 
-impl WsCodec for ExchangeCodec {
-    type Message = ExchangeMessage;
-
-    fn encode_subscribe(&self, streams: &[String]) -> Result<String, ExchangeError> {
-        let subscription = json!({
-            "method": "SUBSCRIBE",
-            "params": streams,
-            "id": 1
-        });
-        Ok(subscription.to_string())
-    }
-
-    fn encode_unsubscribe(&self, streams: &[String]) -> Result<String, ExchangeError> {
-        let unsubscription = json!({
-            "method": "UNSUBSCRIBE", 
-            "params": streams,
-            "id": 1
-        });
-        Ok(unsubscription.to_string())
-    }
-
-    fn decode_message(&self, text: &str) -> Result<Self::Message, ExchangeError> {
-        let value: serde_json::Value = serde_json::from_str(text)?;
-        
-        // Parse exchange-specific message format
-        if let Some(event_type) = value.get("e").and_then(|e| e.as_str()) {
-            match event_type {
-                "ticker" => Ok(ExchangeMessage::Ticker(serde_json::from_value(value)?)),
-                "trade" => Ok(ExchangeMessage::Trade(serde_json::from_value(value)?)),
-                _ => Ok(ExchangeMessage::Unknown),
-            }
-        } else {
-            Ok(ExchangeMessage::Unknown)
+impl<R: RestClient + Clone> MarketData<R, ()> {
+    pub fn new(rest: &R, _ws: Option<()>) -> Self {
+        Self {
+            rest: <Exchange>RestClient::new(rest.clone()),
+            ws: None,
         }
     }
 }
-```
 
-### Step 3: Implement Signer
-
-Create exchange-specific authentication in `auth.rs`:
-
-```rust
-use crate::core::kernel::Signer;
-
-pub struct ExchangeSigner {
-    api_key: String,
-    secret_key: String,
-}
-
-impl Signer for ExchangeSigner {
-    fn sign_request(
-        &self,
-        method: &str,
-        endpoint: &str,
-        query_string: &str,
-        body: &[u8],
-        timestamp: u64,
-    ) -> Result<(HashMap<String, String>, Vec<(String, String)>), ExchangeError> {
-        // Exchange-specific signing logic
-        let signature = self.create_signature(method, endpoint, query_string, body, timestamp)?;
-        
-        let mut headers = HashMap::new();
-        headers.insert("X-API-KEY".to_string(), self.api_key.clone());
-        
-        let mut params = vec![];
-        params.push(("signature".to_string(), signature));
-        params.push(("timestamp".to_string(), timestamp.to_string()));
-        
-        Ok((headers, params))
-    }
-}
-```
-
-### Step 4: Refactor Connector
-
-Transform the connector to use kernel components:
-
-```rust
-use crate::core::kernel::{RestClient, WsSession};
-
-pub struct ExchangeConnector<R: RestClient, W: WsSession<ExchangeCodec>> {
-    rest: R,
-    ws: Option<W>,
-    config: ExchangeConfig,
-}
-
-impl<R: RestClient, W: WsSession<ExchangeCodec>> ExchangeConnector<R, W> {
-    pub fn new(rest: R, ws: Option<W>, config: ExchangeConfig) -> Self {
-        Self { rest, ws, config }
-    }
-
-    // Use strongly-typed responses
-    pub async fn get_markets(&self) -> Result<Vec<ExchangeMarketResponse>, ExchangeError> {
-        self.rest.get_json("/api/v1/markets", &[], false).await
-    }
-
-    pub async fn get_ticker(&self, symbol: &str) -> Result<ExchangeTickerResponse, ExchangeError> {
-        let params = [("symbol", symbol)];
-        self.rest.get_json("/api/v1/ticker", &params, false).await
-    }
-}
-```
-
-### Step 5: Implement Traits
-
-Implement standard traits for interoperability:
-
-```rust
 #[async_trait]
-impl<R: RestClient, W: WsSession<ExchangeCodec>> MarketDataSource for ExchangeConnector<R, W> {
+impl<R: RestClient + Clone> MarketDataSource for MarketData<R, ()> {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let markets: Vec<ExchangeMarketResponse> = self.get_markets().await?;
-        
-        Ok(markets.into_iter().map(|m| Market {
-            symbol: Symbol {
-                base: m.base_asset,
-                quote: m.quote_asset,
-            },
-            status: m.status,
-            // ... field mapping
-        }).collect())
+        let markets = self.rest.get_markets().await?;
+        Ok(markets.into_iter().map(convert_<exchange>_market).collect())
+    }
+
+    async fn get_klines(
+        &self,
+        symbol: String,
+        interval: KlineInterval,
+        limit: Option<u32>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
+    ) -> Result<Vec<Kline>, ExchangeError> {
+        let klines = self.rest.get_klines(&symbol, interval, limit, start_time, end_time).await?;
+        Ok(klines.into_iter().map(|k| convert_<exchange>_kline(&k, &symbol)).collect())
+    }
+
+    // Other trait methods...
+}
+```
+
+#### trading.rs - OrderPlacer Implementation  
+
+```rust
+use crate::core::traits::OrderPlacer;
+
+/// Trading implementation for <Exchange>
+pub struct Trading<R: RestClient> {
+    rest: <Exchange>RestClient<R>,
+}
+
+impl<R: RestClient> Trading<R> {
+    pub fn new(rest: &R) -> Self
+    where
+        R: Clone,
+    {
+        Self {
+            rest: <Exchange>RestClient::new(rest.clone()),
+        }
+    }
+}
+
+#[async_trait]
+impl<R: RestClient> OrderPlacer for Trading<R> {
+    async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
+        let <exchange>_order = convert_order_request(&order)?;
+        let response = self.rest.place_order(&<exchange>_order).await?;
+        convert_order_response(&response, &order)
+    }
+
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
+        self.rest.cancel_order(&symbol, &order_id).await?;
+        Ok(())
     }
 }
 ```
 
-### Step 6: Create Factory Functions
-
-Provide convenient constructors in `mod.rs`:
+#### connector/mod.rs - Composition Pattern
 
 ```rust
-pub fn create_exchange_connector(
+use crate::core::traits::{AccountInfo, MarketDataSource, OrderPlacer};
+
+pub mod account;
+pub mod market_data;
+pub mod trading;
+
+pub use account::Account;
+pub use market_data::MarketData;
+pub use trading::Trading;
+
+/// <Exchange> connector that composes all sub-trait implementations
+pub struct <Exchange>Connector<R: RestClient, W = ()> {
+    pub market: MarketData<R, W>,
+    pub trading: Trading<R>,
+    pub account: Account<R>,
+}
+
+impl<R: RestClient + Clone + Send + Sync> <Exchange>Connector<R, ()> {
+    pub fn new_without_ws(rest: R, _config: ExchangeConfig) -> Self {
+        Self {
+            market: MarketData::<R, ()>::new(&rest, None),
+            trading: Trading::new(&rest),
+            account: Account::new(&rest),
+        }
+    }
+}
+
+// Implement traits for the connector by delegating to sub-components
+#[async_trait]
+impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for <Exchange>Connector<R, W> {
+    async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
+        self.market.get_markets().await
+    }
+    // Delegate other methods...
+}
+
+#[async_trait]
+impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> OrderPlacer for <Exchange>Connector<R, W> {
+    async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
+        self.trading.place_order(order).await
+    }
+    // Delegate other methods...
+}
+```
+
+### 3. Builder Pattern (builder.rs)
+
+```rust
+use crate::core::config::ExchangeConfig;
+use crate::core::kernel::{RestClientBuilder, RestClientConfig, TungsteniteWs};
+
+/// Create a <Exchange> connector with REST-only support
+pub fn build_connector(
     config: ExchangeConfig,
-    with_websocket: bool,
-) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError> {
-    // Build REST client
-    let rest_config = RestClientConfig::new(
-        "https://api.exchange.com".to_string(),
-        "exchange".to_string(),
-    );
-    
+) -> Result<<Exchange>Connector<crate::core::kernel::ReqwestRest, ()>, ExchangeError> {
+    let base_url = config.base_url.clone()
+        .unwrap_or_else(|| "https://api.<exchange>.com".to_string());
+
+    let rest_config = RestClientConfig::new(base_url, "<exchange>".to_string())
+        .with_timeout(30)
+        .with_max_retries(3);
+
     let mut rest_builder = RestClientBuilder::new(rest_config);
-    
+
     if config.has_credentials() {
-        let signer = Arc::new(ExchangeSigner::new(
+        let signer = Arc::new(<Exchange>Signer::new(
             config.api_key().to_string(),
             config.secret_key().to_string(),
         ));
         rest_builder = rest_builder.with_signer(signer);
     }
-    
+
     let rest = rest_builder.build()?;
-    
-    // Build WebSocket client (optional)
-    let ws = if with_websocket {
-        let ws_config = WsConfig::new("wss://stream.exchange.com".to_string());
-        let codec = ExchangeCodec;
-        Some(TungsteniteWs::new(ws_config, codec)?)
-    } else {
-        None
-    };
-    
-    Ok(ExchangeConnector::new(rest, ws, config))
-}
-```
-
-## 🎯 Best Practices
-
-### 1. Strongly-Typed Responses
-
-**❌ Before (manual parsing):**
-```rust
-pub async fn get_ticker(&self, symbol: &str) -> Result<serde_json::Value, ExchangeError> {
-    let response: serde_json::Value = self.rest.get("/api/ticker", &params, false).await?;
-    let ticker: TickerResponse = serde_json::from_value(response).map_err(|e| {
-        ExchangeError::DeserializationError(format!("Failed to parse ticker: {}", e))
-    })?;
-    // ... manual conversion
-}
-```
-
-**✅ After (zero-copy typed):**
-```rust
-pub async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, ExchangeError> {
-    let params = [("symbol", symbol)];
-    self.rest.get_json("/api/ticker", &params, false).await
-}
-```
-
-### 2. Error Handling
-
-Use consistent error types and tracing:
-
-```rust
-#[instrument(skip(self), fields(exchange = "exchange_name", symbol = %symbol))]
-pub async fn get_ticker(&self, symbol: &str) -> Result<TickerResponse, ExchangeError> {
-    self.rest.get_json("/api/ticker", &[("symbol", symbol)], false).await
-}
-```
-
-### 3. Configuration Management
-
-Separate configuration from business logic:
-
-```rust
-pub struct ExchangeConfig {
-    api_key: String,
-    secret_key: String,
-    testnet: bool,
-    base_url: Option<String>,
+    Ok(<Exchange>Connector::new_without_ws(rest, config))
 }
 
-impl ExchangeConfig {
-    pub fn has_credentials(&self) -> bool {
-        !self.api_key.is_empty() && !self.secret_key.is_empty()
-    }
-}
-```
-
-### 4. WebSocket Stream Helpers
-
-Provide utility functions for stream management:
-
-```rust
-pub fn create_exchange_stream_identifiers(
-    symbols: &[String],
-    subscription_types: &[SubscriptionType],
-) -> Vec<String> {
-    let mut streams = Vec::new();
-    
-    for symbol in symbols {
-        for sub_type in subscription_types {
-            match sub_type {
-                SubscriptionType::Ticker => streams.push(format!("{}@ticker", symbol.to_lowercase())),
-                SubscriptionType::Trades => streams.push(format!("{}@trade", symbol.to_lowercase())),
-                SubscriptionType::OrderBook { depth } => {
-                    let depth_str = depth.map_or("".to_string(), |d| format!("@{}", d));
-                    streams.push(format!("{}@depth{}", symbol.to_lowercase(), depth_str));
-                }
-            }
-        }
-    }
-    
-    streams
-}
-```
-
-## 🔍 Migration Validation
-
-### Compilation Checks
-```bash
-# Verify clean compilation
-cargo check --all-features
-
-# Run clippy for best practices
-cargo clippy --all-targets --all-features -- -D warnings
-
-# Ensure formatting consistency
-cargo fmt --all
-```
-
-### Functional Testing
-```bash
-# Run existing tests to ensure compatibility
-cargo test
-
-# Run exchange-specific integration tests  
-cargo test --test exchange_integration_tests
-
-# Verify examples still work
-cargo run --example exchange_example
-```
-
-### Performance Validation
-```bash
-# Run latency benchmarks
-cargo run --example latency_test
-
-# Compare memory usage before/after
-cargo run --example memory_benchmark
-```
-
-## 📊 Expected Outcomes
-
-### Before Refactor
-- ❌ Manual JSON parsing with error-prone `serde_json::from_value`
-- ❌ Inconsistent error handling across methods
-- ❌ Mixed transport and business logic
-- ❌ Difficult testing due to tight coupling
-- ❌ No observability or tracing
-
-### After Refactor  
-- ✅ **Zero-copy typed deserialization** for optimal performance
-- ✅ **Consistent error handling** with proper error propagation
-- ✅ **Clean separation** of transport vs business logic
-- ✅ **Testable components** through dependency injection
-- ✅ **Full observability** with structured tracing
-- ✅ **Type safety** with compile-time guarantees
-- ✅ **Reduced code complexity** (~60% less boilerplate)
-
-## 🔄 File Organization Strategies
-
-### Option A: Consolidated Architecture
-All trait implementations in `connector.rs` (~600 lines):
-```
-connector.rs  - MarketDataSource + AccountInfo + OrderPlacer + core methods
-auth.rs       - Exchange-specific signer
-codec.rs      - WebSocket message handling
-types.rs      - Response type definitions
-converters.rs - Type conversion utilities
-mod.rs        - Factory functions and exports
-```
-
-**Pros:**
-- Single source of truth for all exchange functionality
-- Consistent with some existing patterns (e.g., Backpack)
-- Easier to understand the complete exchange implementation
-- Less file navigation during development
-
-**Cons:**
-- Large files that may be harder to navigate
-- Potential merge conflicts when multiple developers work on different traits
-- May violate single responsibility principle
-
-### Option B: Separated Architecture
-Trait implementations distributed across specialized files:
-```
-connector.rs  - MarketDataSource + core methods (~350 lines)
-account.rs    - AccountInfo trait implementation (~150 lines)
-trading.rs    - OrderPlacer trait implementation (~200 lines)
-auth.rs       - Exchange-specific signer
-codec.rs      - WebSocket message handling
-types.rs      - Response type definitions
-converters.rs - Type conversion utilities
-mod.rs        - Factory functions and exports
-```
-
-**Pros:**
-- Clear separation of concerns (market data vs account vs trading)
-- Smaller, more focused files
-- Easier for teams to work in parallel
-- Reduced merge conflicts
-- Better testability (can test traits independently)
-
-**Cons:**
-- More file navigation required
-- Potential code duplication across trait implementations
-- Need to ensure consistent patterns across files
-
-### Recommendation
-**Choose Option B for larger exchanges** with many endpoints (>10 methods per trait). **Choose Option A for smaller exchanges** with fewer endpoints or simpler APIs.
-
-## 🏗️ Factory Function Patterns
-
-### Basic Factory
-```rust
-pub fn create_exchange_connector(
+/// Legacy compatibility functions
+pub fn create_<exchange>_connector(
     config: ExchangeConfig,
-) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
-```
-
-### WebSocket-Optional Factory
-```rust
-pub fn create_exchange_connector_with_websocket(
-    config: ExchangeConfig,
-    enable_websocket: bool,
-) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
-```
-
-### Advanced Factory with Reconnection
-```rust
-pub fn create_exchange_connector_with_reconnection(
-    config: ExchangeConfig,
-    max_retries: usize,
-    retry_delay: Duration,
-) -> Result<ExchangeConnector<ReqwestRest, Option<TungsteniteWs<ExchangeCodec>>>, ExchangeError>
-```
-
-## 🔧 Implementation Patterns
-
-### Type System Requirements
-Ensure all WebSocket message types implement `Clone`:
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExchangeWebSocketMessage {
-    // ... fields
+) -> Result<<Exchange>Connector<ReqwestRest, TungsteniteWs<<Exchange>Codec>>, ExchangeError> {
+    build_connector_with_websocket(config)
 }
 ```
 
-### Authentication Checks
-Always verify credentials before attempting authenticated requests:
-```rust
-fn ensure_authenticated(&self) -> Result<(), ExchangeError> {
-    if !self.config.has_credentials() {
-        return Err(ExchangeError::AuthenticationRequired);
-    }
-    Ok(())
-}
-```
+### 4. Public Facade (mod.rs)
 
-### Error Handling Pattern
-Use consistent error handling across all methods:
 ```rust
-#[instrument(skip(self), fields(exchange = "exchange_name"))]
-pub async fn exchange_method(&self) -> Result<ResponseType, ExchangeError> {
-    self.ensure_authenticated()?;
-    self.rest.get_json("/endpoint", &[], true).await
-}
-```
+pub mod codec;
+pub mod conversions; 
+pub mod signer;
+pub mod types;
 
-### WebSocket Integration
-Proper WebSocket initialization with the kernel:
-```rust
-let ws = if with_websocket {
-    let codec = ExchangeCodec::new();
-    Some(TungsteniteWs::new(ws_url, exchange_name, codec)?)
-} else {
-    None
+pub mod rest;
+pub mod connector;
+pub mod builder;
+
+// Re-export main components
+pub use builder::{
+    build_connector,
+    build_connector_with_websocket,
+    build_connector_with_reconnection,
+    // Legacy compatibility exports
+    create_<exchange>_connector,
+    create_<exchange>_connector_with_reconnection,
 };
-```
+pub use codec::<Exchange>Codec;
+pub use connector::{<Exchange>Connector, Account, MarketData, Trading};
 
-## 🚀 Exchange-Specific Considerations
-
-### Authentication Patterns
-
-**HMAC-SHA256 (Binance, Bybit):**
-```rust
-impl Signer for HmacSigner {
-    fn sign_request(&self, method: &str, endpoint: &str, query_string: &str, body: &[u8], timestamp: u64) -> Result<...> {
-        let payload = format!("{}{}{}timestamp={}", method, endpoint, query_string, timestamp);
-        let signature = hmac_sha256(&self.secret_key, payload.as_bytes());
-        // ... return headers and params
-    }
+// Helper functions if needed
+pub fn create_<exchange>_stream_identifiers(
+    symbols: &[String],
+    subscription_types: &[crate::core::types::SubscriptionType],
+) -> Vec<String> {
+    // Exchange-specific stream format logic
 }
 ```
 
-**Ed25519 (Backpack, dYdX):**
+## 🎯 Migration Benefits
+
+### Before (Monolithic)
 ```rust
-impl Signer for Ed25519Signer {
-    fn sign_request(&self, method: &str, endpoint: &str, query_string: &str, body: &[u8], timestamp: u64) -> Result<...> {
-        let instruction = format!("instruction={}¶ms={}", endpoint, query_string);
-        let signature = self.signing_key.sign(instruction.as_bytes());
-        // ... return headers and params
-    }
+// ❌ Everything mixed together
+pub struct ExchangeConnector {
+    pub client: reqwest::Client,
+    // Direct HTTP/WS concerns
+    // Business logic mixed with transport
+}
+
+impl ExchangeConnector {
+    // ❌ 500+ line file with everything
+    pub async fn get_markets() { /* HTTP details */ }
+    pub async fn place_order() { /* More HTTP details */ }
+    // No trait compliance, hard to test
 }
 ```
 
-### WebSocket Message Formats
-
-**Standard JSON (Most exchanges):**
-```rust
-fn decode_message(&self, text: &str) -> Result<Self::Message, ExchangeError> {
-    let value: serde_json::Value = serde_json::from_str(text)?;
-    // Parse based on event type or stream name
+### After (Kernel Architecture)
+```rust  
+// ✅ Clean separation of concerns
+pub struct ExchangeConnector<R: RestClient, W = ()> {
+    pub market: MarketData<R, W>,      // Focused responsibility
+    pub trading: Trading<R>,           // Focused responsibility  
+    pub account: Account<R>,           // Focused responsibility
 }
+
+// ✅ Trait compliance for interoperability
+impl<R, W> MarketDataSource for ExchangeConnector<R, W> { /* delegate */ }
+impl<R, W> OrderPlacer for ExchangeConnector<R, W> { /* delegate */ }
+
+// ✅ Easy testing, type safety, maintainability
 ```
 
-**Binary/Compressed (Some exchanges):**
-```rust
-fn decode_message(&self, text: &str) -> Result<Self::Message, ExchangeError> {
-    // Handle compression/decompression if needed
-    let decompressed = decompress_if_needed(text)?;
-    let value: serde_json::Value = serde_json::from_str(&decompressed)?;
-    // ... parse message
-}
-```
+## 🚀 Success Metrics
 
-## 📊 Lessons Learned from Production Refactoring
+After successful refactoring, you should achieve:
 
-### Key Insights from Binance Migration
+1. **✅ Compilation Success**: `cargo check --lib` passes
+2. **✅ Lint Compliance**: `cargo clippy --lib -- -D warnings` passes  
+3. **✅ Trait Implementation**: All required traits implemented
+4. **✅ Backward Compatibility**: Legacy functions still work
+5. **✅ Type Safety**: Strong typing throughout, no stringly-typed APIs
+6. **✅ Performance**: HFT-optimized with minimal allocations
+7. **✅ Maintainability**: Each file has single responsibility
 
-1. **File Organization Impact**: Option B (separated architecture) proved more maintainable for large exchanges with 15+ endpoints across multiple traits.
-
-2. **Dependency Injection Benefits**: Generic type parameters `<R: RestClient, W: WsSession<ExchangeCodec>>` enabled flexible testing and configuration.
-
-3. **WebSocket Integration Complexity**: TungsteniteWs constructor pattern requires careful coordination with codec initialization.
-
-4. **Type Safety Requirements**: All WebSocket message types must implement `Clone` for codec compatibility.
-
-5. **Authentication Patterns**: Consistent credential checking patterns prevent runtime errors and improve user experience.
-
-6. **Factory Function Value**: Multiple factory functions with different configuration options significantly improve developer experience.
-
-### Common Pitfalls and Solutions
-
-**Pitfall**: Large connector files become difficult to navigate
-**Solution**: Use Option B architecture for exchanges with >10 methods per trait
-
-**Pitfall**: Missing `Clone` implementations on WebSocket types
-**Solution**: Add `#[derive(Clone)]` to all message types used in codecs
-
-**Pitfall**: Inconsistent error handling across methods
-**Solution**: Establish authentication check patterns and use consistent instrumentation
-
-**Pitfall**: Complex factory functions with too many parameters
-**Solution**: Create multiple focused factory functions for different use cases
-
-### Performance Considerations
-
-- **Zero-copy deserialization**: Kernel's `get_json()` method eliminates intermediate `serde_json::Value` allocations
-- **Reduced boilerplate**: ~60% code reduction compared to manual JSON parsing
-- **Type safety**: Compile-time guarantees eliminate runtime serialization errors
-- **Observability**: Built-in tracing adds minimal overhead while providing valuable insights
-
-### Recommended Migration Order
-
-1. **Phase 1**: Implement codec and signer (exchange-specific components)
-2. **Phase 2**: Refactor connector with MarketDataSource trait
-3. **Phase 3**: Add AccountInfo and OrderPlacer traits (separate files for Option B)
-4. **Phase 4**: Create factory functions and update module exports
-5. **Phase 5**: Add comprehensive error handling and instrumentation
-
-## 📝 Summary
-
-This kernel architecture refactor delivers:
-
-1. **Performance**: Zero-copy deserialization and reduced allocations
-2. **Maintainability**: Clear separation of concerns and reduced complexity  
-3. **Reliability**: Type safety and comprehensive error handling
-4. **Observability**: Built-in tracing and metrics collection
-5. **Testability**: Dependency injection enables comprehensive testing
-6. **Scalability**: Consistent patterns across all exchanges
-
-Follow this guide to migrate any exchange to the kernel architecture, ensuring consistent quality and performance across the entire LotusX ecosystem. 
+This proven template has successfully transformed **binance** and **backpack** exchanges, achieving full kernel compliance while maintaining production performance and reliability. 

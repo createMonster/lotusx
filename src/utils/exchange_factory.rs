@@ -66,7 +66,7 @@ impl ExchangeFactory {
             }
             ExchangeType::Bybit => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BybitConnector::new(cfg)))
+                Ok(Box::new(BybitConnector::for_factory(cfg)))
             }
             ExchangeType::BybitPerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
