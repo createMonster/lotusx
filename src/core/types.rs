@@ -19,7 +19,7 @@ pub enum TypesError {
 }
 
 /// Type-safe symbol representation with validation
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Symbol {
     pub base: String,
     pub quote: String,
@@ -75,7 +75,7 @@ impl fmt::Display for Symbol {
 }
 
 /// Type-safe price representation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Price(Decimal);
 
@@ -106,7 +106,7 @@ impl fmt::Display for Price {
 }
 
 /// Type-safe quantity representation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Quantity(Decimal);
 
@@ -137,7 +137,7 @@ impl fmt::Display for Quantity {
 }
 
 /// Type-safe volume representation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Volume(Decimal);
 
@@ -242,6 +242,16 @@ pub enum TimeInForce {
     GTC, // Good Till Canceled
     IOC, // Immediate or Cancel
     FOK, // Fill or Kill
+}
+
+impl fmt::Display for TimeInForce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TimeInForce::GTC => write!(f, "GTC"),
+            TimeInForce::IOC => write!(f, "IOC"),
+            TimeInForce::FOK => write!(f, "FOK"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

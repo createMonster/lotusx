@@ -1,7 +1,7 @@
 use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
+use crate::exchanges::backpack;
 use crate::exchanges::{
-    backpack, bybit::BybitConnector, bybit_perp::BybitPerpConnector,
-    hyperliquid::HyperliquidClient, paradex::ParadexConnector,
+    bybit::BybitConnector, bybit_perp::BybitPerpConnector, hyperliquid, paradex,
 };
 
 /// Configuration for an exchange in the latency test
@@ -83,10 +83,16 @@ impl ExchangeFactory {
                     Err(e) => Err(Box::new(e)),
                 }
             }
-            ExchangeType::Hyperliquid => Ok(Box::new(HyperliquidClient::read_only(testnet))),
+            ExchangeType::Hyperliquid => {
+                let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
+                Ok(Box::new(hyperliquid::build_hyperliquid_connector(cfg)?))
+            }
             ExchangeType::Paradex => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(ParadexConnector::new(cfg)))
+                match paradex::build_connector(cfg) {
+                    Ok(connector) => Ok(Box::new(connector)),
+                    Err(e) => Err(Box::new(e)),
+                }
             }
         }
     }

@@ -1,23 +1,26 @@
 use super::types::{ExchangeRequest, SignedAction};
 use crate::core::errors::ExchangeError;
+use crate::core::kernel::signer::{SignatureResult, Signer};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use serde_json::{json, Value};
 use sha3::{Digest, Keccak256};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub struct HyperliquidAuth {
+/// Hyperliquid signer implementation using secp256k1 (Ethereum-style signatures)
+#[derive(Clone)]
+pub struct HyperliquidSigner {
     secret_key: Option<SecretKey>,
     wallet_address: Option<String>,
     secp: Secp256k1<secp256k1::All>,
 }
 
-impl Default for HyperliquidAuth {
+impl Default for HyperliquidSigner {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl HyperliquidAuth {
+impl HyperliquidSigner {
     pub fn new() -> Self {
         Self {
             secret_key: None,
@@ -134,6 +137,29 @@ impl HyperliquidAuth {
     }
 }
 
+impl Signer for HyperliquidSigner {
+    fn sign_request(
+        &self,
+        _method: &str,
+        _endpoint: &str,
+        _query_string: &str,
+        _body: &[u8],
+        _timestamp: u64,
+    ) -> SignatureResult {
+        // For Hyperliquid, we don't use standard HTTP signing
+        // Instead, we use the exchange-specific L1 action signing
+        if !self.can_sign() {
+            return Err(ExchangeError::AuthError(
+                "No private key available for signing".to_string(),
+            ));
+        }
+
+        // For HTTP requests, we typically don't need to sign them in Hyperliquid
+        // The signing is done for exchange actions via sign_l1_action
+        Ok((std::collections::HashMap::new(), Vec::new()))
+    }
+}
+
 fn public_key_to_address(public_key: &PublicKey) -> String {
     let public_key_bytes = public_key.serialize_uncompressed();
 
@@ -163,19 +189,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_auth_creation() {
-        let auth = HyperliquidAuth::new();
-        assert!(!auth.can_sign());
-        assert!(auth.wallet_address().is_none());
+    fn test_signer_creation() {
+        let signer = HyperliquidSigner::new();
+        assert!(!signer.can_sign());
+        assert!(signer.wallet_address().is_none());
     }
 
     #[test]
     fn test_wallet_address_creation() {
-        let auth =
-            HyperliquidAuth::with_wallet_address("0x1234567890123456789012345678901234567890");
-        assert!(!auth.can_sign());
+        let signer =
+            HyperliquidSigner::with_wallet_address("0x1234567890123456789012345678901234567890");
+        assert!(!signer.can_sign());
         assert_eq!(
-            auth.wallet_address(),
+            signer.wallet_address(),
             Some("0x1234567890123456789012345678901234567890")
         );
     }

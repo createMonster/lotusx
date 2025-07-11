@@ -14,25 +14,33 @@ fn create_test_config() -> ExchangeConfig {
 }
 
 /// Create binance spot connector for testing
-fn create_binance_spot_connector() -> lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()> {
+fn create_binance_spot_connector(
+) -> lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()> {
     let config = create_test_config();
     build_connector(config).expect("Failed to create connector")
 }
 
 /// Create binance perpetual connector for testing  
-fn create_binance_perp_connector() -> lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()> {
+fn create_binance_perp_connector(
+) -> lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()> {
     let config = create_test_config();
     build_binance_perp_connector(config).expect("Failed to create connector")
 }
 
 /// Create binance spot connector from environment
-fn create_binance_spot_from_env() -> Result<lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()>, Box<dyn std::error::Error>> {
+fn create_binance_spot_from_env() -> Result<
+    lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
     let config = ExchangeConfig::from_env_file("BINANCE")?;
     Ok(build_connector(config)?)
 }
 
 /// Create binance perpetual connector from environment  
-fn create_binance_perp_from_env() -> Result<lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()>, Box<dyn std::error::Error>> {
+fn create_binance_perp_from_env() -> Result<
+    lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
     let config = ExchangeConfig::from_env_file("BINANCE_PERP")
         .or_else(|_| ExchangeConfig::from_env_file("BINANCE"))?;
     Ok(build_binance_perp_connector(config)?)
@@ -429,7 +437,11 @@ mod binance_comprehensive_tests {
 
         let connector = build_connector(config).expect("Failed to create connector");
 
-        let result = timeout(Duration::from_secs(15), AccountInfo::get_account_balance(&connector)).await;
+        let result = timeout(
+            Duration::from_secs(15),
+            AccountInfo::get_account_balance(&connector),
+        )
+        .await;
 
         match result {
             Ok(Err(e)) => {

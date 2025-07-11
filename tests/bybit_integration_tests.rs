@@ -14,13 +14,17 @@ fn create_test_config() -> ExchangeConfig {
 }
 
 /// Create bybit spot connector for testing
-fn create_bybit_spot_connector() -> lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()> {
+fn create_bybit_spot_connector(
+) -> lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()> {
     let config = create_test_config();
     build_connector(config).expect("Failed to create connector")
 }
 
 /// Create bybit spot connector from environment
-fn create_bybit_spot_from_env() -> Result<lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()>, Box<dyn std::error::Error>> {
+fn create_bybit_spot_from_env() -> Result<
+    lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
     let config = ExchangeConfig::from_env_file("BYBIT")?;
     Ok(build_connector(config)?)
 }
