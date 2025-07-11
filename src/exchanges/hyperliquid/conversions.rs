@@ -161,7 +161,7 @@ pub fn convert_from_hyperliquid_response(
     }
 }
 
-/// Convert AssetInfo to Market
+/// Convert `AssetInfo` to Market
 #[inline]
 pub fn convert_asset_to_market(asset: AssetInfo) -> Market {
     Market {
@@ -176,22 +176,19 @@ pub fn convert_asset_to_market(asset: AssetInfo) -> Market {
     }
 }
 
-/// Convert UserState to Balance vector
+/// Convert `UserState` to Balance vector
 #[inline]
 pub fn convert_user_state_to_balances(user_state: &UserState) -> Vec<Balance> {
-    let mut balances = Vec::new();
-
-    // Add margin summary as balance
-    balances.push(Balance {
+    let balances = vec![Balance {
         asset: "USD".to_string(),
         free: conversion::string_to_quantity(&user_state.margin_summary.account_value.to_string()),
         locked: conversion::string_to_quantity("0"),
-    });
+    }];
 
     balances
 }
 
-/// Convert UserState to Position vector
+/// Convert `UserState` to Position vector
 #[inline]
 pub fn convert_user_state_to_positions(user_state: &UserState) -> Vec<Position> {
     use crate::core::types::PositionSide;
@@ -206,12 +203,10 @@ pub fn convert_user_state_to_positions(user_state: &UserState) -> Vec<Position> 
             } else {
                 PositionSide::Short
             },
-            entry_price: pos
-                .position
-                .entry_px
-                .as_ref()
-                .map(|px| conversion::string_to_price(px))
-                .unwrap_or_else(|| conversion::string_to_price("0")),
+            entry_price: pos.position.entry_px.as_ref().map_or_else(
+                || conversion::string_to_price("0"),
+                |px| conversion::string_to_price(px),
+            ),
             position_amount: conversion::string_to_quantity(&pos.position.szi),
             unrealized_pnl: conversion::string_to_decimal(&pos.position.unrealized_pnl),
             liquidation_price: None, // Not available in response
@@ -222,11 +217,12 @@ pub fn convert_user_state_to_positions(user_state: &UserState) -> Vec<Position> 
 
 /// Convert Candle to Kline
 #[inline]
+#[allow(clippy::cast_possible_wrap)]
 pub fn convert_candle_to_kline(candle: &Candle, symbol: &str, interval: KlineInterval) -> Kline {
     Kline {
         symbol: conversion::string_to_symbol(symbol),
-        open_time: candle.time as i64,
-        close_time: candle.time as i64 + 60000, // Add 1 minute (default)
+        open_time: candle.time.min(i64::MAX as u64) as i64,
+        close_time: (candle.time.min(i64::MAX as u64) as i64).saturating_add(60000), // Add 1 minute (default)
         interval: format!("{:?}", interval),
         open_price: conversion::string_to_price(&candle.open),
         high_price: conversion::string_to_price(&candle.high),
@@ -238,7 +234,7 @@ pub fn convert_candle_to_kline(candle: &Candle, symbol: &str, interval: KlineInt
     }
 }
 
-/// Convert KlineInterval to Hyperliquid interval string
+/// Convert `KlineInterval` to Hyperliquid interval string
 #[inline]
 pub fn convert_kline_interval_to_hyperliquid(interval: KlineInterval) -> String {
     match interval {

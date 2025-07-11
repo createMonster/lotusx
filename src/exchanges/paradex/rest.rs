@@ -18,6 +18,7 @@ impl<R: RestClient> ParadexRestClient<R> {
     }
 
     /// Get all available markets
+    #[allow(clippy::option_if_let_else)]
     pub async fn get_markets(&self) -> Result<Vec<ParadexMarket>, ExchangeError> {
         let response: serde_json::Value = self.client.get_json("/v1/markets", &[], false).await?;
 
@@ -67,14 +68,15 @@ impl<R: RestClient> ParadexRestClient<R> {
     }
 
     /// Get funding rates for symbols
+    #[allow(clippy::option_if_let_else)]
     pub async fn get_funding_rates(
         &self,
         symbols: Option<Vec<String>>,
     ) -> Result<Vec<ParadexFundingRate>, ExchangeError> {
-        let endpoint = match symbols {
-            Some(symbols) => format!("/v1/funding/rates?symbols={}", symbols.join(",")),
-            None => "/v1/funding/rates".to_string(),
-        };
+        let endpoint = symbols.map_or_else(
+            || "/v1/funding/rates".to_string(),
+            |symbols| format!("/v1/funding/rates?symbols={}", symbols.join(",")),
+        );
 
         let response: serde_json::Value = self.client.get_json(&endpoint, &[], false).await?;
 
@@ -93,6 +95,7 @@ impl<R: RestClient> ParadexRestClient<R> {
     }
 
     /// Get funding rate history for a symbol
+    #[allow(clippy::option_if_let_else)]
     pub async fn get_funding_rate_history(
         &self,
         symbol: &str,
@@ -151,6 +154,7 @@ impl<R: RestClient> ParadexRestClient<R> {
     }
 
     /// Get account balances
+    #[allow(clippy::option_if_let_else)]
     pub async fn get_account_balances(&self) -> Result<Vec<ParadexBalance>, ExchangeError> {
         let response: serde_json::Value = self
             .client
@@ -172,6 +176,7 @@ impl<R: RestClient> ParadexRestClient<R> {
     }
 
     /// Get account positions
+    #[allow(clippy::option_if_let_else)]
     pub async fn get_positions(&self) -> Result<Vec<ParadexPosition>, ExchangeError> {
         let response: serde_json::Value = self
             .client

@@ -7,7 +7,7 @@ use crate::exchanges::paradex::types::{
 };
 use serde_json::Value;
 
-/// Convert ParadexMarket to Market
+/// Convert `ParadexMarket` to Market
 pub fn convert_paradex_market(market: ParadexMarket) -> Market {
     Market {
         symbol: Symbol::new(market.base_asset.symbol, market.quote_asset.symbol)
@@ -22,7 +22,7 @@ pub fn convert_paradex_market(market: ParadexMarket) -> Market {
     }
 }
 
-/// Convert ParadexFundingRate to FundingRate
+/// Convert `ParadexFundingRate` to `FundingRate`
 pub fn convert_paradex_funding_rate(rate: ParadexFundingRate) -> FundingRate {
     FundingRate {
         symbol: conversion::string_to_symbol(&rate.symbol),

@@ -1,5 +1,8 @@
 use super::signer::HyperliquidSigner;
-use super::types::*;
+use super::types::{
+    AssetInfo, Candle, InfoRequest, L2Book, ModifyRequest, OpenOrder, OrderRequest, OrderResponse,
+    Universe, UserFill, UserState,
+};
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
 use serde_json::Value;
@@ -34,7 +37,7 @@ impl<R: RestClient> HyperliquidRest<R> {
     }
 
     pub fn can_sign(&self) -> bool {
-        self.signer.as_ref().map_or(false, |s| s.can_sign())
+        self.signer.as_ref().is_some_and(|s| s.can_sign())
     }
 
     /// Get all available markets/trading pairs
@@ -69,11 +72,9 @@ impl<R: RestClient> HyperliquidRest<R> {
             .post_json("/info", &request_value, false)
             .await?;
 
-        if let Some(mids) = response.as_object() {
-            Ok(mids.clone())
-        } else {
-            Ok(serde_json::Map::new())
-        }
+        response
+            .as_object()
+            .map_or_else(|| Ok(serde_json::Map::new()), |mids| Ok(mids.clone()))
     }
 
     /// Get level 2 order book for a specific coin
@@ -109,8 +110,8 @@ impl<R: RestClient> HyperliquidRest<R> {
         let request = InfoRequest::CandleSnapshot {
             coin: coin.to_string(),
             interval: interval.to_string(),
-            start_time: start_time.unwrap_or(0) as u64,
-            end_time: end_time.unwrap_or(0) as u64,
+            start_time: start_time.unwrap_or(0).unsigned_abs(),
+            end_time: end_time.unwrap_or(0).unsigned_abs(),
         };
         let request_value = serde_json::to_value(&request).map_err(ExchangeError::JsonError)?;
 

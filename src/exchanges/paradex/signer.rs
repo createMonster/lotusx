@@ -18,7 +18,7 @@ struct Claims {
 pub struct ParadexSigner {
     secret_key: SecretKey,
     wallet_address: String,
-    secp: Secp256k1<secp256k1::All>,
+    _secp: Secp256k1<secp256k1::All>,
 }
 
 impl ParadexSigner {
@@ -37,7 +37,7 @@ impl ParadexSigner {
         Ok(Self {
             secret_key,
             wallet_address,
-            secp,
+            _secp: secp,
         })
     }
 

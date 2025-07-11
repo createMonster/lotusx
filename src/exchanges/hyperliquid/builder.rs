@@ -55,7 +55,7 @@ impl HyperliquidBuilder {
     {
         let rest_client = self.build_rest_client()?;
         let hyperliquid_rest = self.build_hyperliquid_rest(rest_client)?;
-        let ws_client = self.build_websocket_client()?;
+        let ws_client = self.build_websocket_client();
         Ok(HyperliquidConnector::new_with_ws(
             hyperliquid_rest,
             ws_client,
@@ -64,12 +64,8 @@ impl HyperliquidBuilder {
 
     /// Build a connector (auto-detects WebSocket requirement)
     pub fn build(self) -> Result<HyperliquidConnector<ReqwestRest, ()>, ExchangeError> {
-        if self.enable_websocket {
-            // For now, we'll return the REST-only version since WebSocket with type erasure is complex
-            self.build_rest_only()
-        } else {
-            self.build_rest_only()
-        }
+        // For now, we'll return the REST-only version since WebSocket with type erasure is complex
+        self.build_rest_only()
     }
 
     fn build_rest_client(&self) -> Result<ReqwestRest, ExchangeError> {
@@ -85,10 +81,10 @@ impl HyperliquidBuilder {
         // Add signer if credentials are available
         if self.config.has_credentials() {
             let private_key = self.config.secret_key();
-            let signer = if !private_key.is_empty() {
-                Arc::new(HyperliquidSigner::with_private_key(private_key)?)
-            } else {
+            let signer = if private_key.is_empty() {
                 Arc::new(HyperliquidSigner::new())
+            } else {
+                Arc::new(HyperliquidSigner::with_private_key(private_key)?)
             };
             rest_builder = rest_builder.with_signer(signer);
         }
@@ -102,10 +98,10 @@ impl HyperliquidBuilder {
     ) -> Result<HyperliquidRest<ReqwestRest>, ExchangeError> {
         let signer = if self.config.has_credentials() {
             let private_key = self.config.secret_key();
-            if !private_key.is_empty() {
-                Some(HyperliquidSigner::with_private_key(private_key)?)
-            } else {
+            if private_key.is_empty() {
                 Some(HyperliquidSigner::new())
+            } else {
+                Some(HyperliquidSigner::with_private_key(private_key)?)
             }
         } else {
             None
@@ -120,7 +116,7 @@ impl HyperliquidBuilder {
         Ok(hyperliquid_rest)
     }
 
-    fn build_websocket_client(&self) -> Result<TungsteniteWs<HyperliquidCodec>, ExchangeError> {
+    fn build_websocket_client(&self) -> TungsteniteWs<HyperliquidCodec> {
         let ws_url = if self.config.testnet {
             TESTNET_WS_URL
         } else {
@@ -128,11 +124,7 @@ impl HyperliquidBuilder {
         };
 
         let codec = HyperliquidCodec::new();
-        Ok(TungsteniteWs::new(
-            ws_url.to_string(),
-            "hyperliquid".to_string(),
-            codec,
-        ))
+        TungsteniteWs::new(ws_url.to_string(), "hyperliquid".to_string(), codec)
     }
 }
 
@@ -152,7 +144,7 @@ pub fn build_hyperliquid_connector_with_websocket(
         .build_with_websocket()
 }
 
-/// Legacy compatibility function - create a connector from ExchangeConfig
+/// Legacy compatibility function - create a connector from `ExchangeConfig`
 pub fn create_hyperliquid_client(
     config: ExchangeConfig,
 ) -> Result<HyperliquidConnector<ReqwestRest, ()>, ExchangeError> {

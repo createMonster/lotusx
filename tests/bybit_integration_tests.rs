@@ -29,6 +29,22 @@ fn create_bybit_spot_from_env() -> Result<
     Ok(build_connector(config)?)
 }
 
+/// Create bybit perp connector for testing (using same spot connector for now)
+fn create_bybit_perp_connector(
+) -> lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()> {
+    let config = create_test_config();
+    build_connector(config).expect("Failed to create perp connector")
+}
+
+/// Create bybit perp connector from environment
+fn create_bybit_perp_from_env() -> Result<
+    lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
+    let config = ExchangeConfig::from_env_file("BYBIT")?;
+    Ok(build_connector(config)?)
+}
+
 #[cfg(test)]
 mod bybit_spot_tests {
     use super::*;
@@ -281,7 +297,10 @@ mod bybit_comprehensive_tests {
         let spot_connector = create_bybit_spot_connector();
         let perp_connector = create_bybit_perp_connector();
 
-        let (spot_result, perp_result) = tokio::join!(
+        let (spot_result, perp_result): (
+            Result<Result<Vec<_>, _>, _>,
+            Result<Result<Vec<_>, _>, _>,
+        ) = tokio::join!(
             timeout(Duration::from_secs(30), spot_connector.get_markets()),
             timeout(Duration::from_secs(30), perp_connector.get_markets())
         );
@@ -312,7 +331,7 @@ mod bybit_comprehensive_tests {
         let config = ExchangeConfig::new("invalid_key".to_string(), "invalid_secret".to_string())
             .testnet(true);
 
-        let connector = BybitConnector::new(config);
+        let connector = build_connector(config).expect("Failed to create connector");
 
         // This should fail gracefully, not panic
         let result = timeout(Duration::from_secs(10), connector.get_account_balance()).await;

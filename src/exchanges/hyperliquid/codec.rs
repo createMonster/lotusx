@@ -21,13 +21,13 @@ pub enum HyperliquidWsMessage {
 impl From<HyperliquidWsMessage> for MarketDataType {
     fn from(msg: HyperliquidWsMessage) -> Self {
         match msg {
-            HyperliquidWsMessage::Ticker(ticker) => MarketDataType::Ticker(ticker),
-            HyperliquidWsMessage::OrderBook(orderbook) => MarketDataType::OrderBook(orderbook),
-            HyperliquidWsMessage::Trade(trade) => MarketDataType::Trade(trade),
-            HyperliquidWsMessage::Kline(kline) => MarketDataType::Kline(kline),
+            HyperliquidWsMessage::Ticker(ticker) => Self::Ticker(ticker),
+            HyperliquidWsMessage::OrderBook(orderbook) => Self::OrderBook(orderbook),
+            HyperliquidWsMessage::Trade(trade) => Self::Trade(trade),
+            HyperliquidWsMessage::Kline(kline) => Self::Kline(kline),
             // For heartbeat and unknown messages, we'll create a dummy ticker
             HyperliquidWsMessage::Heartbeat | HyperliquidWsMessage::Unknown(_) => {
-                MarketDataType::Ticker(Ticker {
+                Self::Ticker(Ticker {
                     symbol: conversion::string_to_symbol("HEARTBEAT"),
                     price: conversion::string_to_price("0"),
                     price_change: conversion::string_to_price("0"),
@@ -147,8 +147,7 @@ impl WsCodec for HyperliquidCodec {
         // For now, just send the first subscription
         // TODO: Handle multiple subscriptions properly
         if let Some(subscription) = subscriptions.first() {
-            let msg_text =
-                serde_json::to_string(subscription).map_err(|e| ExchangeError::JsonError(e))?;
+            let msg_text = serde_json::to_string(subscription).map_err(ExchangeError::JsonError)?;
             Ok(Message::Text(msg_text))
         } else {
             Err(ExchangeError::InvalidParameters(
@@ -237,7 +236,7 @@ impl WsCodec for HyperliquidCodec {
 
         if let Some(unsubscription) = unsubscriptions.first() {
             let msg_text =
-                serde_json::to_string(unsubscription).map_err(|e| ExchangeError::JsonError(e))?;
+                serde_json::to_string(unsubscription).map_err(ExchangeError::JsonError)?;
             Ok(Message::Text(msg_text))
         } else {
             Err(ExchangeError::InvalidParameters(
@@ -250,7 +249,7 @@ impl WsCodec for HyperliquidCodec {
         match msg {
             Message::Text(text) => {
                 let parsed: Value =
-                    serde_json::from_str(&text).map_err(|e| ExchangeError::JsonError(e))?;
+                    serde_json::from_str(&text).map_err(ExchangeError::JsonError)?;
 
                 // Check if it's a heartbeat or system message
                 if let Some(channel) = parsed.get("channel").and_then(|c| c.as_str()) {
@@ -264,14 +263,14 @@ impl WsCodec for HyperliquidCodec {
                     if let Some(channel) = parsed.get("channel").and_then(|c| c.as_str()) {
                         match channel {
                             "allMids" => {
-                                if let Some(ticker) = self.convert_ticker_data(data, "global")? {
+                                if let Some(ticker) = self.convert_ticker_data(data, "global") {
                                     return Ok(Some(HyperliquidWsMessage::Ticker(ticker)));
                                 }
                             }
                             "l2Book" => {
                                 if let Some(symbol) = data.get("coin").and_then(|c| c.as_str()) {
                                     if let Some(orderbook) =
-                                        self.convert_orderbook_data(data, symbol)?
+                                        self.convert_orderbook_data(data, symbol)
                                     {
                                         return Ok(Some(HyperliquidWsMessage::OrderBook(
                                             orderbook,
@@ -281,14 +280,14 @@ impl WsCodec for HyperliquidCodec {
                             }
                             "trades" => {
                                 if let Some(symbol) = data.get("coin").and_then(|c| c.as_str()) {
-                                    if let Some(trade) = self.convert_trade_data(data, symbol)? {
+                                    if let Some(trade) = self.convert_trade_data(data, symbol) {
                                         return Ok(Some(HyperliquidWsMessage::Trade(trade)));
                                     }
                                 }
                             }
                             "candle" => {
                                 if let Some(symbol) = data.get("coin").and_then(|c| c.as_str()) {
-                                    if let Some(kline) = self.convert_kline_data(data, symbol)? {
+                                    if let Some(kline) = self.convert_kline_data(data, symbol) {
                                         return Ok(Some(HyperliquidWsMessage::Kline(kline)));
                                     }
                                 }
@@ -308,24 +307,19 @@ impl WsCodec for HyperliquidCodec {
                 Ok(None)
             }
             Message::Ping(_) | Message::Pong(_) => Ok(Some(HyperliquidWsMessage::Heartbeat)),
-            Message::Close(_) => Ok(None),
-            Message::Frame(_) => Ok(None),
+            Message::Close(_) | Message::Frame(_) => Ok(None),
         }
     }
 }
 
 impl HyperliquidCodec {
-    fn convert_ticker_data(
-        &self,
-        data: &Value,
-        _symbol: &str,
-    ) -> Result<Option<Ticker>, ExchangeError> {
+    fn convert_ticker_data(&self, data: &Value, _symbol: &str) -> Option<Ticker> {
         // Implementation for ticker data conversion
         if let Some(mids) = data.as_object() {
             for (sym, price) in mids {
                 if let Some(price_str) = price.as_str() {
                     if let Ok(_price_f64) = price_str.parse::<f64>() {
-                        return Ok(Some(Ticker {
+                        return Some(Ticker {
                             symbol: conversion::string_to_symbol(sym),
                             price: conversion::string_to_price(price_str),
                             price_change: conversion::string_to_price("0"),
@@ -337,19 +331,15 @@ impl HyperliquidCodec {
                             open_time: chrono::Utc::now().timestamp_millis(),
                             close_time: chrono::Utc::now().timestamp_millis(),
                             count: 1,
-                        }));
+                        });
                     }
                 }
             }
         }
-        Ok(None)
+        None
     }
 
-    fn convert_orderbook_data(
-        &self,
-        data: &Value,
-        symbol: &str,
-    ) -> Result<Option<OrderBook>, ExchangeError> {
+    fn convert_orderbook_data(&self, data: &Value, symbol: &str) -> Option<OrderBook> {
         let levels = data.get("levels").and_then(|l| l.as_array());
         if let Some(levels) = levels {
             let mut bids = Vec::new();
@@ -384,21 +374,17 @@ impl HyperliquidCodec {
                 }
             }
 
-            return Ok(Some(OrderBook {
+            return Some(OrderBook {
                 symbol: conversion::string_to_symbol(symbol),
                 bids,
                 asks,
                 last_update_id: chrono::Utc::now().timestamp_millis(),
-            }));
+            });
         }
-        Ok(None)
+        None
     }
 
-    fn convert_trade_data(
-        &self,
-        data: &Value,
-        symbol: &str,
-    ) -> Result<Option<Trade>, ExchangeError> {
+    fn convert_trade_data(&self, data: &Value, symbol: &str) -> Option<Trade> {
         // Implementation for trade data conversion
         if let Some(trades) = data.as_array() {
             for trade in trades {
@@ -418,25 +404,21 @@ impl HyperliquidCodec {
                         .and_then(|s| s.as_str())
                         .unwrap_or("unknown");
 
-                    return Ok(Some(Trade {
+                    return Some(Trade {
                         symbol: conversion::string_to_symbol(symbol),
                         id: trade.get("tid").and_then(|t| t.as_i64()).unwrap_or(0),
                         price: conversion::string_to_price(&price.to_string()),
                         quantity: conversion::string_to_quantity(&quantity.to_string()),
                         time: timestamp,
                         is_buyer_maker: side == "B",
-                    }));
+                    });
                 }
             }
         }
-        Ok(None)
+        None
     }
 
-    fn convert_kline_data(
-        &self,
-        data: &Value,
-        symbol: &str,
-    ) -> Result<Option<Kline>, ExchangeError> {
+    fn convert_kline_data(&self, data: &Value, symbol: &str) -> Option<Kline> {
         // Implementation for kline/candle data conversion
         if let (Some(open), Some(high), Some(low), Some(close), Some(volume), Some(timestamp)) = (
             data.get("o")
@@ -456,7 +438,7 @@ impl HyperliquidCodec {
                 .and_then(|v| v.parse::<f64>().ok()),
             data.get("t").and_then(|t| t.as_i64()),
         ) {
-            return Ok(Some(Kline {
+            return Some(Kline {
                 symbol: conversion::string_to_symbol(symbol),
                 open_time: timestamp,
                 close_time: timestamp,
@@ -468,8 +450,8 @@ impl HyperliquidCodec {
                 volume: conversion::string_to_volume(&volume.to_string()),
                 number_of_trades: 1,
                 final_bar: true,
-            }));
+            });
         }
-        Ok(None)
+        None
     }
 }

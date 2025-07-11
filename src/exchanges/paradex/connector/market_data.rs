@@ -95,23 +95,26 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for M
             .await?;
 
         // Parse the response and convert to Kline objects
-        if let Some(data) = response.as_array() {
-            let klines = data
-                .iter()
-                .filter_map(|item| convert_paradex_kline(item, &symbol))
-                .collect();
-            Ok(klines)
-        } else {
-            error!(
-                symbol = %symbol,
-                interval = ?interval,
-                response = ?response,
-                "Unexpected klines response format"
-            );
-            Err(ExchangeError::Other(
-                "Unexpected klines response format".to_string(),
-            ))
-        }
+        response.as_array().map_or_else(
+            || {
+                error!(
+                    symbol = %symbol,
+                    interval = ?interval,
+                    response = ?response,
+                    "Unexpected klines response format"
+                );
+                Err(ExchangeError::Other(
+                    "Unexpected klines response format".to_string(),
+                ))
+            },
+            |data| {
+                let klines = data
+                    .iter()
+                    .filter_map(|item| convert_paradex_kline(item, &symbol))
+                    .collect();
+                Ok(klines)
+            },
+        )
     }
 }
 
@@ -167,31 +170,30 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> FundingRateSource for 
 }
 
 impl<R: RestClient + Clone, W> MarketData<R, W> {
-    /// Helper function to convert WebSocket events to MarketDataType
+    /// Helper function to convert WebSocket events to `MarketDataType`
+    #[allow(dead_code)]
     fn convert_ws_event(event: ParadexWsEvent) -> Option<MarketDataType> {
         match event {
             ParadexWsEvent::Ticker(ticker) => Some(MarketDataType::Ticker(ticker)),
             ParadexWsEvent::OrderBook(orderbook) => Some(MarketDataType::OrderBook(orderbook)),
             ParadexWsEvent::Trade(trade) => Some(MarketDataType::Trade(trade)),
             ParadexWsEvent::Kline(kline) => Some(MarketDataType::Kline(kline)),
-            ParadexWsEvent::SubscriptionConfirmation(_) => None,
-            ParadexWsEvent::Error(_) => None,
-            ParadexWsEvent::Heartbeat => None,
+            ParadexWsEvent::SubscriptionConfirmation(_)
+            | ParadexWsEvent::Error(_)
+            | ParadexWsEvent::Heartbeat => None,
         }
     }
 }
 
 /// Helper function to create subscription channels for Paradex WebSocket
+#[allow(dead_code)]
 fn create_subscription_channel(symbol: &str, subscription_type: &SubscriptionType) -> String {
     match subscription_type {
         SubscriptionType::Ticker => format!("ticker@{}", symbol),
-        SubscriptionType::OrderBook { depth } => {
-            if let Some(depth) = depth {
-                format!("depth{}@{}", depth, symbol)
-            } else {
-                format!("depth@{}", symbol)
-            }
-        }
+        SubscriptionType::OrderBook { depth } => depth.as_ref().map_or_else(
+            || format!("depth@{}", symbol),
+            |depth| format!("depth{}@{}", depth, symbol),
+        ),
         SubscriptionType::Trades => format!("trade@{}", symbol),
         SubscriptionType::Klines { interval } => {
             format!("kline_{}@{}", interval.to_binance_format(), symbol)

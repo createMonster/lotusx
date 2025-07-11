@@ -51,7 +51,7 @@ impl WsCodec for ParadexCodec {
                 let parsed: serde_json::Value = serde_json::from_str(&text)
                     .map_err(|e| ExchangeError::Other(format!("Failed to parse JSON: {}", e)))?;
 
-                self.parse_message(parsed)
+                Ok(self.parse_message(parsed))
             }
             Message::Binary(data) => {
                 // Some exchanges use binary compression
@@ -61,7 +61,7 @@ impl WsCodec for ParadexCodec {
                 let parsed: serde_json::Value = serde_json::from_str(&text)
                     .map_err(|e| ExchangeError::Other(format!("Failed to parse JSON: {}", e)))?;
 
-                self.parse_message(parsed)
+                Ok(self.parse_message(parsed))
             }
             _ => Ok(None), // Ignore other message types
         }
@@ -69,10 +69,8 @@ impl WsCodec for ParadexCodec {
 }
 
 impl ParadexCodec {
-    fn parse_message(
-        &self,
-        data: serde_json::Value,
-    ) -> Result<Option<ParadexWsEvent>, ExchangeError> {
+    #[allow(clippy::too_many_lines)]
+    fn parse_message(&self, data: serde_json::Value) -> Option<ParadexWsEvent> {
         // Handle different message types based on the channel or message structure
         if let Some(channel) = data.get("channel").and_then(|c| c.as_str()) {
             match channel {
@@ -131,7 +129,7 @@ impl ParadexCodec {
                             .and_then(|c| c.as_i64())
                             .unwrap_or_default(),
                     };
-                    Ok(Some(ParadexWsEvent::Ticker(ticker)))
+                    Some(ParadexWsEvent::Ticker(ticker))
                 }
                 "orderbook" => {
                     let orderbook = OrderBook {
@@ -146,7 +144,7 @@ impl ParadexCodec {
                             .map(|bids| {
                                 bids.iter()
                                     .filter_map(|bid| {
-                                        if let Some(bid_array) = bid.as_array() {
+                                        bid.as_array().and_then(|bid_array| {
                                             if bid_array.len() >= 2 {
                                                 Some(OrderBookEntry {
                                                     price: bid_array[0]
@@ -161,9 +159,7 @@ impl ParadexCodec {
                                             } else {
                                                 None
                                             }
-                                        } else {
-                                            None
-                                        }
+                                        })
                                     })
                                     .collect()
                             })
@@ -174,7 +170,7 @@ impl ParadexCodec {
                             .map(|asks| {
                                 asks.iter()
                                     .filter_map(|ask| {
-                                        if let Some(ask_array) = ask.as_array() {
+                                        ask.as_array().and_then(|ask_array| {
                                             if ask_array.len() >= 2 {
                                                 Some(OrderBookEntry {
                                                     price: ask_array[0]
@@ -189,9 +185,7 @@ impl ParadexCodec {
                                             } else {
                                                 None
                                             }
-                                        } else {
-                                            None
-                                        }
+                                        })
                                     })
                                     .collect()
                             })
@@ -201,7 +195,7 @@ impl ParadexCodec {
                             .and_then(|id| id.as_i64())
                             .unwrap_or_default(),
                     };
-                    Ok(Some(ParadexWsEvent::OrderBook(orderbook)))
+                    Some(ParadexWsEvent::OrderBook(orderbook))
                 }
                 "trade" => {
                     let trade = Trade {
@@ -230,7 +224,7 @@ impl ParadexCodec {
                             .and_then(|b| b.as_bool())
                             .unwrap_or_default(),
                     };
-                    Ok(Some(ParadexWsEvent::Trade(trade)))
+                    Some(ParadexWsEvent::Trade(trade))
                 }
                 "kline" => {
                     let kline = Kline {
@@ -286,16 +280,16 @@ impl ParadexCodec {
                             .and_then(|f| f.as_bool())
                             .unwrap_or(true),
                     };
-                    Ok(Some(ParadexWsEvent::Kline(kline)))
+                    Some(ParadexWsEvent::Kline(kline))
                 }
-                _ => Ok(None), // Unknown channel
+                _ => None, // Unknown channel
             }
         } else {
             // Handle subscription confirmations and other messages
             if data.get("result").is_some() {
-                Ok(Some(ParadexWsEvent::SubscriptionConfirmation(data)))
+                Some(ParadexWsEvent::SubscriptionConfirmation(data))
             } else {
-                Ok(None)
+                None
             }
         }
     }
@@ -305,13 +299,10 @@ impl ParadexCodec {
 pub fn create_subscription_channel(symbol: &str, subscription_type: &SubscriptionType) -> String {
     match subscription_type {
         SubscriptionType::Ticker => format!("ticker@{}", symbol),
-        SubscriptionType::OrderBook { depth } => {
-            if let Some(depth) = depth {
-                format!("depth{}@{}", depth, symbol)
-            } else {
-                format!("depth@{}", symbol)
-            }
-        }
+        SubscriptionType::OrderBook { depth } => depth.as_ref().map_or_else(
+            || format!("depth@{}", symbol),
+            |depth| format!("depth{}@{}", depth, symbol),
+        ),
         SubscriptionType::Trades => format!("trade@{}", symbol),
         SubscriptionType::Klines { interval } => {
             format!("kline_{}@{}", interval.to_binance_format(), symbol)
@@ -326,9 +317,9 @@ impl From<ParadexWsEvent> for Option<MarketDataType> {
             ParadexWsEvent::OrderBook(orderbook) => Some(MarketDataType::OrderBook(orderbook)),
             ParadexWsEvent::Trade(trade) => Some(MarketDataType::Trade(trade)),
             ParadexWsEvent::Kline(kline) => Some(MarketDataType::Kline(kline)),
-            ParadexWsEvent::SubscriptionConfirmation(_) => None,
-            ParadexWsEvent::Error(_) => None,
-            ParadexWsEvent::Heartbeat => None,
+            ParadexWsEvent::SubscriptionConfirmation(_)
+            | ParadexWsEvent::Error(_)
+            | ParadexWsEvent::Heartbeat => None,
         }
     }
 }

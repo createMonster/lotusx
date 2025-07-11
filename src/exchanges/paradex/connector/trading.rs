@@ -37,7 +37,7 @@ impl<R: RestClient + Clone + Send + Sync> OrderPlacer for Trading<R> {
     )]
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {
         // Convert order to Paradex format
-        let paradex_order = convert_order_request(&order)?;
+        let paradex_order = convert_order_request(&order);
 
         // Place the order using the REST client
         let response = self.rest.place_order(&paradex_order).await?;
@@ -81,8 +81,8 @@ impl<R: RestClient + Clone + Send + Sync> OrderPlacer for Trading<R> {
     }
 }
 
-/// Convert OrderRequest to Paradex JSON format
-fn convert_order_request(order: &OrderRequest) -> Result<Value, ExchangeError> {
+/// Convert `OrderRequest` to Paradex JSON format
+fn convert_order_request(order: &OrderRequest) -> Value {
     let side = match order.side {
         OrderSide::Buy => "BUY",
         OrderSide::Sell => "SELL",
@@ -119,5 +119,5 @@ fn convert_order_request(order: &OrderRequest) -> Result<Value, ExchangeError> {
         paradex_order["time_in_force"] = json!(time_in_force.to_string());
     }
 
-    Ok(paradex_order)
+    paradex_order
 }

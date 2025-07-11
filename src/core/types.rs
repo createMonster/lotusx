@@ -247,9 +247,9 @@ pub enum TimeInForce {
 impl fmt::Display for TimeInForce {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TimeInForce::GTC => write!(f, "GTC"),
-            TimeInForce::IOC => write!(f, "IOC"),
-            TimeInForce::FOK => write!(f, "FOK"),
+            Self::GTC => write!(f, "GTC"),
+            Self::IOC => write!(f, "IOC"),
+            Self::FOK => write!(f, "FOK"),
         }
     }
 }
