@@ -1,47 +1,28 @@
 #![allow(clippy::match_wild_err_arm)]
 #![allow(clippy::explicit_iter_loop)]
 
-use lotusx::{
-    core::{
-        config::ExchangeConfig,
-        traits::{AccountInfo, MarketDataSource},
-        types::SubscriptionType,
-    },
-    exchanges::{bybit::BybitConnector, bybit_perp::BybitPerpConnector},
-};
+use lotusx::core::config::ExchangeConfig;
+use lotusx::core::traits::{AccountInfo, MarketDataSource};
+use lotusx::core::types::SubscriptionType;
+use lotusx::exchanges::bybit::build_connector;
 use std::time::Duration;
 use tokio::time::timeout;
 
-/// Helper function to create Bybit spot connector with testnet config
-fn create_bybit_spot_connector() -> BybitConnector {
-    let config = ExchangeConfig::new("test_api_key".to_string(), "test_secret_key".to_string())
-        .testnet(true);
-
-    BybitConnector::new(config)
+/// Helper to create minimal test config
+fn create_test_config() -> ExchangeConfig {
+    ExchangeConfig::new("test_key".to_string(), "test_secret".to_string()).testnet(true)
 }
 
-/// Helper function to create Bybit perpetual connector with testnet config
-fn create_bybit_perp_connector() -> BybitPerpConnector {
-    let config = ExchangeConfig::new("test_api_key".to_string(), "test_secret_key".to_string())
-        .testnet(true);
-
-    BybitPerpConnector::new(config)
+/// Create bybit spot connector for testing
+fn create_bybit_spot_connector() -> lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()> {
+    let config = create_test_config();
+    build_connector(config).expect("Failed to create connector")
 }
 
-/// Helper function to create Bybit spot connector from environment
-fn create_bybit_spot_from_env() -> Result<BybitConnector, Box<dyn std::error::Error>> {
-    let config =
-        ExchangeConfig::from_env("BYBIT_TESTNET").or_else(|_| ExchangeConfig::from_env("BYBIT"))?;
-    Ok(BybitConnector::new(config))
-}
-
-/// Helper function to create Bybit perpetual connector from environment
-fn create_bybit_perp_from_env() -> Result<BybitPerpConnector, Box<dyn std::error::Error>> {
-    let config = ExchangeConfig::from_env("BYBIT_PERP_TESTNET")
-        .or_else(|_| ExchangeConfig::from_env("BYBIT_PERP"))
-        .or_else(|_| ExchangeConfig::from_env("BYBIT_TESTNET"))
-        .or_else(|_| ExchangeConfig::from_env("BYBIT"))?;
-    Ok(BybitPerpConnector::new(config))
+/// Create bybit spot connector from environment
+fn create_bybit_spot_from_env() -> Result<lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()>, Box<dyn std::error::Error>> {
+    let config = ExchangeConfig::from_env_file("BYBIT")?;
+    Ok(build_connector(config)?)
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ use lotusx::core::{
     traits::{AccountInfo, MarketDataSource},
     types::KlineInterval,
 };
-use lotusx::exchanges::backpack::create_backpack_connector;
+use lotusx::exchanges::backpack::build_connector;
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
@@ -22,8 +22,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Create Backpack connector
-    let backpack = create_backpack_connector(config, false)?;
+    // Create Backpack connector using the new builder
+    let backpack = build_connector(config)?;
 
     println!("🚀 Backpack Exchange Integration Example");
     println!("=========================================");
@@ -43,16 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting markets: {}", e),
     }
 
-    // Example 2: Raw API methods (these return JSON values)
-    println!("\n💰 Getting SOL-USDC ticker (raw JSON)...");
-    match backpack.get_ticker("SOL_USDC").await {
-        Ok(ticker) => {
-            println!("SOL-USDC Ticker (raw JSON): {:?}", ticker);
-        }
-        Err(e) => eprintln!("Error getting ticker: {}", e),
-    }
-
-    // Example 5: Get historical klines
+    // Example 2: Get historical klines
     println!("\n📈 Getting SOL-USDC 1h klines...");
     match MarketDataSource::get_klines(
         &backpack,
@@ -80,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting klines: {}", e),
     }
 
-    // Example 6: Get account balance (requires authentication) - using AccountInfo trait
+    // Example 3: Get account balance (requires authentication) - using AccountInfo trait
     println!("\n💼 Getting account balance...");
     match AccountInfo::get_account_balance(&backpack).await {
         Ok(balances) => {
@@ -99,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting account balance: {}", e),
     }
 
-    // Example 7: Get positions (requires authentication) - using AccountInfo trait
+    // Example 4: Get positions (requires authentication) - using AccountInfo trait
     println!("\n📍 Getting positions...");
     match AccountInfo::get_positions(&backpack).await {
         Ok(positions) => {
@@ -122,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting positions: {}", e),
     }
 
-    // Example 8: WebSocket market data (commented out due to connection requirements)
+    // Example 5: WebSocket market data (commented out due to connection requirements)
     /*
     println!("\n🔄 Starting WebSocket market data stream...");
     let symbols = vec!["SOL_USDC".to_string()];
