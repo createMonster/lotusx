@@ -69,7 +69,7 @@ pub struct BinanceOrderResponse {
 }
 
 // WebSocket Types
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinanceWebSocketTicker {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -95,7 +95,7 @@ pub struct BinanceWebSocketTicker {
     pub count: i64,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinanceWebSocketOrderBook {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -110,7 +110,7 @@ pub struct BinanceWebSocketOrderBook {
     pub asks: Vec<[String; 2]>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinanceWebSocketTrade {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -126,7 +126,7 @@ pub struct BinanceWebSocketTrade {
     pub is_buyer_maker: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinanceWebSocketKline {
     #[serde(rename = "s")]
     pub symbol: String,
@@ -134,7 +134,7 @@ pub struct BinanceWebSocketKline {
     pub kline: BinanceKlineData,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BinanceKlineData {
     #[serde(rename = "t")]
     pub open_time: i64,

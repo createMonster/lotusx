@@ -999,6 +999,7 @@ dependencies = [
  "hmac",
  "jsonwebtoken",
  "nonzero_ext",
+ "num-traits",
  "rand",
  "reqwest",
  "rust_decimal",

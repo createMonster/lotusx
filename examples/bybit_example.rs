@@ -1,8 +1,8 @@
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::{AccountInfo, MarketDataSource};
 use lotusx::core::types::{KlineInterval, SubscriptionType};
-use lotusx::exchanges::bybit::BybitConnector;
-use lotusx::exchanges::bybit_perp::BybitPerpConnector;
+use lotusx::exchanges::bybit::build_connector;
+
 use tokio::time::{timeout, Duration};
 
 #[tokio::main]
@@ -23,11 +23,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create configuration (try env file, fallback to empty credentials)
     let config = ExchangeConfig::from_env_file("BYBIT")
         .unwrap_or_else(|_| ExchangeConfig::new(String::new(), String::new()));
-    let bybit_spot = BybitConnector::new(config.clone());
+
+    let bybit_spot = build_connector(config.clone())?;
 
     // 1. Market Data - Get all available markets
     println!("\n🏪 1. Getting Spot Markets:");
-    match bybit_spot.get_markets().await {
+    match MarketDataSource::get_markets(&bybit_spot).await {
         Ok(markets) => {
             println!("✅ Found {} spot markets", markets.len());
             println!("📝 Sample markets:");
@@ -50,15 +51,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_symbols = vec!["BTCUSDT", "ETHUSDT", "ADAUSDT"];
 
     for symbol in &test_symbols {
-        match bybit_spot
-            .get_klines(
-                (*symbol).to_string(),
-                KlineInterval::Minutes1,
-                Some(5),
-                None,
-                None,
-            )
-            .await
+        match MarketDataSource::get_klines(
+            &bybit_spot,
+            (*symbol).to_string(),
+            KlineInterval::Minutes1,
+            Some(5),
+            None,
+            None,
+        )
+        .await
         {
             Ok(klines) => {
                 println!(
@@ -95,7 +96,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match timeout(
         Duration::from_secs(10),
-        bybit_spot.subscribe_market_data(
+        MarketDataSource::subscribe_market_data(
+            &bybit_spot,
             vec!["BTCUSDT".to_string()],
             subscription_types.clone(),
             None,
@@ -131,7 +133,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. Account Information (requires credentials)
     println!("\n💰 4. Account Information:");
-    match bybit_spot.get_account_balance().await {
+    match AccountInfo::get_account_balance(&bybit_spot).await {
         Ok(balances) => {
             println!("✅ Account balances retrieved:");
             for balance in balances.iter().take(5) {
@@ -151,11 +153,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n\n🔮 BYBIT PERPETUAL FUTURES");
     println!("===========================");
 
-    let bybit_perp = BybitPerpConnector::new(config.clone());
+    let bybit_perp = lotusx::exchanges::bybit_perp::build_connector(config.clone())?;
 
     // 1. Perpetual Markets
     println!("\n🏪 1. Getting Perpetual Markets:");
-    match bybit_perp.get_markets().await {
+    match MarketDataSource::get_markets(&bybit_perp).await {
         Ok(markets) => {
             println!("✅ Found {} perpetual markets", markets.len());
             println!("📝 Sample perpetual contracts:");
@@ -177,15 +179,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📈 2. Getting Perpetual K-lines (Fixed API):");
 
     for symbol in &test_symbols {
-        match bybit_perp
-            .get_klines(
-                (*symbol).to_string(),
-                KlineInterval::Hours1,
-                Some(3),
-                None,
-                None,
-            )
-            .await
+        match MarketDataSource::get_klines(
+            &bybit_perp,
+            (*symbol).to_string(),
+            KlineInterval::Hours1,
+            Some(3),
+            None,
+            None,
+        )
+        .await
         {
             Ok(klines) => {
                 println!(
@@ -214,7 +216,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match timeout(
         Duration::from_secs(10),
-        bybit_perp.subscribe_market_data(vec!["BTCUSDT".to_string()], subscription_types, None),
+        MarketDataSource::subscribe_market_data(
+            &bybit_perp,
+            vec!["BTCUSDT".to_string()],
+            subscription_types,
+            None,
+        ),
     )
     .await
     {
@@ -246,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 4. Positions (requires credentials)
     println!("\n📍 4. Position Information:");
-    match bybit_perp.get_positions().await {
+    match AccountInfo::get_positions(&bybit_perp).await {
         Ok(positions) => {
             println!("✅ Positions retrieved:");
             if positions.is_empty() {

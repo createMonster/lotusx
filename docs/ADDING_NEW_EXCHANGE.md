@@ -37,90 +37,90 @@ src/
 
 ## 🏗️ Exchange Module Structure
 
-Each exchange follows a modular structure, but with flexibility based on requirements. Here are the patterns used by existing exchanges:
+Each exchange follows the new **Kernel Architecture** with unified transport layer and modular design. The structure is consistent across all exchanges:
 
-### Standard Structure (Most Exchanges)
+### Standard Kernel Structure (All Exchanges)
 ```
 src/exchanges/exchange_name/
-├── mod.rs           # Module exports and re-exports
-├── client.rs        # Main connector struct (lightweight)
-├── types.rs         # Exchange-specific data structures
-├── converters.rs    # Type conversions between exchange and core types
-├── market_data.rs   # Market data implementation
-├── trading.rs       # Order placement and management
-└── account.rs       # Account information queries
+├── mod.rs           # Module exports and builder
+├── builder.rs       # Exchange builder pattern implementation
+├── codec.rs         # Message encoding/decoding
+├── conversions.rs   # Type conversions between exchange and core types
+├── connector/       # Modular connector implementations
+│   ├── mod.rs       # Connector composition
+│   ├── account.rs   # Account information queries
+│   ├── market_data.rs # Market data implementation
+│   └── trading.rs   # Order placement and management
+├── rest.rs          # REST API client implementation
+├── signer.rs        # Authentication and request signing
+└── types.rs         # Exchange-specific data structures
 ```
 
-### With Authentication Module
-Some exchanges require their own authentication logic:
-```
-src/exchanges/exchange_name/
-├── ... (standard files)
-└── auth.rs          # Authentication and request signing
-```
-
-### With Custom WebSocket Implementation
-Exchanges with complex WebSocket requirements may have:
-```
-src/exchanges/exchange_name/
-├── ... (standard files)
-└── websocket.rs     # Exchange-specific WebSocket handling
-```
+### Kernel Integration Benefits
+- **Unified Transport**: Leverages `src/core/kernel/` for HTTP and WebSocket communication
+- **Consistent Authentication**: Uses `Signer` trait for secure credential handling
+- **Modular Design**: Clean separation of concerns with focused modules
+- **Builder Pattern**: Consistent instantiation across all exchanges
 
 ## 🔄 Current Exchange Examples
 
-### Binance Pattern (Standard with Auth)
-- `client.rs` - Lightweight connector
-- `auth.rs` - HMAC-SHA256 authentication
-- All standard modules present
+### Binance Pattern (Standard Kernel)
+- `builder.rs` - Exchange builder implementing `BinanceBuilder`
+- `signer.rs` - HMAC-SHA256 authentication via `Signer` trait
+- `connector/` - Modular trait implementations
+- All standard kernel modules present
 
 ### Binance Perpetual Pattern (Auth Reuse)
-- `client.rs` - Lightweight connector
-- No `auth.rs` - reuses authentication from binance
-- All other standard modules present
+- `builder.rs` - Exchange builder implementing `BinancePerpBuilder`
+- `signer.rs` - Reuses binance authentication module
+- `connector/` - Modular trait implementations
+- All other standard kernel modules present
 
-### Hyperliquid Pattern (Custom WebSocket)
-- `client.rs` - More complex due to EIP-712 authentication
-- `auth.rs` - EIP-712 cryptographic signing
-- `websocket.rs` - Custom WebSocket message handling
-- All standard modules present
+### Hyperliquid Pattern (Custom Codec)
+- `builder.rs` - Exchange builder implementing `HyperliquidBuilder`
+- `signer.rs` - EIP-712 cryptographic signing
+- `codec.rs` - Custom WebSocket message handling
+- `connector/` - Modular trait implementations
+- All standard kernel modules present
 
-### Bybit Perpetual Pattern (Minimal)
-- `client.rs` - Lightweight connector
-- No `auth.rs` - reuses authentication from bybit spot
-- All other standard modules present
+### Bybit Perpetual Pattern (Minimal Auth)
+- `builder.rs` - Exchange builder implementing `BybitPerpBuilder`
+- `signer.rs` - Reuses bybit spot authentication
+- `connector/` - Modular trait implementations
+- All other standard kernel modules present
 
 ## 🚀 Step-by-Step Implementation Approach
 
 ### Step 1: Plan Your Exchange Structure
 Before writing code, determine:
-- Does the exchange need custom authentication? (create `auth.rs`)
-- Does it have complex WebSocket requirements? (create `websocket.rs`)
-- Can you reuse authentication from another exchange?
+- Does the exchange need custom WebSocket message handling? (enhance `codec.rs`)
+- Can you reuse authentication from another exchange? (reuse `signer.rs`)
+- What are the exchange's specific API endpoints and authentication requirements?
 
 ### Step 2: Create the Exchange Directory
 ```bash
 mkdir src/exchanges/exchange_name
+mkdir src/exchanges/exchange_name/connector
 ```
 
 ### Step 3: Implement Core Modules (In Order)
 
 #### Start with Foundation
 1. **`types.rs`** - Define all exchange-specific data structures
-2. **`client.rs`** - Create the main connector struct (keep it lightweight)
-3. **`mod.rs`** - Set up module exports
+2. **`builder.rs`** - Create the exchange builder implementing build pattern
+3. **`mod.rs`** - Set up module exports and builder
 
-#### Add Authentication (If Needed)
-4. **`auth.rs`** - Implement authentication logic if exchange requires unique auth
+#### Add Transport Layer
+4. **`rest.rs`** - Implement `RestClient` trait for HTTP communication
+5. **`signer.rs`** - Implement `Signer` trait for authentication
+6. **`codec.rs`** - Implement `Codec` trait for message encoding/decoding
 
 #### Implement Core Functionality
-5. **`converters.rs`** - Convert between exchange types and core types
-6. **`market_data.rs`** - Implement market data retrieval and WebSocket subscriptions
-7. **`trading.rs`** - Implement order placement and cancellation
-8. **`account.rs`** - Implement account balance and position retrieval
-
-#### Add Advanced Features (If Needed)
-9. **`websocket.rs`** - Custom WebSocket handling for complex exchanges
+7. **`conversions.rs`** - Convert between exchange types and core types
+8. **`connector/mod.rs`** - Set up connector composition
+9. **`connector/market_data.rs`** - Implement `MarketDataSource` trait
+10. **`connector/trading.rs`** - Implement `OrderPlacer` trait
+11. **`connector/account.rs`** - Implement `AccountInfo` trait
 
 ### Step 4: Register Your Exchange
 Add your exchange to `src/exchanges/mod.rs`:
@@ -135,42 +135,56 @@ Consider adding your exchange to:
 
 ## 📋 Core Traits to Implement
 
-Every exchange must implement these core traits (defined in `src/core/traits.rs`):
+Every exchange must implement these core traits using the kernel architecture:
 
+### Kernel Layer Traits (in `src/core/kernel/`)
+1. **`RestClient`** - HTTP client abstraction for API communication
+2. **`Signer`** - Authentication and request signing
+3. **`Codec`** - Message encoding/decoding for WebSocket communication
+
+### Exchange Layer Traits (in `src/core/traits.rs`)
 1. **`ExchangeConnector`** - Base connector trait
 2. **`MarketDataSource`** - Market data retrieval and WebSocket subscriptions
 3. **`OrderPlacer`** - Order placement and cancellation
 4. **`AccountInfo`** - Account balance and position information
 
-Optional traits (for specific exchange types):
+### Optional traits (for specific exchange types)
 - **`FundingRateSource`** - For perpetual exchanges with funding rates
+
+### Builder Pattern
+- **`ExchangeBuilder`** - Consistent builder pattern for exchange instantiation
 
 ## 🎨 Design Patterns
 
-### Lightweight Client Pattern
-The `client.rs` file should be minimal, containing only:
-- The main connector struct
-- Basic configuration and setup
-- Constructor methods
+### Builder Pattern
+The `builder.rs` file implements the builder pattern:
+- Exchange builder struct (e.g., `BinanceBuilder`)
+- `build()` method returning configured connector
+- Configuration validation and setup
 
-All functionality is implemented in separate modules.
+### Kernel Integration Pattern
+Each exchange leverages the kernel layer:
+- `rest.rs` implements `RestClient` for HTTP communication
+- `signer.rs` implements `Signer` for authentication
+- `codec.rs` implements `Codec` for WebSocket message handling
 
-### Trait-Based Implementation
-Each module implements specific traits:
+### Connector Composition Pattern
+The `connector/` directory contains focused implementations:
 - `market_data.rs` implements `MarketDataSource`
 - `trading.rs` implements `OrderPlacer`  
 - `account.rs` implements `AccountInfo`
+- `mod.rs` composes all connectors into final exchange connector
 
 ### Converter Pattern
-The `converters.rs` module handles all data transformations:
+The `conversions.rs` module handles all data transformations:
 - Exchange format → Core format
 - Core format → Exchange format
 - Type safety and validation
 
 ### Authentication Reuse
 Exchanges from the same provider can share authentication:
-- `binance_perp` reuses `binance` auth
-- `bybit_perp` reuses `bybit` auth
+- `binance_perp` reuses `binance` signer
+- `bybit_perp` reuses `bybit` signer
 
 ## 🔧 Development Tips
 
@@ -198,13 +212,13 @@ Create a basic example file in `examples/exchange_name_example.rs`:
 // Basic example showing your exchange in action
 use lotusx::{
     core::{config::ExchangeConfig, traits::MarketDataSource},
-    exchanges::exchange_name::ExchangeNameConnector,
+    exchanges::exchange_name::ExchangeNameBuilder,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ExchangeConfig::from_env("EXCHANGE_NAME")?;
-    let connector = ExchangeNameConnector::new(config);
+    let connector = ExchangeNameBuilder::new().build(config).await?;
 
     // Test basic functionality
     let markets = connector.get_markets().await?;

@@ -3,7 +3,7 @@ use lotusx::core::{
     traits::{AccountInfo, MarketDataSource},
     types::KlineInterval,
 };
-use lotusx::exchanges::backpack::BackpackConnector;
+use lotusx::exchanges::backpack::build_connector;
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
@@ -22,15 +22,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    // Create Backpack connector
-    let backpack = BackpackConnector::new(config)?;
+    // Create Backpack connector using the new builder
+    let backpack = build_connector(config)?;
 
     println!("🚀 Backpack Exchange Integration Example");
     println!("=========================================");
 
     // Example 1: Get available markets
     println!("\n📊 Getting available markets...");
-    match backpack.get_markets().await {
+    match MarketDataSource::get_markets(&backpack).await {
         Ok(markets) => {
             println!("Found {} markets:", markets.len());
             for (i, market) in markets.iter().take(5).enumerate() {
@@ -43,60 +43,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting markets: {}", e),
     }
 
-    // Example 2: Get ticker for SOL-USDC
-    println!("\n💰 Getting SOL-USDC ticker...");
-    match backpack.get_ticker("SOL_USDC").await {
-        Ok(ticker) => {
-            println!("SOL-USDC Ticker:");
-            println!("  Price: ${}", ticker.price);
-            println!("  24h Change: {}%", ticker.price_change_percent);
-            println!("  24h Volume: {}", ticker.volume);
-            println!("  High: ${}", ticker.high_price);
-            println!("  Low: ${}", ticker.low_price);
-        }
-        Err(e) => eprintln!("Error getting ticker: {}", e),
-    }
-
-    // Example 3: Get order book
-    println!("\n📖 Getting SOL-USDC order book...");
-    match backpack.get_order_book("SOL_USDC", Some(5)).await {
-        Ok(order_book) => {
-            println!("Order Book (Top 5):");
-            println!("  Asks:");
-            for ask in order_book.asks.iter().take(5) {
-                println!("    ${} x {}", ask.price, ask.quantity);
-            }
-            println!("  Bids:");
-            for bid in order_book.bids.iter().take(5) {
-                println!("    ${} x {}", bid.price, bid.quantity);
-            }
-        }
-        Err(e) => eprintln!("Error getting order book: {}", e),
-    }
-
-    // Example 4: Get recent trades
-    println!("\n🔄 Getting recent SOL-USDC trades...");
-    match backpack.get_trades("SOL_USDC", Some(5)).await {
-        Ok(trades) => {
-            println!("Recent Trades:");
-            for trade in trades.iter().take(5) {
-                println!("  ${} x {} at {}", trade.price, trade.quantity, trade.time);
-            }
-        }
-        Err(e) => eprintln!("Error getting trades: {}", e),
-    }
-
-    // Example 5: Get historical klines
+    // Example 2: Get historical klines
     println!("\n📈 Getting SOL-USDC 1h klines...");
-    match backpack
-        .get_klines(
-            "SOL_USDC".to_string(),
-            KlineInterval::Hours1,
-            Some(5),
-            None,
-            None,
-        )
-        .await
+    match MarketDataSource::get_klines(
+        &backpack,
+        "SOL_USDC".to_string(),
+        KlineInterval::Hours1,
+        Some(5),
+        None,
+        None,
+    )
+    .await
     {
         Ok(klines) => {
             println!("Recent 1h Klines:");
@@ -114,9 +71,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting klines: {}", e),
     }
 
-    // Example 6: Get account balance (requires authentication)
+    // Example 3: Get account balance (requires authentication) - using AccountInfo trait
     println!("\n💼 Getting account balance...");
-    match backpack.get_account_balance().await {
+    match AccountInfo::get_account_balance(&backpack).await {
         Ok(balances) => {
             println!("Account Balances:");
             for balance in balances.iter().take(10) {
@@ -133,9 +90,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting account balance: {}", e),
     }
 
-    // Example 7: Get positions (requires authentication)
+    // Example 4: Get positions (requires authentication) - using AccountInfo trait
     println!("\n📍 Getting positions...");
-    match backpack.get_positions().await {
+    match AccountInfo::get_positions(&backpack).await {
         Ok(positions) => {
             if positions.is_empty() {
                 println!("No open positions");
@@ -156,7 +113,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Error getting positions: {}", e),
     }
 
-    // Example 8: WebSocket market data (commented out due to connection requirements)
+    // Example 5: WebSocket market data (commented out due to connection requirements)
     /*
     println!("\n🔄 Starting WebSocket market data stream...");
     let symbols = vec!["SOL_USDC".to_string()];

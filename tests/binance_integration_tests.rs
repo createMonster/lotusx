@@ -1,47 +1,49 @@
 #![allow(clippy::match_wild_err_arm)]
 #![allow(clippy::explicit_iter_loop)]
 
-use lotusx::{
-    core::{
-        config::ExchangeConfig,
-        traits::{AccountInfo, MarketDataSource},
-        types::{KlineInterval, SubscriptionType},
-    },
-    exchanges::{binance::BinanceConnector, binance_perp::BinancePerpConnector},
-};
+use lotusx::core::config::ExchangeConfig;
+use lotusx::core::traits::{AccountInfo, MarketDataSource};
+use lotusx::exchanges::binance::build_connector;
+use lotusx::exchanges::binance_perp::build_connector as build_binance_perp_connector;
 use std::time::Duration;
 use tokio::time::timeout;
 
-/// Helper function to create Binance spot connector with testnet config
-fn create_binance_spot_connector() -> BinanceConnector {
-    let config = ExchangeConfig::new("test_api_key".to_string(), "test_secret_key".to_string())
-        .testnet(true);
-
-    BinanceConnector::new(config)
+/// Helper to create minimal test config
+fn create_test_config() -> ExchangeConfig {
+    ExchangeConfig::new("test_key".to_string(), "test_secret".to_string()).testnet(true)
 }
 
-/// Helper function to create Binance perpetual connector with testnet config
-fn create_binance_perp_connector() -> BinancePerpConnector {
-    let config = ExchangeConfig::new("test_api_key".to_string(), "test_secret_key".to_string())
-        .testnet(true);
-
-    BinancePerpConnector::new(config)
+/// Create binance spot connector for testing
+fn create_binance_spot_connector(
+) -> lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()> {
+    let config = create_test_config();
+    build_connector(config).expect("Failed to create connector")
 }
 
-/// Helper function to create Binance spot connector from environment
-fn create_binance_spot_from_env() -> Result<BinanceConnector, Box<dyn std::error::Error>> {
-    let config = ExchangeConfig::from_env("BINANCE_TESTNET")
-        .or_else(|_| ExchangeConfig::from_env("BINANCE"))?;
-    Ok(BinanceConnector::new(config))
+/// Create binance perpetual connector for testing  
+fn create_binance_perp_connector(
+) -> lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()> {
+    let config = create_test_config();
+    build_binance_perp_connector(config).expect("Failed to create connector")
 }
 
-/// Helper function to create Binance perpetual connector from environment
-fn create_binance_perp_from_env() -> Result<BinancePerpConnector, Box<dyn std::error::Error>> {
-    let config = ExchangeConfig::from_env("BINANCE_PERP_TESTNET")
-        .or_else(|_| ExchangeConfig::from_env("BINANCE_PERP"))
-        .or_else(|_| ExchangeConfig::from_env("BINANCE_TESTNET"))
-        .or_else(|_| ExchangeConfig::from_env("BINANCE"))?;
-    Ok(BinancePerpConnector::new(config))
+/// Create binance spot connector from environment
+fn create_binance_spot_from_env() -> Result<
+    lotusx::exchanges::binance::BinanceConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
+    let config = ExchangeConfig::from_env_file("BINANCE")?;
+    Ok(build_connector(config)?)
+}
+
+/// Create binance perpetual connector from environment  
+fn create_binance_perp_from_env() -> Result<
+    lotusx::exchanges::binance_perp::BinancePerpConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    Box<dyn std::error::Error>,
+> {
+    let config = ExchangeConfig::from_env_file("BINANCE_PERP")
+        .or_else(|_| ExchangeConfig::from_env_file("BINANCE"))?;
+    Ok(build_binance_perp_connector(config)?)
 }
 
 #[cfg(test)]
@@ -128,7 +130,7 @@ mod binance_spot_tests {
             Duration::from_secs(30),
             connector.get_klines(
                 "BTCUSDT".to_string(),
-                KlineInterval::Minutes1,
+                lotusx::core::types::KlineInterval::Minutes1,
                 Some(10),
                 None,
                 None,
@@ -183,11 +185,11 @@ mod binance_spot_tests {
 
         let symbols = vec!["btcusdt".to_string(), "ethusdt".to_string()];
         let subscription_types = vec![
-            SubscriptionType::Ticker,
-            SubscriptionType::OrderBook { depth: Some(10) },
-            SubscriptionType::Trades,
-            SubscriptionType::Klines {
-                interval: KlineInterval::Minutes1,
+            lotusx::core::types::SubscriptionType::Ticker,
+            lotusx::core::types::SubscriptionType::OrderBook { depth: Some(10) },
+            lotusx::core::types::SubscriptionType::Trades,
+            lotusx::core::types::SubscriptionType::Klines {
+                interval: lotusx::core::types::KlineInterval::Minutes1,
             },
         ];
 
@@ -433,9 +435,13 @@ mod binance_comprehensive_tests {
         )
         .testnet(true);
 
-        let connector = BinanceConnector::new(config);
+        let connector = build_connector(config).expect("Failed to create connector");
 
-        let result = timeout(Duration::from_secs(15), connector.get_account_balance()).await;
+        let result = timeout(
+            Duration::from_secs(15),
+            AccountInfo::get_account_balance(&connector),
+        )
+        .await;
 
         match result {
             Ok(Err(e)) => {
@@ -550,7 +556,7 @@ mod binance_comprehensive_tests {
             Duration::from_secs(30),
             connector.get_klines(
                 "BTCUSDT".to_string(),
-                KlineInterval::Hours1,
+                lotusx::core::types::KlineInterval::Hours1,
                 Some(5),
                 None,
                 None,
@@ -653,12 +659,12 @@ mod binance_config_tests {
         ];
 
         for (i, config) in configs.into_iter().enumerate() {
-            let spot = BinanceConnector::new(config.clone());
-            let perp = BinancePerpConnector::new(config);
+            let spot = build_connector(config.clone()).expect("Failed to create connector");
+            let perp = build_binance_perp_connector(config).expect("Failed to create connector");
 
             // Should not panic during creation
-            let _spot_ws = spot.get_websocket_url();
-            let _perp_ws = perp.get_websocket_url();
+            let _spot_ws = MarketDataSource::get_websocket_url(&spot);
+            let _perp_ws = MarketDataSource::get_websocket_url(&perp);
 
             println!("✅ Binance connector creation test {} passed", i);
         }

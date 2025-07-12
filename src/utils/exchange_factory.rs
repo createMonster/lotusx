@@ -1,9 +1,6 @@
 use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
-use crate::exchanges::{
-    backpack::BackpackConnector, binance::BinanceConnector, binance_perp::BinancePerpConnector,
-    bybit::BybitConnector, bybit_perp::BybitPerpConnector, hyperliquid::HyperliquidClient,
-    paradex::ParadexConnector,
-};
+use crate::exchanges::backpack;
+use crate::exchanges::{bybit::BybitConnector, hyperliquid, paradex};
 
 /// Configuration for an exchange in the latency test
 #[derive(Debug, Clone)]
@@ -55,19 +52,25 @@ impl ExchangeFactory {
         match exchange_type {
             ExchangeType::Binance => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BinanceConnector::new(cfg)))
+                Ok(Box::new(
+                    crate::exchanges::binance::create_binance_connector(cfg)?,
+                ))
             }
             ExchangeType::BinancePerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BinancePerpConnector::new(cfg)))
+                Ok(Box::new(
+                    crate::exchanges::binance_perp::create_binance_perp_connector(cfg)?,
+                ))
             }
             ExchangeType::Bybit => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BybitConnector::new(cfg)))
+                Ok(Box::new(BybitConnector::for_factory(cfg)))
             }
             ExchangeType::BybitPerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BybitPerpConnector::new(cfg)))
+                Ok(Box::new(crate::exchanges::bybit_perp::build_connector(
+                    cfg,
+                )?))
             }
             ExchangeType::Backpack => {
                 // Backpack requires credentials, so use placeholder values for testing
@@ -75,15 +78,21 @@ impl ExchangeFactory {
                     ExchangeConfig::new("placeholder".to_string(), "placeholder".to_string())
                         .testnet(testnet)
                 });
-                match BackpackConnector::new(cfg) {
+                match backpack::create_backpack_connector(cfg, false) {
                     Ok(connector) => Ok(Box::new(connector)),
                     Err(e) => Err(Box::new(e)),
                 }
             }
-            ExchangeType::Hyperliquid => Ok(Box::new(HyperliquidClient::read_only(testnet))),
+            ExchangeType::Hyperliquid => {
+                let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
+                Ok(Box::new(hyperliquid::build_hyperliquid_connector(cfg)?))
+            }
             ExchangeType::Paradex => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(ParadexConnector::new(cfg)))
+                match paradex::build_connector(cfg) {
+                    Ok(connector) => Ok(Box::new(connector)),
+                    Err(e) => Err(Box::new(e)),
+                }
             }
         }
     }

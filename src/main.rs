@@ -1,6 +1,6 @@
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::MarketDataSource;
-use lotusx::BinanceConnector;
+use lotusx::exchanges::binance_perp;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = ExchangeConfig::new("your_api_key".to_string(), "your_secret_key".to_string())
         .testnet(true); // Use testnet for safety
 
-    let binance = BinanceConnector::new(config);
+    let binance = binance_perp::build_connector(config)?;
 
     // Get all markets
     println!("Fetching markets...");

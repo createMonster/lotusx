@@ -1,6 +1,6 @@
 use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::MarketDataSource;
-use lotusx::BinanceConnector;
+use lotusx::exchanges::binance::build_connector;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,11 +12,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .testnet(true);
 
-    let binance = BinanceConnector::new(config);
+    let binance = build_connector(config)?;
 
     // Example 1: Get all available markets
     println!("=== Getting Markets ===");
-    match binance.get_markets().await {
+    match MarketDataSource::get_markets(&binance).await {
         Ok(markets) => {
             println!("Successfully fetched {} markets", markets.len());
 
@@ -50,18 +50,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Example 2: Place a limit order (COMMENTED OUT FOR SAFETY)
     // UNCOMMENT AND MODIFY ONLY IF YOU WANT TO PLACE REAL ORDERS
     /*
+    use lotusx::core::traits::OrderPlacer;
+    use lotusx::core::types::{OrderRequest, OrderSide, OrderType, TimeInForce};
+
     println!("\n=== Placing Order ===");
     let order = OrderRequest {
-        symbol: "BTCUSDT".to_string(),
+        symbol: lotusx::core::types::conversion::string_to_symbol("BTCUSDT"),
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
-        quantity: "0.001".to_string(), // Very small amount for testing
-        price: Some("25000.0".to_string()), // Below market price to avoid immediate fill
+        quantity: lotusx::core::types::conversion::string_to_quantity("0.001"), // Very small amount for testing
+        price: Some(lotusx::core::types::conversion::string_to_price("25000.0")), // Below market price to avoid immediate fill
         time_in_force: Some(TimeInForce::GTC),
         stop_price: None,
     };
 
-    match binance.place_order(order).await {
+    match OrderPlacer::place_order(&binance, order).await {
         Ok(response) => {
             println!("Order placed successfully!");
             println!("  Order ID: {}", response.order_id);
