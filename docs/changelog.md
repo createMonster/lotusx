@@ -2,6 +2,58 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-13
+
+### Added
+- **Kernel Architecture**: Complete architectural refactoring with unified transport layer
+  - **Core Kernel Module**: New `src/core/kernel/` with codec, REST client, WebSocket session, and signer abstractions
+  - **Unified Transport**: Standardized HTTP and WebSocket communication patterns across all exchanges
+  - **Builder Pattern**: New builder-based exchange instantiation replacing direct constructors
+  - **Modular Exchange Structure**: Consistent file organization with separate concerns per module
+  - **Transport Abstraction**: Generic `RestClient` and `WebSocketSession` traits for protocol-agnostic communication
+
+### Technical Implementation
+- **Kernel Components** (`src/core/kernel/`)
+  - **Codec**: Unified message encoding/decoding with `Codec` trait
+  - **REST Client**: Generic HTTP client abstraction with `RestClient` trait
+  - **WebSocket Session**: Unified WebSocket handling with `WebSocketSession` trait
+  - **Signer**: Authentication abstraction with `Signer` trait
+  - **Transport Layer**: Protocol-agnostic communication infrastructure
+
+- **Exchange Refactoring**: All exchanges updated to use kernel architecture
+  - **Binance Spot & Perp**: Complete migration to builder pattern with modular structure
+  - **Bybit Spot & Perp**: Full kernel integration with unified transport
+  - **Hyperliquid**: Kernel-based architecture with EIP-712 authentication
+  - **Backpack**: Unified transport with builder pattern
+  - **Paradex**: Complete kernel integration with modular design
+
+### Enhanced Architecture
+- **Connector Pattern**: New `ExchangeConnector` structs composing sub-trait implementations
+- **Modular Design**: Separate files for account, market data, trading, codec, conversions, REST, and signer
+- **Builder Interface**: Consistent `ExchangeBuilder` pattern across all exchanges
+- **Trait Composition**: Clean separation of concerns with focused trait implementations
+
+### Performance Improvements
+- **Unified Transport**: Optimized HTTP and WebSocket connection management
+- **Memory Efficiency**: Reduced overhead through shared transport abstractions
+- **Connection Pooling**: Efficient resource management in kernel layer
+- **HFT Optimizations**: Low-latency patterns maintained with new architecture
+
+### Breaking Changes
+- **Exchange Instantiation**: All exchanges now use builder pattern instead of direct constructors
+- **Client Removal**: Legacy client structs replaced with connector pattern
+- **Import Changes**: Updated import paths for new modular structure
+- **Configuration**: Builder-based configuration replacing direct config passing
+
+### Code Quality
+- **Consistency**: Unified patterns across all exchange implementations
+- **Maintainability**: Clear separation of concerns with focused modules
+- **Extensibility**: Easy addition of new exchanges with established patterns
+- **Type Safety**: Enhanced compile-time validation through trait system
+
+### Dependencies
+- **num-traits**: Added for numeric trait abstractions in kernel layer
+
 ## PR-12
 
 ### Added

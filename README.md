@@ -38,14 +38,14 @@ tokio = { version = "1.0", features = ["full"] }
 ### Basic Usage
 
 ```rust
-use lotusx::{BinanceConnector, BybitConnector};
+use lotusx::exchanges::binance::BinanceBuilder;
 use lotusx::core::config::ExchangeConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration from environment
     let config = ExchangeConfig::from_env("BINANCE")?;
-    let binance = BinanceConnector::new(config);
+    let binance = BinanceBuilder::new().build(config).await?;
 
     // Get markets
     let markets = binance.get_markets().await?;
@@ -93,6 +93,7 @@ PARADEX_TESTNET=true
 - **🧪 Testnet**: Full testnet support for safe development
 - **📊 Performance Testing**: Built-in latency analysis and HFT metrics
 - **🛡️ Type Safe**: Strong typing for all API responses
+- **🎯 Kernel Architecture**: Unified transport layer with modular design
 
 ## 📖 **Examples**
 
@@ -100,6 +101,10 @@ PARADEX_TESTNET=true
 
 ```rust
 use lotusx::core::types::*;
+use lotusx::exchanges::binance::BinanceBuilder;
+
+// Create exchange connector
+let binance = BinanceBuilder::new().build(config).await?;
 
 let order = OrderRequest {
     symbol: "BTCUSDT".to_string(),
@@ -117,6 +122,11 @@ let response = binance.place_order(order).await?;
 ### WebSocket Streaming
 
 ```rust
+use lotusx::exchanges::binance::BinanceBuilder;
+
+// Create exchange connector
+let binance = BinanceBuilder::new().build(config).await?;
+
 let symbols = vec!["BTCUSDT".to_string()];
 let subscription_types = vec![SubscriptionType::Ticker];
 
@@ -182,6 +192,7 @@ Paradex         134589          3.42            5.2
 ```rust
 use lotusx::utils::exchange_factory::*;
 use lotusx::utils::latency_testing::*;
+use lotusx::exchanges::binance::BinanceBuilder;
 
 // Build custom test configuration
 let configs = ExchangeTestConfigBuilder::new()
