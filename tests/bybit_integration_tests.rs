@@ -31,18 +31,18 @@ fn create_bybit_spot_from_env() -> Result<
 
 /// Create bybit perp connector for testing (using same spot connector for now)
 fn create_bybit_perp_connector(
-) -> lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()> {
+) -> lotusx::exchanges::bybit_perp::BybitPerpConnector<lotusx::core::kernel::ReqwestRest, ()> {
     let config = create_test_config();
-    build_connector(config).expect("Failed to create perp connector")
+    lotusx::exchanges::bybit_perp::build_connector(config).expect("Failed to create perp connector")
 }
 
 /// Create bybit perp connector from environment
 fn create_bybit_perp_from_env() -> Result<
-    lotusx::exchanges::bybit::BybitConnector<lotusx::core::kernel::ReqwestRest, ()>,
+    lotusx::exchanges::bybit_perp::BybitPerpConnector<lotusx::core::kernel::ReqwestRest, ()>,
     Box<dyn std::error::Error>,
 > {
     let config = ExchangeConfig::from_env_file("BYBIT")?;
-    Ok(build_connector(config)?)
+    Ok(lotusx::exchanges::bybit_perp::build_connector(config)?)
 }
 
 #[cfg(test)]

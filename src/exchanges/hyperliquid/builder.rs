@@ -183,7 +183,8 @@ mod tests {
 
     #[test]
     fn test_convenience_functions() {
-        let config = ExchangeConfig::new("test_key".to_string(), "test_secret".to_string());
+        // Use read-only config for testing builder functionality
+        let config = ExchangeConfig::read_only();
 
         // Test build_hyperliquid_connector
         let result = build_hyperliquid_connector(config);

@@ -20,9 +20,9 @@ pub struct BybitPerpConnector<R: RestClient, W = ()> {
 }
 
 impl<R: RestClient + Clone + Send + Sync> BybitPerpConnector<R, ()> {
-    pub fn new_without_ws(rest: R, _config: ExchangeConfig) -> Self {
+    pub fn new_without_ws(rest: R, config: ExchangeConfig) -> Self {
         Self {
-            market: MarketData::new(&rest, None),
+            market: MarketData::with_testnet(&rest, None, config.testnet),
             trading: Trading::new(&rest),
             account: Account::new(&rest),
         }
@@ -30,9 +30,9 @@ impl<R: RestClient + Clone + Send + Sync> BybitPerpConnector<R, ()> {
 }
 
 impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> BybitPerpConnector<R, W> {
-    pub fn new(rest: R, ws: W, _config: ExchangeConfig) -> Self {
+    pub fn new(rest: R, ws: W, config: ExchangeConfig) -> Self {
         Self {
-            market: MarketData::new(&rest, Some(ws)),
+            market: MarketData::with_testnet(&rest, Some(ws), config.testnet),
             trading: Trading::new(&rest),
             account: Account::new(&rest),
         }

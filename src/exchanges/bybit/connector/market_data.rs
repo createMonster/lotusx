@@ -15,6 +15,7 @@ use tokio::sync::mpsc;
 pub struct MarketData<R: RestClient, W = ()> {
     pub rest: R,
     pub _ws: std::marker::PhantomData<W>,
+    pub testnet: bool,
 }
 
 impl<R: RestClient, W> MarketData<R, W> {
@@ -22,6 +23,15 @@ impl<R: RestClient, W> MarketData<R, W> {
         Self {
             rest,
             _ws: std::marker::PhantomData,
+            testnet: false, // Default to mainnet
+        }
+    }
+
+    pub fn with_testnet(rest: R, testnet: bool) -> Self {
+        Self {
+            rest,
+            _ws: std::marker::PhantomData,
+            testnet,
         }
     }
 }
@@ -73,7 +83,11 @@ impl<R: RestClient + 'static, W: Send + Sync + 'static> MarketDataSource for Mar
 
     /// Get WebSocket endpoint URL for market data
     fn get_websocket_url(&self) -> String {
-        "wss://stream.bybit.com/v5/public/spot".to_string()
+        if self.testnet {
+            "wss://stream-testnet.bybit.com/v5/public/spot".to_string()
+        } else {
+            "wss://stream.bybit.com/v5/public/spot".to_string()
+        }
     }
 
     /// Get historical k-lines/candlestick data

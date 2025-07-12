@@ -57,6 +57,34 @@ impl<R: RestClient + Clone, W> MarketData<R, W> {
                 .as_millis() as i64,
         }
     }
+
+    /// Convert Binance Perpetual funding rate with premium index data to core type
+    fn convert_funding_rate_with_premium(
+        &self,
+        binance_rate: &crate::exchanges::binance_perp::types::BinancePerpFundingRate,
+        premium_index: &crate::exchanges::binance_perp::types::BinancePerpPremiumIndex,
+    ) -> FundingRate {
+        FundingRate {
+            symbol: crate::core::types::conversion::string_to_symbol(&binance_rate.symbol),
+            funding_rate: Some(crate::core::types::conversion::string_to_decimal(
+                &binance_rate.funding_rate,
+            )),
+            previous_funding_rate: None,
+            next_funding_rate: None,
+            funding_time: Some(binance_rate.funding_time),
+            next_funding_time: Some(premium_index.next_funding_time),
+            mark_price: Some(crate::core::types::conversion::string_to_price(
+                &premium_index.mark_price,
+            )),
+            index_price: Some(crate::core::types::conversion::string_to_price(
+                &premium_index.index_price,
+            )),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as i64,
+        }
+    }
 }
 
 impl<R: RestClient + Clone, W: WsSession<BinancePerpCodec>> MarketData<R, W> {
@@ -217,12 +245,19 @@ impl<R: RestClient + Clone, W: Send + Sync> FundingRateSource for MarketData<R, 
         if let Some(symbols) = symbols {
             let mut all_rates = Vec::new();
             for symbol in symbols {
-                let rate = self.rest.get_funding_rate(&symbol).await?;
-                all_rates.push(self.convert_funding_rate(&rate));
+                // Get both funding rate and premium index for complete data
+                let (funding_rate, premium_index) = tokio::try_join!(
+                    self.rest.get_funding_rate(&symbol),
+                    self.rest.get_premium_index(&symbol)
+                )?;
+                all_rates
+                    .push(self.convert_funding_rate_with_premium(&funding_rate, &premium_index));
             }
             Ok(all_rates)
         } else {
             let rates = self.rest.get_all_funding_rates().await?;
+            // For all funding rates, we can't efficiently get premium index for each
+            // So we'll just use the basic conversion for now
             Ok(rates
                 .iter()
                 .map(|rate| self.convert_funding_rate(rate))
@@ -233,6 +268,8 @@ impl<R: RestClient + Clone, W: Send + Sync> FundingRateSource for MarketData<R, 
     #[instrument(skip(self), fields(exchange = "binance_perp"))]
     async fn get_all_funding_rates(&self) -> Result<Vec<FundingRate>, ExchangeError> {
         let rates = self.rest.get_all_funding_rates().await?;
+        // For performance reasons with getting all funding rates, we'll use basic conversion
+        // Individual funding rate requests will use the premium index for complete data
         Ok(rates
             .iter()
             .map(|rate| self.convert_funding_rate(rate))

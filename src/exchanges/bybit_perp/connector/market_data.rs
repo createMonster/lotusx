@@ -24,6 +24,7 @@ pub struct MarketData<R: RestClient, W = ()> {
     rest: BybitPerpRestClient<R>,
     #[allow(dead_code)]
     ws: Option<W>,
+    testnet: bool,
 }
 
 impl<R: RestClient + Clone, W> MarketData<R, W> {
@@ -31,6 +32,15 @@ impl<R: RestClient + Clone, W> MarketData<R, W> {
         Self {
             rest: BybitPerpRestClient::new(rest.clone()),
             ws,
+            testnet: false, // Default to mainnet
+        }
+    }
+
+    pub fn with_testnet(rest: &R, ws: Option<W>, testnet: bool) -> Self {
+        Self {
+            rest: BybitPerpRestClient::new(rest.clone()),
+            ws,
+            testnet,
         }
     }
 }
@@ -108,7 +118,11 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
     }
 
     fn get_websocket_url(&self) -> String {
-        "wss://stream.bybit.com/v5/public/linear".to_string()
+        if self.testnet {
+            "wss://stream-testnet.bybit.com/v5/public/linear".to_string()
+        } else {
+            "wss://stream.bybit.com/v5/public/linear".to_string()
+        }
     }
 
     #[instrument(skip(self), fields(exchange = "bybit_perp", contract = %symbol, interval = %interval))]
@@ -247,59 +261,66 @@ impl<R: RestClient + Clone, W: Send + Sync> FundingRateSource for MarketData<R, 
 
 impl<R: RestClient + Clone, W> MarketData<R, W> {
     async fn get_single_funding_rate(&self, symbol: &str) -> Result<FundingRate, ExchangeError> {
-        let api_response = self.rest.get_funding_rate(symbol).await?;
+        // Get ticker data which includes current funding rate and mark/index prices
+        let ticker_response = self.rest.get_tickers(Some(symbol)).await?;
 
-        if api_response.ret_code != 0 {
+        if ticker_response.ret_code != 0 {
             return Err(ExchangeError::Other(format!(
-                "Bybit Perp funding rate API error for {}: {} - {}",
-                symbol, api_response.ret_code, api_response.ret_msg
+                "Bybit Perp ticker API error for {}: {} - {}",
+                symbol, ticker_response.ret_code, ticker_response.ret_msg
             )));
         }
 
-        if let Some(funding_info) = api_response.result.list.first() {
-            Ok(FundingRate {
-                symbol: conversion::string_to_symbol(&funding_info.symbol),
-                funding_rate: Some(conversion::string_to_decimal(&funding_info.funding_rate)),
-                previous_funding_rate: None,
-                next_funding_rate: None,
-                funding_time: Some(funding_info.funding_rate_timestamp),
-                next_funding_time: None,
-                mark_price: None,  // Not provided in funding rate endpoint
-                index_price: None, // Not provided in funding rate endpoint
-                timestamp: chrono::Utc::now().timestamp_millis(),
-            })
-        } else {
-            Err(ExchangeError::Other(format!(
-                "No funding rate data found for symbol: {}",
-                symbol
-            )))
-        }
+        let ticker_info = ticker_response.result.list.first().ok_or_else(|| {
+            ExchangeError::Other(format!("No ticker data found for symbol: {}", symbol))
+        })?;
+
+        // Parse next funding time from string to timestamp
+        let next_funding_time = ticker_info.next_funding_time.parse::<i64>().ok();
+
+        Ok(FundingRate {
+            symbol: conversion::string_to_symbol(&ticker_info.symbol),
+            funding_rate: Some(conversion::string_to_decimal(&ticker_info.funding_rate)),
+            previous_funding_rate: None,
+            next_funding_rate: None,
+            funding_time: None, // Current funding rate doesn't have historical timestamp
+            next_funding_time,
+            mark_price: Some(conversion::string_to_price(&ticker_info.mark_price)),
+            index_price: Some(conversion::string_to_price(&ticker_info.index_price)),
+            timestamp: chrono::Utc::now().timestamp_millis(),
+        })
     }
 
     async fn get_all_funding_rates_internal(&self) -> Result<Vec<FundingRate>, ExchangeError> {
-        let api_response = self.rest.get_all_funding_rates().await?;
+        // Get all tickers which include funding rates and mark/index prices
+        let ticker_response = self.rest.get_tickers(None).await?;
 
-        if api_response.ret_code != 0 {
+        if ticker_response.ret_code != 0 {
             return Err(ExchangeError::Other(format!(
-                "Bybit Perp funding rates API error: {} - {}",
-                api_response.ret_code, api_response.ret_msg
+                "Bybit Perp tickers API error: {} - {}",
+                ticker_response.ret_code, ticker_response.ret_msg
             )));
         }
 
-        let funding_rates = api_response
+        let funding_rates = ticker_response
             .result
             .list
             .into_iter()
-            .map(|funding_info| FundingRate {
-                symbol: conversion::string_to_symbol(&funding_info.symbol),
-                funding_rate: Some(conversion::string_to_decimal(&funding_info.funding_rate)),
-                previous_funding_rate: None,
-                next_funding_rate: None,
-                funding_time: Some(funding_info.funding_rate_timestamp),
-                next_funding_time: None,
-                mark_price: None,  // Not provided in funding rate endpoint
-                index_price: None, // Not provided in funding rate endpoint
-                timestamp: chrono::Utc::now().timestamp_millis(),
+            .map(|ticker_info| {
+                // Parse next funding time from string to timestamp
+                let next_funding_time = ticker_info.next_funding_time.parse::<i64>().ok();
+
+                FundingRate {
+                    symbol: conversion::string_to_symbol(&ticker_info.symbol),
+                    funding_rate: Some(conversion::string_to_decimal(&ticker_info.funding_rate)),
+                    previous_funding_rate: None,
+                    next_funding_rate: None,
+                    funding_time: None, // Current funding rate doesn't have historical timestamp
+                    next_funding_time,
+                    mark_price: Some(conversion::string_to_price(&ticker_info.mark_price)),
+                    index_price: Some(conversion::string_to_price(&ticker_info.index_price)),
+                    timestamp: chrono::Utc::now().timestamp_millis(),
+                }
             })
             .collect();
 

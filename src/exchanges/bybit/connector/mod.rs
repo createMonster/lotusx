@@ -33,9 +33,9 @@ impl<R: RestClient + Clone + Send + Sync> BybitConnector<R, ()> {
         BybitConnector::new_with_rest(rest_client, config)
     }
 
-    pub fn new_with_rest(rest: R, _config: ExchangeConfig) -> Self {
+    pub fn new_with_rest(rest: R, config: ExchangeConfig) -> Self {
         Self {
-            market: MarketData::new(rest.clone()),
+            market: MarketData::with_testnet(rest.clone(), config.testnet),
             trading: Trading::new(&rest),
             account: Account::new(&rest),
         }
