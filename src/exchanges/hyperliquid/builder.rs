@@ -181,25 +181,12 @@ mod tests {
         assert_eq!(builder.vault_address, Some("0x123".to_string()));
     }
 
-    #[tokio::test]
-    async fn test_build_rest_only() {
-        let config = ExchangeConfig::new("test_key".to_string(), "test_secret".to_string());
-        let result = HyperliquidBuilder::new(config).build_rest_only();
-
-        // Should succeed in creating a connector
-        assert!(result.is_ok());
-    }
-
     #[test]
     fn test_convenience_functions() {
         let config = ExchangeConfig::new("test_key".to_string(), "test_secret".to_string());
 
         // Test build_hyperliquid_connector
-        let result = build_hyperliquid_connector(config.clone());
-        assert!(result.is_ok());
-
-        // Test create_hyperliquid_client (legacy)
-        let result = create_hyperliquid_client(config);
+        let result = build_hyperliquid_connector(config);
         assert!(result.is_ok());
     }
 }

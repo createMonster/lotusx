@@ -1,23 +1,25 @@
-pub mod account;
-pub mod client;
-pub mod converters;
-pub mod market_data;
-pub mod trading;
+pub mod codec;
+pub mod conversions;
+pub mod signer;
 pub mod types;
 
-// Re-export main types for easier importing
-pub use client::BybitPerpConnector;
+pub mod builder;
+pub mod connector;
+pub mod rest;
+
+// Re-export main components
+pub use builder::{
+    build_connector,
+    build_connector_with_websocket,
+    // Legacy compatibility exports
+    create_bybit_perp_connector,
+};
+pub use codec::{create_bybit_perp_stream_identifiers, BybitPerpCodec};
+pub use connector::{Account, BybitPerpConnector, MarketData, Trading};
+
+// Helper functions for backward compatibility
 pub use types::{
-    BybitPerpCoinBalance,
-    // Export new error types following HFT guidelines
-    BybitPerpError,
-    BybitPerpExchangeInfo,
-    BybitPerpKlineData,
-    BybitPerpLotSizeFilter,
-    BybitPerpMarket,
-    BybitPerpOrderRequest,
-    BybitPerpOrderResponse,
-    BybitPerpPriceFilter,
-    BybitPerpRestKline,
-    BybitPerpResultExt,
+    BybitPerpCoinBalance, BybitPerpError, BybitPerpExchangeInfo, BybitPerpKlineData,
+    BybitPerpLotSizeFilter, BybitPerpMarket, BybitPerpOrderRequest, BybitPerpOrderResponse,
+    BybitPerpPriceFilter, BybitPerpRestKline, BybitPerpResultExt,
 };

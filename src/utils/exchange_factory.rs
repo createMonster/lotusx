@@ -1,8 +1,6 @@
 use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
 use crate::exchanges::backpack;
-use crate::exchanges::{
-    bybit::BybitConnector, bybit_perp::BybitPerpConnector, hyperliquid, paradex,
-};
+use crate::exchanges::{bybit::BybitConnector, hyperliquid, paradex};
 
 /// Configuration for an exchange in the latency test
 #[derive(Debug, Clone)]
@@ -70,7 +68,9 @@ impl ExchangeFactory {
             }
             ExchangeType::BybitPerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BybitPerpConnector::new(cfg)))
+                Ok(Box::new(crate::exchanges::bybit_perp::build_connector(
+                    cfg,
+                )?))
             }
             ExchangeType::Backpack => {
                 // Backpack requires credentials, so use placeholder values for testing

@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod funding_rates_tests {
     use lotusx::core::{config::ExchangeConfig, traits::FundingRateSource};
-    use lotusx::exchanges::bybit_perp::client::BybitPerpConnector;
 
     #[tokio::test]
     async fn test_binance_perp_get_funding_rates_single_symbol() {
@@ -277,7 +276,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_bybit_perp_get_funding_rates_single_symbol() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BybitPerpConnector::new(config);
+        let exchange = lotusx::exchanges::bybit_perp::build_connector(config).unwrap();
 
         let symbols = vec!["BTCUSDT".to_string()];
         let result = exchange.get_funding_rates(Some(symbols)).await;
@@ -317,7 +316,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_bybit_perp_get_all_funding_rates_direct() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BybitPerpConnector::new(config);
+        let exchange = lotusx::exchanges::bybit_perp::build_connector(config).unwrap();
 
         let result = exchange.get_all_funding_rates().await;
 
@@ -365,7 +364,7 @@ mod funding_rates_tests {
     #[tokio::test]
     async fn test_bybit_perp_get_funding_rate_history() {
         let config = ExchangeConfig::read_only().testnet(true);
-        let exchange = BybitPerpConnector::new(config);
+        let exchange = lotusx::exchanges::bybit_perp::build_connector(config).unwrap();
 
         let result = exchange
             .get_funding_rate_history(
@@ -473,7 +472,7 @@ mod funding_rates_tests {
         // Test Bybit Perp
         let start = Instant::now();
         let config = ExchangeConfig::read_only().testnet(true);
-        let bybit_exchange = BybitPerpConnector::new(config);
+        let bybit_exchange = lotusx::exchanges::bybit_perp::build_connector(config).unwrap();
         if let Ok(rates) = bybit_exchange.get_all_funding_rates().await {
             let duration = start.elapsed();
             println!("   Bybit Perp: {} symbols in {:?}", rates.len(), duration);

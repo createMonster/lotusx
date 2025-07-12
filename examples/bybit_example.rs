@@ -2,7 +2,7 @@ use lotusx::core::config::ExchangeConfig;
 use lotusx::core::traits::{AccountInfo, MarketDataSource};
 use lotusx::core::types::{KlineInterval, SubscriptionType};
 use lotusx::exchanges::bybit::build_connector;
-use lotusx::exchanges::bybit_perp::BybitPerpConnector;
+
 use tokio::time::{timeout, Duration};
 
 #[tokio::main]
@@ -153,7 +153,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n\n🔮 BYBIT PERPETUAL FUTURES");
     println!("===========================");
 
-    let bybit_perp = BybitPerpConnector::new(config.clone());
+    let bybit_perp = lotusx::exchanges::bybit_perp::build_connector(config.clone())?;
 
     // 1. Perpetual Markets
     println!("\n🏪 1. Getting Perpetual Markets:");
