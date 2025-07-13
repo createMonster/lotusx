@@ -40,6 +40,24 @@ pub enum HyperliquidError {
 
     #[error("WebSocket connection failed: {reason}")]
     WebSocketError { reason: String },
+
+    #[error("Order not found: {order_id}")]
+    OrderNotFound { order_id: String },
+
+    #[error("Market closed: {symbol}")]
+    MarketClosed { symbol: String },
+
+    #[error("Insufficient balance: {asset}")]
+    InsufficientBalance { asset: String },
+
+    #[error("Position not found: {symbol}")]
+    PositionNotFound { symbol: String },
+
+    #[error("Invalid time interval: {interval}")]
+    InvalidTimeInterval { interval: String },
+
+    #[error("Connection timeout: {operation}")]
+    ConnectionTimeout { operation: String },
 }
 
 impl HyperliquidError {
@@ -90,6 +108,42 @@ impl HyperliquidError {
     #[inline(never)]
     pub fn websocket_error(reason: String) -> Self {
         Self::WebSocketError { reason }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn order_not_found(order_id: String) -> Self {
+        Self::OrderNotFound { order_id }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn market_closed(symbol: String) -> Self {
+        Self::MarketClosed { symbol }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn insufficient_balance(asset: String) -> Self {
+        Self::InsufficientBalance { asset }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn position_not_found(symbol: String) -> Self {
+        Self::PositionNotFound { symbol }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn invalid_time_interval(interval: String) -> Self {
+        Self::InvalidTimeInterval { interval }
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn connection_timeout(operation: String) -> Self {
+        Self::ConnectionTimeout { operation }
     }
 
     #[cold]
@@ -161,8 +215,12 @@ pub struct AssetInfo {
     pub sz_decimals: u32,
     #[serde(rename = "maxLeverage")]
     pub max_leverage: u32,
+    #[serde(rename = "marginTableId")]
+    pub margin_table_id: u32,
     #[serde(rename = "onlyIsolated")]
     pub only_isolated: Option<bool>,
+    #[serde(rename = "isDelisted")]
+    pub is_delisted: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

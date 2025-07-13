@@ -1,7 +1,7 @@
 use super::signer::HyperliquidSigner;
 use super::types::{
     AssetInfo, Candle, InfoRequest, L2Book, ModifyRequest, OpenOrder, OrderRequest, OrderResponse,
-    Universe, UserFill, UserState,
+    UserFill, UserState,
 };
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
@@ -53,9 +53,10 @@ impl<R: RestClient> HyperliquidRest<R> {
 
         // Extract universe from the response
         if let Some(universe) = response.get("universe") {
-            let universe: Universe =
+            // Directly parse the universe array
+            let assets: Vec<AssetInfo> =
                 serde_json::from_value(universe.clone()).map_err(ExchangeError::JsonError)?;
-            Ok(universe.universe)
+            Ok(assets)
         } else {
             Ok(Vec::new())
         }

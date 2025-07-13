@@ -400,9 +400,11 @@ impl ReqwestRest {
             }
         }
 
-        // Add body if present
+        // Add body if present and set Content-Type for JSON
         if !body.is_empty() {
-            request = request.body(body.to_vec());
+            request = request
+                .header("Content-Type", "application/json")
+                .body(body.to_vec());
         }
 
         let response = request

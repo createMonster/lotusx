@@ -253,8 +253,13 @@ impl WsCodec for HyperliquidCodec {
 
                 // Check if it's a heartbeat or system message
                 if let Some(channel) = parsed.get("channel").and_then(|c| c.as_str()) {
-                    if channel == "pong" {
-                        return Ok(Some(HyperliquidWsMessage::Heartbeat));
+                    match channel {
+                        "pong" => return Ok(Some(HyperliquidWsMessage::Heartbeat)),
+                        "subscriptionResponse" => {
+                            // This is a subscription confirmation message, ignore it
+                            return Ok(None);
+                        }
+                        _ => {} // Continue processing
                     }
                 }
 
