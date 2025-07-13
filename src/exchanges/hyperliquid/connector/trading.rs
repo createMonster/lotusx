@@ -48,7 +48,7 @@ impl<R: RestClient + Clone + Send + Sync> OrderPlacer for Trading<R> {
     }
 
     /// Cancel an existing order
-    #[instrument(skip(self), fields(exchange = "hyperliquid", symbol = %symbol, order_id = %order_id))]
+    #[instrument(skip(self, symbol, order_id), fields(exchange = "hyperliquid"))]
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         if !self.can_sign() {
             return Err(ExchangeError::AuthError(
@@ -56,13 +56,48 @@ impl<R: RestClient + Clone + Send + Sync> OrderPlacer for Trading<R> {
             ));
         }
 
-        // Parse order ID to u64 as required by Hyperliquid
-        let oid = order_id.parse::<u64>().map_err(|e| {
-            ExchangeError::InvalidParameters(format!("Invalid order ID format: {}", e))
+        // Parse the order_id as u64 (Hyperliquid uses numeric order IDs)
+        let oid: u64 = order_id.parse().map_err(|_| {
+            ExchangeError::InvalidParameters(format!("Invalid order ID format: {}", order_id))
         })?;
 
+        // Call the rest client to cancel the order
         let _response = self.rest.cancel_order(&symbol, oid).await?;
         Ok(())
+    }
+
+    /// Modify an existing order
+    #[instrument(skip(self, order_id, order), fields(exchange = "hyperliquid"))]
+    async fn modify_order(
+        &self,
+        order_id: String,
+        order: OrderRequest,
+    ) -> Result<OrderResponse, ExchangeError> {
+        if !self.can_sign() {
+            return Err(ExchangeError::AuthError(
+                "Trading requires authentication".to_string(),
+            ));
+        }
+
+        // Convert the generic OrderRequest to Hyperliquid's OrderRequest
+        let hyperliquid_order = conversions::convert_order_request_to_hyperliquid(&order)?;
+
+        // Parse the order_id as u64 (Hyperliquid uses numeric order IDs)
+        let oid: u64 = order_id.parse().map_err(|_| {
+            ExchangeError::InvalidParameters(format!("Invalid order ID format: {}", order_id))
+        })?;
+
+        // Create the modify request
+        let modify_request = crate::exchanges::hyperliquid::types::ModifyRequest {
+            oid,
+            order: hyperliquid_order,
+        };
+
+        // Call the internal modify_order method
+        let response = self.modify_order_internal(&modify_request).await?;
+
+        // Convert the response back to generic OrderResponse
+        conversions::convert_hyperliquid_order_response_to_generic(&response, &order)
     }
 }
 
@@ -82,7 +117,7 @@ impl<R: RestClient> Trading<R> {
 
     /// Modify an existing order (Hyperliquid-specific)
     #[instrument(skip(self, modify_request), fields(exchange = "hyperliquid"))]
-    pub async fn modify_order(
+    pub async fn modify_order_internal(
         &self,
         modify_request: &crate::exchanges::hyperliquid::types::ModifyRequest,
     ) -> Result<crate::exchanges::hyperliquid::types::OrderResponse, ExchangeError> {

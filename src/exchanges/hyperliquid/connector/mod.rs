@@ -158,6 +158,40 @@ impl<R: RestClient + Clone + Send + Sync> OrderPlacer for HyperliquidConnector<R
     ) -> Result<(), crate::core::errors::ExchangeError> {
         self.trading.cancel_order(symbol, order_id).await
     }
+
+    async fn modify_order(
+        &self,
+        order_id: String,
+        order: crate::core::types::OrderRequest,
+    ) -> Result<crate::core::types::OrderResponse, crate::core::errors::ExchangeError> {
+        // Convert the generic OrderRequest to Hyperliquid's OrderRequest
+        let hyperliquid_order =
+            crate::exchanges::hyperliquid::conversions::convert_order_request_to_hyperliquid(
+                &order,
+            )?;
+
+        // Parse the order_id as u64 (Hyperliquid uses numeric order IDs)
+        let oid: u64 = order_id.parse().map_err(|_| {
+            crate::core::errors::ExchangeError::InvalidParameters(format!(
+                "Invalid order ID format: {}",
+                order_id
+            ))
+        })?;
+
+        // Create the modify request
+        let modify_request = crate::exchanges::hyperliquid::types::ModifyRequest {
+            oid,
+            order: hyperliquid_order,
+        };
+
+        // Call the trading module's modify_order method
+        let response = self.trading.modify_order_internal(&modify_request).await?;
+
+        // Convert the response back to generic OrderResponse
+        crate::exchanges::hyperliquid::conversions::convert_hyperliquid_order_response_to_generic(
+            &response, &order,
+        )
+    }
 }
 
 #[async_trait]
@@ -180,6 +214,40 @@ where
         order_id: String,
     ) -> Result<(), crate::core::errors::ExchangeError> {
         self.trading.cancel_order(symbol, order_id).await
+    }
+
+    async fn modify_order(
+        &self,
+        order_id: String,
+        order: crate::core::types::OrderRequest,
+    ) -> Result<crate::core::types::OrderResponse, crate::core::errors::ExchangeError> {
+        // Convert the generic OrderRequest to Hyperliquid's OrderRequest
+        let hyperliquid_order =
+            crate::exchanges::hyperliquid::conversions::convert_order_request_to_hyperliquid(
+                &order,
+            )?;
+
+        // Parse the order_id as u64 (Hyperliquid uses numeric order IDs)
+        let oid: u64 = order_id.parse().map_err(|_| {
+            crate::core::errors::ExchangeError::InvalidParameters(format!(
+                "Invalid order ID format: {}",
+                order_id
+            ))
+        })?;
+
+        // Create the modify request
+        let modify_request = crate::exchanges::hyperliquid::types::ModifyRequest {
+            oid,
+            order: hyperliquid_order,
+        };
+
+        // Call the trading module's modify_order method
+        let response = self.trading.modify_order_internal(&modify_request).await?;
+
+        // Convert the response back to generic OrderResponse
+        crate::exchanges::hyperliquid::conversions::convert_hyperliquid_order_response_to_generic(
+            &response, &order,
+        )
     }
 }
 
@@ -223,7 +291,6 @@ where
 mod tests {
     use super::*;
     use crate::core::kernel::ReqwestRest;
-    use crate::exchanges::hyperliquid::signer::HyperliquidSigner;
 
     #[test]
     fn test_connector_creation() {
@@ -250,11 +317,12 @@ mod tests {
             None,
         )
         .unwrap();
-        let signer = HyperliquidSigner::new();
-        let hyperliquid_rest = HyperliquidRest::new(rest_client, Some(signer), false);
+        let hyperliquid_rest = HyperliquidRest::new(rest_client, None, false);
         let connector = HyperliquidConnector::new(hyperliquid_rest);
 
-        assert!(!connector.trading.can_sign()); // Should be false since we created an empty signer
+        // Test that we can access components
+        assert!(connector.market.get_websocket_url().contains("hyperliquid"));
+        assert!(!connector.trading.can_sign());
         assert!(!connector.account.can_sign());
     }
 }

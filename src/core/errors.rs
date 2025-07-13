@@ -151,7 +151,7 @@ impl From<crate::exchanges::hyperliquid::HyperliquidError> for ExchangeError {
                 Self::JsonError(json_err)
             }
             crate::exchanges::hyperliquid::HyperliquidError::RateLimit { operation } => {
-                Self::NetworkError(format!("Rate limit exceeded for operation: {}", operation))
+                Self::RateLimitExceeded(format!("Rate limit exceeded for operation: {}", operation))
             }
             crate::exchanges::hyperliquid::HyperliquidError::AssetNotFound { symbol } => {
                 Self::InvalidParameters(format!("Asset not found: {}", symbol))
@@ -173,7 +173,25 @@ impl From<crate::exchanges::hyperliquid::HyperliquidError> for ExchangeError {
                 Self::InvalidParameters(format!("Vault operation not supported: {}", operation))
             }
             crate::exchanges::hyperliquid::HyperliquidError::WebSocketError { reason } => {
-                Self::NetworkError(format!("WebSocket connection failed: {}", reason))
+                Self::WebSocketError(format!("WebSocket connection failed: {}", reason))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::OrderNotFound { order_id } => {
+                Self::InvalidParameters(format!("Order not found: {}", order_id))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::MarketClosed { symbol } => {
+                Self::InvalidParameters(format!("Market closed: {}", symbol))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::InsufficientBalance { asset } => {
+                Self::InvalidParameters(format!("Insufficient balance: {}", asset))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::PositionNotFound { symbol } => {
+                Self::InvalidParameters(format!("Position not found: {}", symbol))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::InvalidTimeInterval { interval } => {
+                Self::InvalidParameters(format!("Invalid time interval: {}", interval))
+            }
+            crate::exchanges::hyperliquid::HyperliquidError::ConnectionTimeout { operation } => {
+                Self::ConnectionTimeout(format!("Connection timeout: {}", operation))
             }
         }
     }

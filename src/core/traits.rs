@@ -42,6 +42,19 @@ pub trait OrderPlacer {
 
     /// Cancel an existing order
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError>;
+
+    /// Modify an existing order
+    async fn modify_order(
+        &self,
+        _order_id: String,
+        _order: OrderRequest,
+    ) -> Result<OrderResponse, ExchangeError> {
+        // Default implementation returns an error, so existing connectors
+        // don't break.
+        Err(ExchangeError::Other(
+            "Order modification not supported".to_string(),
+        ))
+    }
 }
 
 #[async_trait]

@@ -17,15 +17,18 @@ pub struct HyperliquidBuilder {
     config: ExchangeConfig,
     enable_websocket: bool,
     vault_address: Option<String>,
+    is_mainnet: bool,
 }
 
 impl HyperliquidBuilder {
     /// Create a new builder with the provided config
     pub fn new(config: ExchangeConfig) -> Self {
+        let is_mainnet = !config.testnet;
         Self {
             config,
             enable_websocket: false,
             vault_address: None,
+            is_mainnet,
         }
     }
 
@@ -38,6 +41,12 @@ impl HyperliquidBuilder {
     /// Set vault address for trading (optional)
     pub fn with_vault_address(mut self, vault_address: String) -> Self {
         self.vault_address = Some(vault_address);
+        self
+    }
+
+    /// Set whether to use mainnet (true) or testnet (false)
+    pub fn with_mainnet(mut self, is_mainnet: bool) -> Self {
+        self.is_mainnet = is_mainnet;
         self
     }
 
@@ -69,10 +78,10 @@ impl HyperliquidBuilder {
     }
 
     fn build_rest_client(&self) -> Result<ReqwestRest, ExchangeError> {
-        let base_url = if self.config.testnet {
-            TESTNET_API_URL
+        let base_url = if self.is_mainnet {
+            MAINNET_API_URL
         } else {
-            self.config.base_url.as_deref().unwrap_or(MAINNET_API_URL)
+            TESTNET_API_URL
         };
 
         let rest_config = RestClientConfig::new(base_url.to_string(), "hyperliquid".to_string());
@@ -107,7 +116,7 @@ impl HyperliquidBuilder {
             None
         };
 
-        let mut hyperliquid_rest = HyperliquidRest::new(rest_client, signer, self.config.testnet);
+        let mut hyperliquid_rest = HyperliquidRest::new(rest_client, signer, self.is_mainnet);
 
         if let Some(vault_address) = &self.vault_address {
             hyperliquid_rest = hyperliquid_rest.with_vault_address(vault_address.clone());
@@ -117,10 +126,10 @@ impl HyperliquidBuilder {
     }
 
     fn build_websocket_client(&self) -> TungsteniteWs<HyperliquidCodec> {
-        let ws_url = if self.config.testnet {
-            TESTNET_WS_URL
-        } else {
+        let ws_url = if self.is_mainnet {
             MAINNET_WS_URL
+        } else {
+            TESTNET_WS_URL
         };
 
         let codec = HyperliquidCodec::new();
@@ -163,6 +172,7 @@ mod tests {
         // Test that we can create a builder
         assert!(!builder.enable_websocket);
         assert!(builder.vault_address.is_none());
+        assert!(builder.is_mainnet); // Default to mainnet
     }
 
     #[test]
@@ -179,6 +189,14 @@ mod tests {
         let builder = HyperliquidBuilder::new(config).with_vault_address("0x123".to_string());
 
         assert_eq!(builder.vault_address, Some("0x123".to_string()));
+    }
+
+    #[test]
+    fn test_builder_with_mainnet() {
+        let config = ExchangeConfig::new("test_key".to_string(), "test_secret".to_string());
+        let builder = HyperliquidBuilder::new(config).with_mainnet(false);
+
+        assert!(!builder.is_mainnet);
     }
 
     #[test]
