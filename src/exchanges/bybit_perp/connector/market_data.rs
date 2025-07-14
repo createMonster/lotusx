@@ -4,15 +4,13 @@
 #![allow(clippy::use_self)]
 
 use crate::core::errors::ExchangeError;
-use crate::core::kernel::RestClient;
+use crate::core::kernel::{ws::WsSession, RestClient};
 use crate::core::traits::{FundingRateSource, MarketDataSource};
 use crate::core::types::{
     conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
     WebSocketConfig,
 };
-use crate::exchanges::bybit_perp::conversions::{
-    convert_bybit_perp_market, parse_websocket_message,
-};
+use crate::exchanges::bybit_perp::conversions::convert_bybit_perp_market;
 use crate::exchanges::bybit_perp::rest::BybitPerpRestClient;
 use crate::exchanges::bybit_perp::types::{self as bybit_perp_types, BybitPerpResultExt};
 use async_trait::async_trait;
@@ -111,10 +109,59 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
         }
 
         let ws_url = self.get_websocket_url();
-        let ws_manager = crate::core::websocket::BybitWebSocketManager::new(ws_url);
-        ws_manager
-            .start_stream_with_subscriptions(streams, parse_websocket_message)
-            .await
+
+        // Use kernel WebSocket implementation with BybitPerpCodec
+        let codec = crate::exchanges::bybit_perp::codec::BybitPerpCodec::new();
+        let ws_session =
+            crate::core::kernel::ws::TungsteniteWs::new(ws_url, "bybit_perp".to_string(), codec);
+
+        // Add reconnection wrapper for production reliability
+        let mut reconnect_ws = crate::core::kernel::ws::ReconnectWs::new(ws_session)
+            .with_auto_resubscribe(true)
+            .with_max_reconnect_attempts(u32::MAX);
+
+        // Connect and subscribe
+        reconnect_ws.connect().await.map_err(|e| {
+            ExchangeError::Other(format!(
+                "Failed to connect to WebSocket for symbols: {:?}, error: {}",
+                symbols, e
+            ))
+        })?;
+
+        if !streams.is_empty() {
+            let stream_refs: Vec<&str> = streams.iter().map(|s| s.as_str()).collect();
+            reconnect_ws.subscribe(&stream_refs).await.map_err(|e| {
+                ExchangeError::Other(format!(
+                    "Failed to subscribe to streams: {:?}, error: {}",
+                    streams, e
+                ))
+            })?;
+        }
+
+        // Create channel for messages
+        let (tx, rx) = mpsc::channel(1000);
+
+        // Spawn task to handle messages
+        tokio::spawn(async move {
+            while let Some(result) = reconnect_ws.next_message().await {
+                match result {
+                    Ok(bybit_event) => {
+                        // Convert BybitPerpWsEvent to MarketDataType
+                        if let Some(market_data) = convert_bybit_event_to_market_data(bybit_event) {
+                            if tx.send(market_data).await.is_err() {
+                                break; // Receiver dropped
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket error: {:?}", e);
+                        // Continue processing to handle reconnection
+                    }
+                }
+            }
+        });
+
+        Ok(rx)
     }
 
     fn get_websocket_url(&self) -> String {
@@ -355,5 +402,17 @@ impl BybitFormat for KlineInterval {
             KlineInterval::Months1 => "M",
         }
         .to_string()
+    }
+}
+
+/// Convert `BybitPerpWsEvent` to `MarketDataType`
+fn convert_bybit_event_to_market_data(
+    event: crate::exchanges::bybit_perp::codec::BybitPerpWsEvent,
+) -> Option<MarketDataType> {
+    match event {
+        crate::exchanges::bybit_perp::codec::BybitPerpWsEvent::MarketData(market_data) => {
+            Some(market_data)
+        }
+        _ => None, // Ignore ping, pong, error, and other events
     }
 }
