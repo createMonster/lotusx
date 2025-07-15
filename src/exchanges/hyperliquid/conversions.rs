@@ -238,7 +238,7 @@ pub fn convert_candle_to_kline(candle: &Candle, symbol: &str, interval: KlineInt
 #[inline]
 pub fn convert_kline_interval_to_hyperliquid(interval: KlineInterval) -> String {
     match interval {
-        KlineInterval::Seconds1 => "1s".to_string(),
+        // Seconds1 removed - not commonly supported
         KlineInterval::Minutes1 => "1m".to_string(),
         KlineInterval::Minutes3 => "3m".to_string(),
         KlineInterval::Minutes5 => "5m".to_string(),

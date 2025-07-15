@@ -82,7 +82,7 @@ impl BackpackKlineInterval for crate::core::types::KlineInterval {
             Self::Days3 => "3d",
             Self::Weeks1 => "1w",
             Self::Months1 => "1M",
-            Self::Seconds1 => "1s", // Backpack may not support seconds
+            // Seconds1 removed - not commonly supported
         }
     }
 }

@@ -148,7 +148,7 @@ impl WebSocketManager {
         };
 
         // Send to symbol-specific subscribers
-        if let Some(senders) = self.subscribers.get(&symbol) {
+        if let Some(senders) = self.subscribers.get(symbol.as_str()) {
             for sender in senders {
                 if let Err(e) = sender.send(market_data.clone()).await {
                     warn!("Failed to send message to subscriber for {}: {}", symbol, e);
