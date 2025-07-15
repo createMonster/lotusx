@@ -53,10 +53,8 @@ impl<R: RestClient + Clone, W: WsSession<BackpackCodec>> MarketDataSource for Ma
         Ok(markets
             .into_iter()
             .map(|m| Market {
-                symbol: Symbol {
-                    base: m.base_symbol,
-                    quote: m.quote_symbol,
-                },
+                symbol: Symbol::new(m.base_symbol, m.quote_symbol)
+                    .unwrap_or_else(|_| Symbol::default()),
                 status: m.order_book_state,
                 base_precision: 8,  // Default precision
                 quote_precision: 8, // Default precision
@@ -208,10 +206,8 @@ impl<R: RestClient + Clone> MarketDataSource for MarketData<R, ()> {
         Ok(markets
             .into_iter()
             .map(|m| Market {
-                symbol: Symbol {
-                    base: m.base_symbol,
-                    quote: m.quote_symbol,
-                },
+                symbol: Symbol::new(m.base_symbol, m.quote_symbol)
+                    .unwrap_or_else(|_| Symbol::default()),
                 status: m.order_book_state,
                 base_precision: 8,  // Default precision
                 quote_precision: 8, // Default precision
@@ -318,7 +314,7 @@ impl BackpackKlineInterval for KlineInterval {
             Self::Days3 => "3d".to_string(),
             Self::Weeks1 => "1w".to_string(),
             Self::Months1 => "1M".to_string(),
-            Self::Seconds1 => "1s".to_string(), // Backpack may not support seconds
+            // Seconds1 removed - not commonly supported
         }
     }
 }

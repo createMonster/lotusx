@@ -6,9 +6,7 @@ use crate::exchanges::bybit_perp::conversions::{
     convert_order_side, convert_order_type, convert_time_in_force,
 };
 use crate::exchanges::bybit_perp::rest::BybitPerpRestClient;
-use crate::exchanges::bybit_perp::types::{
-    BybitPerpError, BybitPerpOrderRequest, BybitPerpResultExt,
-};
+use crate::exchanges::bybit_perp::types::{BybitPerpError, BybitPerpOrderRequest};
 use async_trait::async_trait;
 use tracing::{error, instrument};
 
@@ -81,15 +79,7 @@ impl<R: RestClient> OrderPlacer for Trading<R> {
             request_body.stop_price = Some(stop_price.to_string());
         }
 
-        let api_response = self
-            .rest
-            .place_order(&request_body)
-            .await
-            .with_position_context(
-                &order.symbol.to_string(),
-                &format!("{:?}", order.side),
-                &order.quantity.to_string(),
-            )?;
+        let api_response = self.rest.place_order(&request_body).await?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::Other(
@@ -119,11 +109,7 @@ impl<R: RestClient> OrderPlacer for Trading<R> {
 
     #[instrument(skip(self), fields(exchange = "bybit_perp", contract = %symbol, order_id = %order_id))]
     async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
-        let api_response = self
-            .rest
-            .cancel_order(&symbol, &order_id)
-            .await
-            .with_contract_context(&symbol)?;
+        let api_response = self.rest.cancel_order(&symbol, &order_id).await?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::Other(

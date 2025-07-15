@@ -15,10 +15,8 @@ use std::str::FromStr;
 /// Convert Bybit market data to unified Market type
 pub fn convert_bybit_market(market: &BybitMarket) -> Result<Market, ExchangeError> {
     Ok(Market {
-        symbol: Symbol {
-            base: market.base_coin.clone(),
-            quote: market.quote_coin.clone(),
-        },
+        symbol: Symbol::new(market.base_coin.clone(), market.quote_coin.clone())
+            .unwrap_or_else(|_| Symbol::default()),
         status: market.status.clone(),
         base_precision: market.base_precision.unwrap_or(8) as i32,
         quote_precision: market.quote_precision.unwrap_or(8) as i32,
@@ -43,10 +41,11 @@ pub fn convert_bybit_market(market: &BybitMarket) -> Result<Market, ExchangeErro
 
 /// Convert Bybit market to Symbol (helper function)
 pub fn convert_bybit_market_to_symbol(bybit_market: &BybitMarket) -> Symbol {
-    Symbol {
-        base: bybit_market.base_coin.clone(),
-        quote: bybit_market.quote_coin.clone(),
-    }
+    Symbol::new(
+        bybit_market.base_coin.clone(),
+        bybit_market.quote_coin.clone(),
+    )
+    .unwrap_or_else(|_| Symbol::default())
 }
 
 /// Convert Bybit ticker to unified Ticker type
@@ -175,7 +174,7 @@ pub fn convert_time_in_force(tif: &TimeInForce) -> String {
 /// Convert interval to Bybit-specific interval string
 pub fn kline_interval_to_bybit_string(interval: KlineInterval) -> &'static str {
     match interval {
-        KlineInterval::Seconds1 | KlineInterval::Minutes1 => "1",
+        KlineInterval::Minutes1 => "1",
         KlineInterval::Minutes3 => "3",
         KlineInterval::Minutes5 => "5",
         KlineInterval::Minutes15 => "15",

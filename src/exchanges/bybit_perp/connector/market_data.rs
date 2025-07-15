@@ -12,7 +12,7 @@ use crate::core::types::{
 };
 use crate::exchanges::bybit_perp::conversions::convert_bybit_perp_market;
 use crate::exchanges::bybit_perp::rest::BybitPerpRestClient;
-use crate::exchanges::bybit_perp::types::{self as bybit_perp_types, BybitPerpResultExt};
+use crate::exchanges::bybit_perp::types::{self as bybit_perp_types};
 use async_trait::async_trait;
 use tokio::sync::mpsc;
 use tracing::{instrument, warn};
@@ -57,7 +57,7 @@ fn handle_api_response_error(ret_code: i32, ret_msg: String) -> bybit_perp_types
 impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W> {
     #[instrument(skip(self), fields(exchange = "bybit_perp"))]
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
-        let api_response = self.rest.get_markets().await.with_contract_context("*")?;
+        let api_response = self.rest.get_markets().await?;
 
         if api_response.ret_code != 0 {
             return Err(ExchangeError::Other(
@@ -185,8 +185,7 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
         let klines_response = self
             .rest
             .get_klines(&symbol, &interval_str, limit, start_time, end_time)
-            .await
-            .with_contract_context(&symbol)?;
+            .await?;
 
         if klines_response.ret_code != 0 {
             return Err(ExchangeError::Other(format!(
@@ -212,7 +211,7 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
 
                 // Calculate close time based on interval
                 let interval_ms = match interval {
-                    KlineInterval::Seconds1 => 1000,
+                    // Seconds1 removed - not commonly supported
                     KlineInterval::Minutes1 => 60_000,
                     KlineInterval::Minutes3 => 180_000,
                     KlineInterval::Minutes5 => 300_000,
@@ -384,7 +383,7 @@ trait BybitFormat {
 impl BybitFormat for KlineInterval {
     fn to_bybit_format(&self) -> String {
         match self {
-            KlineInterval::Seconds1 => "1s",
+            // Seconds1 removed - not commonly supported
             KlineInterval::Minutes1 => "1",
             KlineInterval::Minutes3 => "3",
             KlineInterval::Minutes5 => "5",

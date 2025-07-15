@@ -1,13 +1,17 @@
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::env;
+use std::sync::OnceLock;
 
+/// HFT-optimized configuration with caching
 #[derive(Debug, Clone)]
 pub struct ExchangeConfig {
     pub api_key: Secret<String>,
     pub secret_key: Secret<String>,
     pub testnet: bool,
     pub base_url: Option<String>,
+    // HFT optimization: cache expensive operations
+    has_credentials_cache: OnceLock<bool>,
 }
 
 // Custom Serialize implementation - never expose secrets in serialization
@@ -46,6 +50,7 @@ impl<'de> Deserialize<'de> for ExchangeConfig {
             secret_key: Secret::new(helper.secret_key),
             testnet: helper.testnet,
             base_url: helper.base_url,
+            has_credentials_cache: OnceLock::new(),
         })
     }
 }
@@ -59,10 +64,11 @@ impl ExchangeConfig {
             secret_key: Secret::new(secret_key),
             testnet: false,
             base_url: None,
+            has_credentials_cache: OnceLock::new(),
         }
     }
 
-    /// Create configuration from environment variables
+    /// Create configuration from environment variables - HFT optimized
     ///
     /// Expected environment variables:
     /// - `{EXCHANGE}_API_KEY` (e.g., `BINANCE_API_KEY`)
@@ -93,60 +99,46 @@ impl ExchangeConfig {
             secret_key: Secret::new(secret_key),
             testnet,
             base_url,
+            has_credentials_cache: OnceLock::new(),
         })
     }
 
-    /// Create configuration from .env file and environment variables
+    /// Create configuration from environment file - Replaces dotenv with safer implementation
     ///
-    /// This method first loads environment variables from a .env file (if it exists),
-    /// then reads the configuration using the standard environment variable names.
-    ///
-    ///
-    /// **Security Warning**: Never commit .env files to version control!
-    /// Add .env to your .gitignore file.
-    #[cfg(feature = "env-file")]
+    /// This method loads environment variables from a file and reads configuration.
+    /// This is a secure replacement for the unmaintained dotenv crate.
     pub fn from_env_file(exchange_prefix: &str) -> Result<Self, ConfigError> {
         Self::from_env_file_with_path(exchange_prefix, ".env")
     }
 
-    /// Create configuration from a specific .env file path
+    /// Create configuration from a specific environment file path
     ///
     /// This allows you to specify a custom path for your environment file.
     /// Useful for different environments (e.g., .env.development, .env.production)
-    #[cfg(feature = "env-file")]
     pub fn from_env_file_with_path(
         exchange_prefix: &str,
         env_file_path: &str,
     ) -> Result<Self, ConfigError> {
-        // Load .env file if it exists
-        match dotenv::from_path(env_file_path) {
-            Ok(_) => {
-                // .env file loaded successfully
+        // Load environment file if it exists
+        if let Err(e) = Self::load_env_file(env_file_path) {
+            if !matches!(e, ConfigError::FileNotFound(_)) {
+                return Err(e);
             }
-            Err(dotenv::Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
-                // .env file doesn't exist, that's okay - continue with system env vars
-            }
-            Err(e) => {
-                return Err(ConfigError::InvalidConfiguration(format!(
-                    "Failed to load .env file '{}': {}",
-                    env_file_path, e
-                )));
-            }
+            // File doesn't exist, that's okay - continue with system env vars
         }
 
         // Now load from environment variables (which may include those from .env)
         Self::from_env(exchange_prefix)
     }
 
-    /// Load configuration with automatic .env file detection
+    /// Load configuration with automatic environment file detection
     ///
-    /// This method tries multiple common .env file names in order:
+    /// This method tries multiple common environment file names in order:
     /// 1. .env.local (highest priority)
     /// 2. .env.{environment} (if ENVIRONMENT is set)
     /// 3. .env (default)
     ///
-    /// Falls back to system environment variables if no .env files are found.
-    #[cfg(feature = "env-file")]
+    /// Falls back to system environment variables if no env files are found.
     pub fn from_env_auto(exchange_prefix: &str) -> Result<Self, ConfigError> {
         let env_files = [
             ".env.local",
@@ -157,31 +149,73 @@ impl ExchangeConfig {
             ".env",
         ];
 
-        let mut loaded_any = false;
         for env_file in &env_files {
-            match dotenv::from_path(env_file) {
-                Ok(_) => {
-                    loaded_any = true;
-                    break; // Load only the first file found
-                }
-                Err(dotenv::Error::Io(io_err)) if io_err.kind() == std::io::ErrorKind::NotFound => {
-                    // File doesn't exist, try next
-                }
-                Err(e) => {
-                    return Err(ConfigError::InvalidConfiguration(format!(
-                        "Failed to load .env file '{}': {}",
-                        env_file, e
-                    )));
-                }
+            match Self::load_env_file(env_file) {
+                Ok(()) => break,                        // Load only the first file found
+                Err(ConfigError::FileNotFound(_)) => {} // File doesn't exist, try next
+                Err(e) => return Err(e),                // Real error, propagate
             }
-        }
-
-        if !loaded_any {
-            // No .env files found, that's okay - will use system environment variables
         }
 
         // Load from environment variables
         Self::from_env(exchange_prefix)
+    }
+
+    /// Safe environment file loader - replacement for dotenv
+    fn load_env_file(file_path: &str) -> Result<(), ConfigError> {
+        use std::fs;
+        use std::io::ErrorKind;
+
+        let contents = match fs::read_to_string(file_path) {
+            Ok(contents) => contents,
+            Err(e) if e.kind() == ErrorKind::NotFound => {
+                return Err(ConfigError::FileNotFound(file_path.to_string()));
+            }
+            Err(e) => {
+                return Err(ConfigError::InvalidConfiguration(format!(
+                    "Failed to read env file '{}': {}",
+                    file_path, e
+                )));
+            }
+        };
+
+        for (line_num, line) in contents.lines().enumerate() {
+            let line = line.trim();
+
+            // Skip empty lines and comments
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+
+            // Parse KEY=VALUE format
+            if let Some(eq_pos) = line.find('=') {
+                let key = line[..eq_pos].trim();
+                let value = line[eq_pos + 1..].trim();
+
+                // Remove quotes if present
+                let value = if (value.starts_with('"') && value.ends_with('"'))
+                    || (value.starts_with('\'') && value.ends_with('\''))
+                {
+                    &value[1..value.len() - 1]
+                } else {
+                    value
+                };
+
+                // Only set if not already set (system env vars take precedence)
+                if env::var(key).is_err() {
+                    env::set_var(key, value);
+                }
+            } else {
+                return Err(ConfigError::InvalidConfiguration(format!(
+                    "Invalid line format in '{}' at line {}: '{}'",
+                    file_path,
+                    line_num + 1,
+                    line
+                )));
+            }
+        }
+
+        Ok(())
     }
 
     /// Create configuration for read-only operations (market data only)
@@ -193,19 +227,25 @@ impl ExchangeConfig {
             secret_key: Secret::new(String::new()),
             testnet: false,
             base_url: None,
+            has_credentials_cache: OnceLock::new(),
         }
     }
 
     /// Check if this configuration has valid credentials for authenticated operations
+    /// HFT optimized with caching
     #[must_use]
     pub fn has_credentials(&self) -> bool {
-        !self.api_key.expose_secret().is_empty() && !self.secret_key.expose_secret().is_empty()
+        *self.has_credentials_cache.get_or_init(|| {
+            !self.api_key.expose_secret().is_empty() && !self.secret_key.expose_secret().is_empty()
+        })
     }
 
     /// Set testnet mode
     #[must_use]
-    pub const fn testnet(mut self, testnet: bool) -> Self {
+    pub fn testnet(mut self, testnet: bool) -> Self {
         self.testnet = testnet;
+        // Clear cache since configuration changed
+        self.has_credentials_cache = OnceLock::new();
         self
     }
 
@@ -234,4 +274,7 @@ pub enum ConfigError {
 
     #[error("Invalid configuration: {0}")]
     InvalidConfiguration(String),
+
+    #[error("File not found: {0}")]
+    FileNotFound(String),
 }

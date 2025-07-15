@@ -97,7 +97,7 @@ pub trait BinanceKlineInterval {
 impl BinanceKlineInterval for KlineInterval {
     fn to_binance_format(&self) -> &str {
         match self {
-            Self::Seconds1 => "1s",
+            // Seconds1 removed - not commonly supported
             Self::Minutes1 => "1m",
             Self::Minutes3 => "3m",
             Self::Minutes5 => "5m",

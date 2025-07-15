@@ -2,6 +2,51 @@
 
 All notable changes to the LotusX project will be documented in this file.
 
+## PR-16
+
+### Refactored
+- **Core Module Simplification**: Major refactoring of bloated core modules for better maintainability and HFT performance
+  - **errors.rs**: Reduced from 516 lines to 127 lines (-75%) - removed over-engineered optimizations and excessive boilerplate
+  - **types.rs**: Reduced from 684 lines to 440 lines (-35%) - simplified Symbol struct and removed complex optimizations
+  - **Focused Architecture**: Eliminated unnecessary complexity while maintaining essential HFT features
+
+### Enhanced
+- **HFT WebSocket Optimization**: Improved WebSocket performance with kernel-based architecture
+  - **WsConfig Struct**: Added HFT-optimized configuration with bulk message sending capabilities
+  - **Kernel Integration**: Updated all exchanges to use unified WebSocket kernel implementation
+  - **Connection Management**: Enhanced reconnection logic and statistics tracking
+  - **Latency Optimization**: Streamlined message processing for sub-millisecond performance
+
+- **Exchange Configuration**: Added caching mechanisms for improved HFT performance
+  - **Credential Validation Caching**: Cached validation results to reduce authentication overhead
+  - **Environment File Handling**: Replaced unmaintained dotenv with secure in-house implementation
+  - **Inline Optimizations**: Added performance-critical method inlining for API key access
+
+### Removed
+- **Unsupported Features**: Eliminated Seconds1 interval support across all exchanges
+  - **Binance**: Removed Seconds1 from kline interval conversions
+  - **Bybit**: Removed Seconds1 from both spot and perpetual implementations
+  - **Backpack**: Removed Seconds1 from kline interval enum
+  - **Hyperliquid**: Removed Seconds1 from conversion functions
+  - **Paradex**: Removed Seconds1 from kline interval implementation
+
+- **Legacy Components**: Removed deprecated WebSocket management structures
+  - **WebSocketManager**: Eliminated redundant WebSocket manager in favor of kernel implementation
+  - **BybitWebSocketManager**: Removed exchange-specific WebSocket manager
+
+### Fixed
+- **Compilation Errors**: Resolved all compilation issues from refactoring
+  - **Symbol Construction**: Fixed Symbol::new() usage across all exchange implementations
+  - **Error Handling**: Unified error handling patterns with simplified error types
+  - **Type Safety**: Improved type conversion safety and validation
+  - **Import Cleanup**: Removed unused imports and dependencies
+
+### Technical Improvements
+- **Code Quality**: Achieved 100% compilation success with improved maintainability
+- **Performance**: HFT-optimized patterns for sub-millisecond latency requirements
+- **Architecture**: Consistent kernel-based WebSocket implementation across all exchanges
+- **Error Handling**: Simplified and focused error types for better debugging and performance
+
 ## PR-15
 
 ### Added

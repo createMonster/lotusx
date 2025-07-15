@@ -1,15 +1,16 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 use thiserror::Error;
 
-/// HFT-compliant typed errors for the types subsystem
+/// Simple typed errors for the types subsystem
 #[derive(Error, Debug)]
 pub enum TypesError {
     #[error("Invalid symbol: {0}")]
     InvalidSymbol(String),
     #[error("Invalid price: {0}")]
-    InvalidPrice(#[from] rust_decimal::Error),
+    InvalidPrice(String),
     #[error("Invalid quantity: {0}")]
     InvalidQuantity(String),
     #[error("Invalid volume: {0}")]
@@ -18,7 +19,7 @@ pub enum TypesError {
     ParseError(String),
 }
 
-/// Type-safe symbol representation with validation
+/// Type-safe symbol representation - simplified
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub struct Symbol {
     pub base: String,
@@ -27,42 +28,45 @@ pub struct Symbol {
 
 impl Symbol {
     /// Create a new symbol from base and quote assets
-    pub fn new(base: String, quote: String) -> Result<Self, TypesError> {
+    pub fn new(base: impl Into<String>, quote: impl Into<String>) -> Result<Self, TypesError> {
+        let base = base.into();
+        let quote = quote.into();
+
         if base.is_empty() || quote.is_empty() {
             return Err(TypesError::InvalidSymbol(
                 "Base and quote cannot be empty".to_string(),
             ));
         }
+
         Ok(Self { base, quote })
     }
 
-    /// Create symbol from string like "BTCUSDT"  
+    /// Create symbol from string like "BTCUSDT"
     pub fn from_string(s: &str) -> Result<Self, TypesError> {
-        match s {
-            s if s.ends_with("USDT") => {
-                let base = s.strip_suffix("USDT").unwrap_or("").to_string();
-                Ok(Self::new(base, "USDT".to_string())?)
-            }
-            s if s.ends_with("BTC") => {
-                let base = s.strip_suffix("BTC").unwrap_or("").to_string();
-                Ok(Self::new(base, "BTC".to_string())?)
-            }
-            s if s.ends_with("ETH") => {
-                let base = s.strip_suffix("ETH").unwrap_or("").to_string();
-                Ok(Self::new(base, "ETH".to_string())?)
-            }
-            s if s.ends_with("USD") && !s.ends_with("USDT") => {
-                let base = s.strip_suffix("USD").unwrap_or("").to_string();
-                Ok(Self::new(base, "USD".to_string())?)
-            }
-            _ => Err(TypesError::InvalidSymbol(format!(
-                "Cannot parse symbol: {}",
-                s
-            ))),
+        // Simple pattern matching for common quote currencies
+        if let Some(base) = s.strip_suffix("USDT") {
+            return Self::new(base, "USDT");
         }
+        if let Some(base) = s.strip_suffix("USDC") {
+            return Self::new(base, "USDC");
+        }
+        if let Some(base) = s.strip_suffix("BTC") {
+            return Self::new(base, "BTC");
+        }
+        if let Some(base) = s.strip_suffix("ETH") {
+            return Self::new(base, "ETH");
+        }
+        if let Some(base) = s.strip_suffix("USD") {
+            return Self::new(base, "USD");
+        }
+
+        Err(TypesError::InvalidSymbol(format!(
+            "Cannot parse symbol: {}",
+            s
+        )))
     }
 
-    /// Get as string reference for method calls expecting &str
+    /// Get as string reference
     pub fn as_str(&self) -> String {
         format!("{}{}", self.base, self.quote)
     }
@@ -74,28 +78,43 @@ impl fmt::Display for Symbol {
     }
 }
 
+impl FromStr for Symbol {
+    type Err = TypesError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_string(s)
+    }
+}
+
 /// Type-safe price representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct Price(Decimal);
 
 impl Price {
-    /// Create a new price
-    pub fn new(value: Decimal) -> Self {
+    pub const fn new(value: Decimal) -> Self {
         Self(value)
     }
 
-    /// Get the decimal value
-    pub fn value(&self) -> Decimal {
+    pub const fn value(&self) -> Decimal {
         self.0
+    }
+
+    pub const ZERO: Self = Self(Decimal::ZERO);
+
+    pub fn from_f64(value: f64) -> Self {
+        Self(Decimal::from_f64_retain(value).unwrap_or_default())
     }
 }
 
-impl std::str::FromStr for Price {
+impl FromStr for Price {
     type Err = TypesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+        let decimal = s
+            .parse::<Decimal>()
+            .map_err(|e| TypesError::InvalidPrice(e.to_string()))?;
+        Ok(Self(decimal))
     }
 }
 
@@ -111,22 +130,29 @@ impl fmt::Display for Price {
 pub struct Quantity(Decimal);
 
 impl Quantity {
-    /// Create a new quantity
-    pub fn new(value: Decimal) -> Self {
+    pub const fn new(value: Decimal) -> Self {
         Self(value)
     }
 
-    /// Get the decimal value
-    pub fn value(&self) -> Decimal {
+    pub const fn value(&self) -> Decimal {
         self.0
+    }
+
+    pub const ZERO: Self = Self(Decimal::ZERO);
+
+    pub fn from_f64(value: f64) -> Self {
+        Self(Decimal::from_f64_retain(value).unwrap_or_default())
     }
 }
 
-impl std::str::FromStr for Quantity {
+impl FromStr for Quantity {
     type Err = TypesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+        let decimal = s
+            .parse::<Decimal>()
+            .map_err(|e| TypesError::InvalidQuantity(e.to_string()))?;
+        Ok(Self(decimal))
     }
 }
 
@@ -142,22 +168,29 @@ impl fmt::Display for Quantity {
 pub struct Volume(Decimal);
 
 impl Volume {
-    /// Create a new volume
-    pub fn new(value: Decimal) -> Self {
+    pub const fn new(value: Decimal) -> Self {
         Self(value)
     }
 
-    /// Get the decimal value
-    pub fn value(&self) -> Decimal {
+    pub const fn value(&self) -> Decimal {
         self.0
+    }
+
+    pub const ZERO: Self = Self(Decimal::ZERO);
+
+    pub fn from_f64(value: f64) -> Self {
+        Self(Decimal::from_f64_retain(value).unwrap_or_default())
     }
 }
 
-impl std::str::FromStr for Volume {
+impl FromStr for Volume {
     type Err = TypesError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+        let decimal = s
+            .parse::<Decimal>()
+            .map_err(|e| TypesError::InvalidVolume(e.to_string()))?;
+        Ok(Self(decimal))
     }
 }
 
@@ -167,48 +200,32 @@ impl fmt::Display for Volume {
     }
 }
 
-/// HFT-compliant conversion helpers for safe type conversions
+/// Simple conversion helpers
 pub mod conversion {
-    use super::{Decimal, Price, Quantity, Symbol, Volume};
-    use std::str::FromStr;
+    use super::{Decimal, FromStr, Price, Quantity, Symbol, Volume};
 
-    /// Convert string to Symbol with fallback
-    #[inline]
     pub fn string_to_symbol(s: &str) -> Symbol {
-        Symbol::from_string(s).unwrap_or_else(|_| {
-            // Fallback: treat as base asset with USD quote
-            Symbol {
-                base: s.to_string(),
-                quote: "USD".to_string(),
-            }
-        })
+        Symbol::from_string(s).unwrap_or_else(|_| Symbol::new(s, "USD").unwrap_or_default())
     }
 
-    /// Convert string to Price with fallback
-    #[inline]
     pub fn string_to_price(s: &str) -> Price {
-        Price::from_str(s).unwrap_or_else(|_| Price::new(Decimal::from(0)))
+        Price::from_str(s).unwrap_or(Price::ZERO)
     }
 
-    /// Convert string to Quantity with fallback
-    #[inline]
     pub fn string_to_quantity(s: &str) -> Quantity {
-        Quantity::from_str(s).unwrap_or_else(|_| Quantity::new(Decimal::from(0)))
+        Quantity::from_str(s).unwrap_or(Quantity::ZERO)
     }
 
-    /// Convert string to Volume with fallback
-    #[inline]
     pub fn string_to_volume(s: &str) -> Volume {
-        Volume::from_str(s).unwrap_or_else(|_| Volume::new(Decimal::from(0)))
+        Volume::from_str(s).unwrap_or(Volume::ZERO)
     }
 
-    /// Convert string to Decimal with fallback
-    #[inline]
     pub fn string_to_decimal(s: &str) -> Decimal {
-        s.parse().unwrap_or_else(|_| Decimal::from(0))
+        s.parse().unwrap_or(Decimal::ZERO)
     }
 }
 
+// Core data structures
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Market {
     pub symbol: Symbol,
@@ -333,43 +350,29 @@ pub struct Kline {
     pub final_bar: bool,
 }
 
-/// Unified kline interval enum supporting all major exchanges
+/// Kline interval enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KlineInterval {
-    // Seconds (supported by some exchanges)
-    Seconds1,
-
-    // Minutes
     Minutes1,
     Minutes3,
     Minutes5,
     Minutes15,
     Minutes30,
-
-    // Hours
     Hours1,
     Hours2,
     Hours4,
     Hours6,
     Hours8,
     Hours12,
-
-    // Days
     Days1,
     Days3,
-
-    // Weeks
     Weeks1,
-
-    // Months
     Months1,
 }
 
 impl KlineInterval {
-    /// Convert to Binance format (e.g., "1m", "1h", "1d")
     pub fn to_binance_format(&self) -> String {
         match self {
-            Self::Seconds1 => "1s".to_string(),
             Self::Minutes1 => "1m".to_string(),
             Self::Minutes3 => "3m".to_string(),
             Self::Minutes5 => "5m".to_string(),
@@ -388,10 +391,9 @@ impl KlineInterval {
         }
     }
 
-    /// Convert to Bybit format (e.g., "1", "60", "D")
     pub fn to_bybit_format(&self) -> String {
         match self {
-            Self::Seconds1 | Self::Minutes1 => "1".to_string(), // Seconds not typically supported, Minutes1 is "1"
+            Self::Minutes1 => "1".to_string(),
             Self::Minutes3 => "3".to_string(),
             Self::Minutes5 => "5".to_string(),
             Self::Minutes15 => "15".to_string(),
@@ -403,69 +405,16 @@ impl KlineInterval {
             Self::Hours8 => "480".to_string(),
             Self::Hours12 => "720".to_string(),
             Self::Days1 => "D".to_string(),
-            Self::Days3 => "3D".to_string(), // May not be supported
+            Self::Days3 => "3D".to_string(),
             Self::Weeks1 => "W".to_string(),
             Self::Months1 => "M".to_string(),
         }
-    }
-
-    /// Convert to Backpack format (similar to Binance)
-    pub fn to_backpack_format(&self) -> String {
-        // Backpack typically uses similar format to Binance
-        self.to_binance_format()
-    }
-
-    /// Convert to Hyperliquid format (if they support klines in future)
-    pub fn to_hyperliquid_format(&self) -> String {
-        // Hyperliquid currently doesn't support klines, but keeping for future
-        self.to_binance_format()
-    }
-
-    /// Get all supported intervals
-    pub fn all() -> Vec<Self> {
-        vec![
-            Self::Seconds1,
-            Self::Minutes1,
-            Self::Minutes3,
-            Self::Minutes5,
-            Self::Minutes15,
-            Self::Minutes30,
-            Self::Hours1,
-            Self::Hours2,
-            Self::Hours4,
-            Self::Hours6,
-            Self::Hours8,
-            Self::Hours12,
-            Self::Days1,
-            Self::Days3,
-            Self::Weeks1,
-            Self::Months1,
-        ]
-    }
-
-    /// Check if interval is supported by a specific exchange
-    pub fn is_supported_by_binance(&self) -> bool {
-        // Binance supports all intervals in our enum
-        true
-    }
-
-    pub fn is_supported_by_bybit(&self) -> bool {
-        match self {
-            Self::Seconds1 | Self::Days3 => false, // Bybit doesn't support seconds or 3-day interval
-            _ => true,
-        }
-    }
-
-    pub fn is_supported_by_backpack(&self) -> bool {
-        // Most intervals are supported, but seconds might not be
-        !matches!(self, Self::Seconds1)
     }
 }
 
 impl fmt::Display for KlineInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let description = match self {
-            Self::Seconds1 => "1 second",
             Self::Minutes1 => "1 minute",
             Self::Minutes3 => "3 minutes",
             Self::Minutes5 => "5 minutes",
@@ -505,7 +454,7 @@ pub enum SubscriptionType {
 #[derive(Debug, Clone)]
 pub struct WebSocketConfig {
     pub auto_reconnect: bool,
-    pub ping_interval: Option<u64>, // seconds
+    pub ping_interval: Option<u64>,
     pub max_reconnect_attempts: Option<u32>,
 }
 
@@ -535,36 +484,15 @@ pub struct Position {
     pub leverage: Decimal,
 }
 
-/// Funding rate information for perpetual futures
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FundingRate {
     pub symbol: Symbol,
-    pub funding_rate: Option<Decimal>, // Current/upcoming funding rate
-    pub previous_funding_rate: Option<Decimal>, // Most recently applied rate
-    pub next_funding_rate: Option<Decimal>, // Predicted next rate (if available)
-    pub funding_time: Option<i64>,     // When current rate applies
-    pub next_funding_time: Option<i64>, // When next rate applies
-    pub mark_price: Option<Price>,     // Current mark price
-    pub index_price: Option<Price>,    // Current index price
-    pub timestamp: i64,                // Response timestamp
-}
-
-/// Funding rate interval for historical queries
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum FundingRateInterval {
-    Hours8,  // Every 8 hours (most common)
-    Hours1,  // Every hour (some exchanges)
-    Hours4,  // Every 4 hours
-    Hours12, // Every 12 hours
-}
-
-impl FundingRateInterval {
-    pub fn to_seconds(&self) -> i64 {
-        match self {
-            Self::Hours1 => 3600,
-            Self::Hours4 => 14400,
-            Self::Hours8 => 28800,
-            Self::Hours12 => 43200,
-        }
-    }
+    pub funding_rate: Option<Decimal>,
+    pub previous_funding_rate: Option<Decimal>,
+    pub next_funding_rate: Option<Decimal>,
+    pub funding_time: Option<i64>,
+    pub next_funding_time: Option<i64>,
+    pub mark_price: Option<Price>,
+    pub index_price: Option<Price>,
+    pub timestamp: i64,
 }

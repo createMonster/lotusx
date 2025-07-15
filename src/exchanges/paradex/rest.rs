@@ -207,7 +207,7 @@ pub trait ParadexKlineInterval {
 impl ParadexKlineInterval for KlineInterval {
     fn to_paradex_format(&self) -> String {
         match self {
-            Self::Seconds1 => "1s".to_string(),
+            // Seconds1 removed - not commonly supported
             Self::Minutes1 => "1m".to_string(),
             Self::Minutes3 => "3m".to_string(),
             Self::Minutes5 => "5m".to_string(),
