@@ -120,27 +120,30 @@ impl<R: RestClient> OkxRest<R> {
         sz: Option<u32>,
     ) -> Result<OkxOrderBook, ExchangeError> {
         let endpoint = "/api/v5/market/books";
-        let query = if let Some(size) = sz {
-            format!("instId={}&sz={}", inst_id, size)
+        let query_params = if let Some(size) = sz {
+            vec![("instId", inst_id), ("sz", &size.to_string())]
         } else {
-            format!("instId={}", inst_id)
+            vec![("instId", inst_id)]
         };
 
-        let response: OkxResponse<Vec<OkxOrderBook>> =
-            self.rest_client.get(endpoint, &query, &[]).await?;
+        let response_value = self.rest_client.get(endpoint, &query_params, false).await?;
+        let response: OkxResponse<Vec<OkxOrderBook>> = serde_json::from_value(response_value)
+            .map_err(|e| {
+                ExchangeError::DeserializationError(format!("Failed to parse response: {}", e))
+            })?;
 
         if response.code != "0" {
-            return Err(ExchangeError::ApiError(format!(
-                "OKX API error: {} - {}",
-                response.code, response.msg
-            )));
+            return Err(ExchangeError::api_error(
+                response.code.parse().unwrap_or(-1),
+                response.msg.clone(),
+            ));
         }
 
         response
             .data
             .into_iter()
             .next()
-            .ok_or_else(|| ExchangeError::ParseError("No order book data found".to_string()))
+            .ok_or_else(|| ExchangeError::InvalidResponseFormat("No order book data found".to_string()))
     }
 
     /// Get recent trades
@@ -150,20 +153,23 @@ impl<R: RestClient> OkxRest<R> {
         limit: Option<u32>,
     ) -> Result<Vec<OkxTrade>, ExchangeError> {
         let endpoint = "/api/v5/market/trades";
-        let query = if let Some(lmt) = limit {
-            format!("instId={}&limit={}", inst_id, lmt)
+        let query_params = if let Some(lmt) = limit {
+            vec![("instId", inst_id), ("limit", &lmt.to_string())]
         } else {
-            format!("instId={}", inst_id)
+            vec![("instId", inst_id)]
         };
 
-        let response: OkxResponse<Vec<OkxTrade>> =
-            self.rest_client.get(endpoint, &query, &[]).await?;
+        let response_value = self.rest_client.get(endpoint, &query_params, false).await?;
+        let response: OkxResponse<Vec<OkxTrade>> = serde_json::from_value(response_value)
+            .map_err(|e| {
+                ExchangeError::DeserializationError(format!("Failed to parse response: {}", e))
+            })?;
 
         if response.code != "0" {
-            return Err(ExchangeError::ApiError(format!(
-                "OKX API error: {} - {}",
-                response.code, response.msg
-            )));
+            return Err(ExchangeError::api_error(
+                response.code.parse().unwrap_or(-1),
+                response.msg.clone(),
+            ));
         }
 
         Ok(response.data)
@@ -177,23 +183,31 @@ impl<R: RestClient> OkxRest<R> {
         limit: Option<u32>,
     ) -> Result<Vec<OkxKline>, ExchangeError> {
         let endpoint = "/api/v5/market/candles";
-        let mut query = format!("instId={}", inst_id);
+        let mut query_params = vec![("instId", inst_id)];
 
+        let bar_str;
         if let Some(b) = bar {
-            query.push_str(&format!("&bar={}", b));
-        }
-        if let Some(lmt) = limit {
-            query.push_str(&format!("&limit={}", lmt));
+            bar_str = b.to_string();
+            query_params.push(("bar", &bar_str));
         }
 
-        let response: OkxResponse<Vec<Vec<String>>> =
-            self.rest_client.get(endpoint, &query, &[]).await?;
+        let limit_str;
+        if let Some(lmt) = limit {
+            limit_str = lmt.to_string();
+            query_params.push(("limit", &limit_str));
+        }
+
+        let response_value = self.rest_client.get(endpoint, &query_params, false).await?;
+        let response: OkxResponse<Vec<Vec<String>>> = serde_json::from_value(response_value)
+            .map_err(|e| {
+                ExchangeError::DeserializationError(format!("Failed to parse response: {}", e))
+            })?;
 
         if response.code != "0" {
-            return Err(ExchangeError::ApiError(format!(
-                "OKX API error: {} - {}",
-                response.code, response.msg
-            )));
+            return Err(ExchangeError::api_error(
+                response.code.parse().unwrap_or(-1),
+                response.msg.clone(),
+            ));
         }
 
         // Convert array format to OkxKline structs
@@ -271,24 +285,24 @@ impl<R: RestClient> OkxRest<R> {
             cancel_req["clOrdId"] = serde_json::Value::String(cl_id.to_string());
         }
 
-        let body = serde_json::to_vec(&cancel_req)
-            .map_err(|e| ExchangeError::SerializationError(e.to_string()))?;
-
-        let response: OkxResponse<Vec<OkxOrderResponse>> =
-            self.rest_client.post(endpoint, "", &body).await?;
+        let response_value = self.rest_client.post(endpoint, &cancel_req, true).await?;
+        let response: OkxResponse<Vec<OkxOrderResponse>> = serde_json::from_value(response_value)
+            .map_err(|e| {
+                ExchangeError::DeserializationError(format!("Failed to parse response: {}", e))
+            })?;
 
         if response.code != "0" {
-            return Err(ExchangeError::ApiError(format!(
-                "OKX API error: {} - {}",
-                response.code, response.msg
-            )));
+            return Err(ExchangeError::api_error(
+                response.code.parse().unwrap_or(-1),
+                response.msg.clone(),
+            ));
         }
 
         response
             .data
             .into_iter()
             .next()
-            .ok_or_else(|| ExchangeError::ParseError("No cancel response data found".to_string()))
+            .ok_or_else(|| ExchangeError::InvalidResponseFormat("No cancel response data found".to_string()))
     }
 
     /// Get order details

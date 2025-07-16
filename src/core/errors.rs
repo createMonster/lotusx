@@ -54,6 +54,12 @@ pub enum ExchangeError {
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
 
+    #[error("Parse error: {0}")]
+    ParseError(String),
+
+    #[error("Feature not supported: {0}")]
+    NotSupported(String),
+
     #[error("Other error: {0}")]
     Other(String),
 }
