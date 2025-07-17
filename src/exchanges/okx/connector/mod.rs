@@ -49,8 +49,8 @@ impl<R: RestClient + Clone + Send + Sync> OkxConnector<R, ()> {
 /// Implement AccountInfo trait for the OKX connector
 #[async_trait]
 impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> AccountInfo for OkxConnector<R, W> {
-    async fn get_account_info(&self) -> Result<Vec<Balance>, ExchangeError> {
-        self.account.get_account_info().await
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
+        self.account.get_account_balance().await
     }
 
     async fn get_positions(&self) -> Result<Vec<Position>, ExchangeError> {
@@ -65,49 +65,28 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for O
         self.market.get_markets().await
     }
 
-    async fn get_ticker(&self, symbol: &str) -> Result<crate::core::types::Ticker, ExchangeError> {
-        self.market.get_ticker(symbol).await
+    async fn subscribe_market_data(
+        &self,
+        symbols: Vec<String>,
+        subscription_types: Vec<SubscriptionType>,
+        config: Option<WebSocketConfig>,
+    ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
+        self.market.subscribe_market_data(symbols, subscription_types, config).await
     }
 
-    async fn get_order_book(
-        &self,
-        symbol: &str,
-    ) -> Result<crate::core::types::OrderBook, ExchangeError> {
-        self.market.get_order_book(symbol).await
-    }
-
-    async fn get_recent_trades(
-        &self,
-        symbol: &str,
-    ) -> Result<Vec<crate::core::types::Trade>, ExchangeError> {
-        self.market.get_recent_trades(symbol).await
+    fn get_websocket_url(&self) -> String {
+        self.market.get_websocket_url()
     }
 
     async fn get_klines(
         &self,
-        symbol: &str,
+        symbol: String,
         interval: KlineInterval,
         limit: Option<u32>,
+        start_time: Option<i64>,
+        end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        self.market.get_klines(symbol, interval, limit).await
-    }
-
-    async fn subscribe_market_data(
-        &self,
-        symbols: Vec<String>,
-        data_types: Vec<MarketDataType>,
-    ) -> Result<mpsc::Receiver<Result<MarketDataType, ExchangeError>>, ExchangeError> {
-        self.market.subscribe_market_data(symbols, data_types).await
-    }
-
-    async fn unsubscribe_market_data(
-        &self,
-        symbols: Vec<String>,
-        data_types: Vec<MarketDataType>,
-    ) -> Result<(), ExchangeError> {
-        self.market
-            .unsubscribe_market_data(symbols, data_types)
-            .await
+        self.market.get_klines(symbol, interval, limit, start_time, end_time).await
     }
 }
 
@@ -120,24 +99,9 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> OrderPlacer for OkxCon
 
     async fn cancel_order(
         &self,
-        symbol: &str,
-        order_id: &str,
-    ) -> Result<OrderResponse, ExchangeError> {
+        symbol: String,
+        order_id: String,
+    ) -> Result<(), ExchangeError> {
         self.trading.cancel_order(symbol, order_id).await
-    }
-
-    async fn get_order_status(
-        &self,
-        symbol: &str,
-        order_id: &str,
-    ) -> Result<OrderResponse, ExchangeError> {
-        self.trading.get_order_status(symbol, order_id).await
-    }
-
-    async fn get_open_orders(
-        &self,
-        symbol: Option<&str>,
-    ) -> Result<Vec<OrderResponse>, ExchangeError> {
-        self.trading.get_open_orders(symbol).await
     }
 }

@@ -20,7 +20,7 @@ impl<R: RestClient + Clone> Account<R> {
 
 #[async_trait]
 impl<R: RestClient + Send + Sync> AccountInfo for Account<R> {
-    async fn get_account_info(&self) -> Result<Vec<Balance>, ExchangeError> {
+    async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
         // Get account balance from OKX
         let okx_account = self.rest.get_balance(None).await?;
 

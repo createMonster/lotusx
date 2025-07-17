@@ -1,9 +1,10 @@
 use crate::core::errors::ExchangeError;
-use crate::core::kernel::Codec;
+use crate::core::kernel::codec::WsCodec;
 use crate::core::types::SubscriptionType;
 use crate::exchanges::okx::types::{OkxWsChannel, OkxWsRequest, OkxWsResponse};
 use serde_json::Value;
 use std::collections::HashMap;
+use tokio_tungstenite::tungstenite::Message;
 
 /// OKX WebSocket message types
 #[derive(Debug, Clone)]
@@ -73,103 +74,76 @@ impl Default for OkxCodec {
     }
 }
 
-impl Codec for OkxCodec {
+impl WsCodec for OkxCodec {
     type Message = OkxMessage;
 
-    fn encode_subscribe(
-        &mut self,
-        symbols: &[String],
-        subscription_types: &[SubscriptionType],
-    ) -> Result<Vec<String>, ExchangeError> {
-        let mut messages = Vec::new();
+    fn encode_subscription(
+        &self,
+        streams: &[impl AsRef<str> + Send + Sync],
+    ) -> Result<Message, ExchangeError> {
         let mut channels = Vec::new();
 
-        for symbol in symbols {
-            for sub_type in subscription_types {
-                let channel_name = match sub_type {
-                    SubscriptionType::Ticker => "tickers",
-                    SubscriptionType::OrderBook => "books",
-                    SubscriptionType::Trade => "trades",
-                    SubscriptionType::Kline => "candle1m", // Default to 1m candles
-                    _ => continue,                         // Skip unsupported types
-                };
+        for stream in streams {
+            let stream_str = stream.as_ref();
+            let (channel_name, inst_id) = Self::parse_channel_info(stream_str);
 
-                let channel = OkxWsChannel {
-                    channel: channel_name.to_string(),
-                    inst_type: Some("SPOT".to_string()),
-                    inst_family: None,
-                    inst_id: Some(symbol.clone()),
-                };
+            let channel = OkxWsChannel {
+                channel: channel_name,
+                inst_type: Some("SPOT".to_string()),
+                inst_family: None,
+                inst_id,
+            };
 
-                // Track subscription
-                let subscription_key = format!("{}:{}", channel_name, symbol);
-                self.subscriptions.insert(subscription_key, *sub_type);
-
-                channels.push(channel);
-            }
+            channels.push(channel);
         }
 
-        if !channels.is_empty() {
-            let message = Self::create_subscription_request(channels, "subscribe")?;
-            messages.push(message);
-        }
-
-        Ok(messages)
+        let message_str = Self::create_subscription_request(channels, "subscribe")?;
+        Ok(Message::Text(message_str))
     }
 
-    fn encode_unsubscribe(
-        &mut self,
-        symbols: &[String],
-        subscription_types: &[SubscriptionType],
-    ) -> Result<Vec<String>, ExchangeError> {
-        let mut messages = Vec::new();
+    fn encode_unsubscription(
+        &self,
+        streams: &[impl AsRef<str> + Send + Sync],
+    ) -> Result<Message, ExchangeError> {
         let mut channels = Vec::new();
 
-        for symbol in symbols {
-            for sub_type in subscription_types {
-                let channel_name = match sub_type {
-                    SubscriptionType::Ticker => "tickers",
-                    SubscriptionType::OrderBook => "books",
-                    SubscriptionType::Trade => "trades",
-                    SubscriptionType::Kline => "candle1m",
-                    _ => continue,
-                };
+        for stream in streams {
+            let stream_str = stream.as_ref();
+            let (channel_name, inst_id) = Self::parse_channel_info(stream_str);
 
-                let channel = OkxWsChannel {
-                    channel: channel_name.to_string(),
-                    inst_type: Some("SPOT".to_string()),
-                    inst_family: None,
-                    inst_id: Some(symbol.clone()),
-                };
+            let channel = OkxWsChannel {
+                channel: channel_name,
+                inst_type: Some("SPOT".to_string()),
+                inst_family: None,
+                inst_id,
+            };
 
-                // Remove from subscriptions
-                let subscription_key = format!("{}:{}", channel_name, symbol);
-                self.subscriptions.remove(&subscription_key);
+            channels.push(channel);
+        }
 
-                channels.push(channel);
+        let message_str = Self::create_subscription_request(channels, "unsubscribe")?;
+        Ok(Message::Text(message_str))
+    }
+
+    fn decode_message(&self, message: Message) -> Result<Option<Self::Message>, ExchangeError> {
+        let text = match message {
+            Message::Text(text) => text,
+            Message::Binary(data) => {
+                String::from_utf8(data).map_err(|e| {
+                    ExchangeError::ParseError(format!("Invalid UTF-8 in binary message: {}", e))
+                })?
             }
-        }
+            Message::Pong(_) => return Ok(Some(OkxMessage::Pong)),
+            _ => return Ok(None), // Ignore other message types
+        };
 
-        if !channels.is_empty() {
-            let message = Self::create_subscription_request(channels, "unsubscribe")?;
-            messages.push(message);
-        }
-
-        Ok(messages)
-    }
-
-    fn encode_ping(&self) -> Result<String, ExchangeError> {
-        Ok("ping".to_string())
-    }
-
-    fn decode(&self, message: &str) -> Result<Self::Message, ExchangeError> {
         // Handle simple text messages
-        if message == "pong" {
-            return Ok(OkxMessage::Pong);
+        if text == "pong" {
+            return Ok(Some(OkxMessage::Pong));
         }
 
         // Try to parse as JSON
-        let value: Value = serde_json::from_str(message)
+        let value: Value = serde_json::from_str(&text)
             .map_err(|e| ExchangeError::ParseError(format!("Failed to parse JSON: {}", e)))?;
 
         // Handle different message types
@@ -181,10 +155,10 @@ impl Codec for OkxCodec {
                         .and_then(|v| serde_json::from_value::<OkxWsChannel>(v.clone()).ok());
 
                     if let Some(channel_info) = arg {
-                        return Ok(OkxMessage::Subscribe {
+                        return Ok(Some(OkxMessage::Subscribe {
                             channel: channel_info.channel,
                             inst_id: channel_info.inst_id,
-                        });
+                        }));
                     }
                 }
                 "error" => {
@@ -199,7 +173,7 @@ impl Codec for OkxCodec {
                         .unwrap_or("unknown error")
                         .to_string();
 
-                    return Ok(OkxMessage::Error { code, message: msg });
+                    return Ok(Some(OkxMessage::Error { code, message: msg }));
                 }
                 "login" => {
                     let code = value.get("code").and_then(|v| v.as_str()).unwrap_or("1");
@@ -210,10 +184,10 @@ impl Codec for OkxCodec {
                         .unwrap_or("")
                         .to_string();
 
-                    return Ok(OkxMessage::Login {
+                    return Ok(Some(OkxMessage::Login {
                         success,
                         message: msg,
-                    });
+                    }));
                 }
                 _ => {}
             }
@@ -230,48 +204,17 @@ impl Codec for OkxCodec {
                 .ok_or_else(|| ExchangeError::ParseError("Missing data field".to_string()))?
                 .clone();
 
-            return Ok(OkxMessage::Data {
+            return Ok(Some(OkxMessage::Data {
                 channel: channel_info.channel,
                 inst_id: channel_info.inst_id,
                 data,
-            });
+            }));
         }
 
         Err(ExchangeError::ParseError(format!(
             "Unknown message format: {}",
-            message
+            text
         )))
-    }
-
-    fn get_subscription_type(&self, message: &Self::Message) -> Option<SubscriptionType> {
-        match message {
-            OkxMessage::Data {
-                channel, inst_id, ..
-            } => {
-                if let Some(inst_id) = inst_id {
-                    let subscription_key = format!("{}:{}", channel, inst_id);
-                    self.subscriptions.get(&subscription_key).copied()
-                } else {
-                    // Map channel name to subscription type
-                    match channel.as_str() {
-                        "tickers" => Some(SubscriptionType::Ticker),
-                        "books" => Some(SubscriptionType::OrderBook),
-                        "trades" => Some(SubscriptionType::Trade),
-                        name if name.starts_with("candle") => Some(SubscriptionType::Kline),
-                        _ => None,
-                    }
-                }
-            }
-            _ => None,
-        }
-    }
-
-    fn is_error(&self, message: &Self::Message) -> bool {
-        matches!(message, OkxMessage::Error { .. })
-    }
-
-    fn is_pong(&self, message: &Self::Message) -> bool {
-        matches!(message, OkxMessage::Pong)
     }
 }
 
@@ -305,36 +248,42 @@ mod tests {
 
     #[test]
     fn test_encode_subscribe() {
-        let mut codec = OkxCodec::new();
-        let symbols = vec!["BTC-USDT".to_string()];
-        let subscription_types = vec![SubscriptionType::Ticker];
+        let codec = OkxCodec::new();
+        let streams = vec!["tickers:BTC-USDT"];
 
-        let result = codec.encode_subscribe(&symbols, &subscription_types);
+        let result = codec.encode_subscription(&streams);
         assert!(result.is_ok());
 
-        let messages = result.unwrap();
-        assert_eq!(messages.len(), 1);
-        assert!(messages[0].contains("subscribe"));
-        assert!(messages[0].contains("tickers"));
-        assert!(messages[0].contains("BTC-USDT"));
+        if let Message::Text(text) = result.unwrap() {
+            assert!(text.contains("subscribe"));
+            assert!(text.contains("tickers"));
+            assert!(text.contains("BTC-USDT"));
+        } else {
+            panic!("Expected text message");
+        }
     }
 
     #[test]
     fn test_decode_pong() {
         let codec = OkxCodec::new();
-        let result = codec.decode("pong");
+        let result = codec.decode_message(Message::Text("pong".to_string()));
         assert!(result.is_ok());
-        assert!(matches!(result.unwrap(), OkxMessage::Pong));
+        
+        if let Some(OkxMessage::Pong) = result.unwrap() {
+            // Test passed
+        } else {
+            panic!("Expected pong message");
+        }
     }
 
     #[test]
     fn test_decode_error() {
         let codec = OkxCodec::new();
         let error_msg = r#"{"event":"error","code":"60012","msg":"Invalid request"}"#;
-        let result = codec.decode(error_msg);
+        let result = codec.decode_message(Message::Text(error_msg.to_string()));
         assert!(result.is_ok());
 
-        if let OkxMessage::Error { code, message } = result.unwrap() {
+        if let Some(OkxMessage::Error { code, message }) = result.unwrap() {
             assert_eq!(code, "60012");
             assert_eq!(message, "Invalid request");
         } else {
