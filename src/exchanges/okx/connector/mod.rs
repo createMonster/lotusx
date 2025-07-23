@@ -18,6 +18,7 @@ pub use market_data::MarketData;
 pub use trading::Trading;
 
 /// OKX connector that composes all sub-trait implementations
+#[derive(Debug)]
 pub struct OkxConnector<R: RestClient, W = ()> {
     pub market: MarketData<R, W>,
     pub trading: Trading<R>,
@@ -71,7 +72,9 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for O
         subscription_types: Vec<SubscriptionType>,
         config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        self.market.subscribe_market_data(symbols, subscription_types, config).await
+        self.market
+            .subscribe_market_data(symbols, subscription_types, config)
+            .await
     }
 
     fn get_websocket_url(&self) -> String {
@@ -86,7 +89,9 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for O
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        self.market.get_klines(symbol, interval, limit, start_time, end_time).await
+        self.market
+            .get_klines(symbol, interval, limit, start_time, end_time)
+            .await
     }
 }
 
@@ -97,11 +102,7 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> OrderPlacer for OkxCon
         self.trading.place_order(order).await
     }
 
-    async fn cancel_order(
-        &self,
-        symbol: String,
-        order_id: String,
-    ) -> Result<(), ExchangeError> {
+    async fn cancel_order(&self, symbol: String, order_id: String) -> Result<(), ExchangeError> {
         self.trading.cancel_order(symbol, order_id).await
     }
 }

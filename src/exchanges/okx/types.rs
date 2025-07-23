@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// OKX API standard response wrapper
 #[derive(Debug, Deserialize, Serialize)]

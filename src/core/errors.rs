@@ -126,12 +126,14 @@ impl ExchangeError {
             Self::WebSocketClosed(_) => "Connection closed - reconnecting",
             Self::InvalidParameters(_) => "Invalid parameters",
             Self::ConfigError(_) | Self::ConfigurationError(_) => "Configuration error",
-            Self::JsonError(_) | Self::SerializationError(_) | Self::DeserializationError(_) => {
-                "Data parsing error"
-            }
+            Self::JsonError(_)
+            | Self::SerializationError(_)
+            | Self::DeserializationError(_)
+            | Self::ParseError(_) => "Data parsing error",
             Self::WebSocketError(_) => "WebSocket error",
             Self::InvalidResponseFormat(_) => "Invalid response format",
             Self::ApiError { .. } => "API error",
+            Self::NotSupported(_) => "Feature not supported",
             Self::Other(_) => "An error occurred",
         }
     }

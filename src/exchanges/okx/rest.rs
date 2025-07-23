@@ -1,12 +1,15 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
-use crate::exchanges::okx::types::*;
-use async_trait::async_trait;
+use crate::exchanges::okx::types::{
+    OkxAccountInfo, OkxKline, OkxMarket, OkxOrder, OkxOrderBook, OkxOrderRequest, OkxOrderResponse,
+    OkxResponse, OkxTicker, OkxTrade,
+};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::collections::HashMap;
 
 /// OKX REST API client implementation
+#[derive(Debug)]
 pub struct OkxRest<R: RestClient> {
     rest_client: R,
 }
@@ -16,10 +19,10 @@ impl<R: RestClient> OkxRest<R> {
         Self { rest_client }
     }
 
-    /// Maps OKX error codes to appropriate ExchangeError variants
+    /// Maps OKX error codes to appropriate `ExchangeError` variants
     ///
     /// This function provides a comprehensive mapping of OKX error codes to
-    /// more specific ExchangeError variants, making error handling more precise.
+    /// more specific `ExchangeError` variants, making error handling more precise.
     fn map_okx_error(&self, code: &str, message: &str) -> ExchangeError {
         match code {
             // Authentication errors
@@ -49,30 +52,33 @@ impl<R: RestClient> OkxRest<R> {
             }
 
             // Order errors
-            "51006" | "51007" | "51008" => {
-                ExchangeError::OrderError(format!("Order error: {} - {}", code, message))
-            }
+            "51006" | "51007" | "51008" => ExchangeError::ApiError {
+                code: code.parse().unwrap_or(-1),
+                message: format!("Order error: {} - {}", code, message),
+            },
             "51009" => {
-                ExchangeError::InsufficientFunds(format!("Insufficient balance: {}", message))
+                ExchangeError::InvalidParameters(format!("Insufficient balance: {}", message))
             }
-            "51010" => ExchangeError::OrderSizeExceedsLimit(format!(
-                "Order size exceeds limit: {}",
-                message
-            )),
-            "51011" => ExchangeError::OrderPriceExceedsLimit(format!(
-                "Order price exceeds limit: {}",
-                message
-            )),
+            "51010" => {
+                ExchangeError::InvalidParameters(format!("Order size exceeds limit: {}", message))
+            }
+            "51011" => {
+                ExchangeError::InvalidParameters(format!("Order price exceeds limit: {}", message))
+            }
 
             // Market errors
-            "51100" | "51101" | "51102" => {
-                ExchangeError::MarketError(format!("Market error: {} - {}", code, message))
-            }
-            "51103" => ExchangeError::MarketClosed(format!("Market closed: {}", message)),
+            "51100" | "51101" | "51102" => ExchangeError::ApiError {
+                code: code.parse().unwrap_or(-1),
+                message: format!("Market error: {} - {}", code, message),
+            },
+            "51103" => ExchangeError::ApiError {
+                code: code.parse().unwrap_or(-1),
+                message: format!("Market closed: {}", message),
+            },
 
             // Account errors
             "51200" | "51201" | "51202" => {
-                ExchangeError::AccountError(format!("Account error: {} - {}", code, message))
+                ExchangeError::AuthError(format!("Account error: {} - {}", code, message))
             }
 
             // Default case - generic API error
@@ -179,13 +185,11 @@ impl<R: RestClient> OkxRest<R> {
         sz: Option<u32>,
     ) -> Result<OkxOrderBook, ExchangeError> {
         let endpoint = "/api/v5/market/books";
-        let sz_str;
-        let query_params = if let Some(size) = sz {
-            sz_str = size.to_string();
-            vec![("instId", inst_id), ("sz", &sz_str)]
-        } else {
-            vec![("instId", inst_id)]
-        };
+        let sz_str = sz.map(|s| s.to_string());
+        let mut query_params = vec![("instId", inst_id)];
+        if let Some(ref sz_val) = sz_str {
+            query_params.push(("sz", sz_val.as_str()));
+        }
 
         let response_value = self.rest_client.get(endpoint, &query_params, false).await?;
         self.handle_single_item_response(response_value, "No order book data found")
@@ -198,13 +202,11 @@ impl<R: RestClient> OkxRest<R> {
         limit: Option<u32>,
     ) -> Result<Vec<OkxTrade>, ExchangeError> {
         let endpoint = "/api/v5/market/trades";
-        let limit_str;
-        let query_params = if let Some(lmt) = limit {
-            limit_str = lmt.to_string();
-            vec![("instId", inst_id), ("limit", &limit_str)]
-        } else {
-            vec![("instId", inst_id)]
-        };
+        let limit_str = limit.map(|l| l.to_string());
+        let mut query_params = vec![("instId", inst_id)];
+        if let Some(ref limit_val) = limit_str {
+            query_params.push(("limit", limit_val.as_str()));
+        }
 
         let response_value = self.rest_client.get(endpoint, &query_params, false).await?;
         self.handle_response(response_value)
@@ -322,7 +324,7 @@ impl<R: RestClient> OkxRest<R> {
             ord_id_str = id.to_string();
             query_params.push(("ordId", &ord_id_str));
         }
-        
+
         let cl_ord_id_str;
         if let Some(cl_id) = cl_ord_id {
             cl_ord_id_str = cl_id.to_string();
@@ -339,11 +341,8 @@ impl<R: RestClient> OkxRest<R> {
         inst_type: Option<&str>,
     ) -> Result<Vec<OkxOrder>, ExchangeError> {
         let endpoint = "/api/v5/trade/orders-pending";
-        let query_params = if let Some(inst_type) = inst_type {
-            vec![("instType", inst_type)]
-        } else {
-            vec![]
-        };
+        let query_params =
+            inst_type.map_or_else(Vec::new, |inst_type| vec![("instType", inst_type)]);
 
         let response_value = self.rest_client.get(endpoint, &query_params, true).await?;
         self.handle_response(response_value)
@@ -354,11 +353,7 @@ impl<R: RestClient> OkxRest<R> {
     /// Get account balance
     pub async fn get_balance(&self, ccy: Option<&str>) -> Result<OkxAccountInfo, ExchangeError> {
         let endpoint = "/api/v5/account/balance";
-        let query_params = if let Some(currency) = ccy {
-            vec![("ccy", currency)]
-        } else {
-            vec![]
-        };
+        let query_params = ccy.map_or_else(Vec::new, |currency| vec![("ccy", currency)]);
 
         let response_value = self.rest_client.get(endpoint, &query_params, true).await?;
         self.handle_single_item_response(response_value, "No account data found")

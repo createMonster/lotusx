@@ -55,6 +55,18 @@ impl<'de> Deserialize<'de> for ExchangeConfig {
     }
 }
 
+impl Default for ExchangeConfig {
+    fn default() -> Self {
+        Self {
+            api_key: Secret::new(String::new()),
+            secret_key: Secret::new(String::new()),
+            testnet: false,
+            base_url: None,
+            has_credentials_cache: OnceLock::new(),
+        }
+    }
+}
+
 impl ExchangeConfig {
     /// Create a new configuration with API credentials
     #[must_use]

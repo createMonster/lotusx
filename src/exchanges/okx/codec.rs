@@ -1,7 +1,7 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::codec::WsCodec;
 use crate::core::types::SubscriptionType;
-use crate::exchanges::okx::types::{OkxWsChannel, OkxWsRequest, OkxWsResponse};
+use crate::exchanges::okx::types::{OkxWsChannel, OkxWsRequest};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio_tungstenite::tungstenite::Message;
@@ -31,6 +31,7 @@ pub enum OkxMessage {
 /// OKX WebSocket codec implementation
 pub struct OkxCodec {
     /// Channel subscriptions
+    #[allow(dead_code)]
     subscriptions: HashMap<String, SubscriptionType>,
 }
 
@@ -58,13 +59,14 @@ impl OkxCodec {
     /// Parse OKX channel name and instrument ID from subscription
     fn parse_channel_info(channel: &str) -> (String, Option<String>) {
         // OKX channels often have format like "tickers:BTC-USDT" or "books:BTC-USDT"
-        if let Some(pos) = channel.find(':') {
-            let channel_name = channel[..pos].to_string();
-            let inst_id = Some(channel[pos + 1..].to_string());
-            (channel_name, inst_id)
-        } else {
-            (channel.to_string(), None)
-        }
+        channel.find(':').map_or_else(
+            || (channel.to_string(), None),
+            |pos| {
+                let channel_name = channel[..pos].to_string();
+                let inst_id = Some(channel[pos + 1..].to_string());
+                (channel_name, inst_id)
+            },
+        )
     }
 }
 
@@ -128,11 +130,9 @@ impl WsCodec for OkxCodec {
     fn decode_message(&self, message: Message) -> Result<Option<Self::Message>, ExchangeError> {
         let text = match message {
             Message::Text(text) => text,
-            Message::Binary(data) => {
-                String::from_utf8(data).map_err(|e| {
-                    ExchangeError::ParseError(format!("Invalid UTF-8 in binary message: {}", e))
-                })?
-            }
+            Message::Binary(data) => String::from_utf8(data).map_err(|e| {
+                ExchangeError::ParseError(format!("Invalid UTF-8 in binary message: {}", e))
+            })?,
             Message::Pong(_) => return Ok(Some(OkxMessage::Pong)),
             _ => return Ok(None), // Ignore other message types
         };
@@ -229,10 +229,9 @@ pub fn create_okx_stream_identifiers(
         for sub_type in subscription_types {
             let channel = match sub_type {
                 SubscriptionType::Ticker => "tickers",
-                SubscriptionType::OrderBook => "books",
-                SubscriptionType::Trade => "trades",
-                SubscriptionType::Kline => "candle1m",
-                _ => continue,
+                SubscriptionType::OrderBook { depth: _ } => "books",
+                SubscriptionType::Trades => "trades",
+                SubscriptionType::Klines { interval: _ } => "candle1m",
             };
 
             identifiers.push(format!("{}:{}", channel, symbol));
@@ -268,8 +267,8 @@ mod tests {
         let codec = OkxCodec::new();
         let result = codec.decode_message(Message::Text("pong".to_string()));
         assert!(result.is_ok());
-        
-        if let Some(OkxMessage::Pong) = result.unwrap() {
+
+        if matches!(result.unwrap(), Some(OkxMessage::Pong)) {
             // Test passed
         } else {
             panic!("Expected pong message");
@@ -294,7 +293,10 @@ mod tests {
     #[test]
     fn test_stream_identifiers() {
         let symbols = vec!["BTC-USDT".to_string(), "ETH-USDT".to_string()];
-        let subscription_types = vec![SubscriptionType::Ticker, SubscriptionType::OrderBook];
+        let subscription_types = vec![
+            SubscriptionType::Ticker,
+            SubscriptionType::OrderBook { depth: None },
+        ];
 
         let identifiers = create_okx_stream_identifiers(&symbols, &subscription_types);
 

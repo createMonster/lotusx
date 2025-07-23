@@ -1,11 +1,12 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
 use crate::core::traits::AccountInfo;
-use crate::core::types::{Balance, Position};
-use crate::exchanges::okx::{rest::OkxRest, types::OkxAccountInfo};
+use crate::core::types::{Balance, Position, Quantity};
+use crate::exchanges::okx::rest::OkxRest;
 use async_trait::async_trait;
 
 /// OKX account implementation
+#[derive(Debug)]
 pub struct Account<R: RestClient> {
     rest: OkxRest<R>,
 }
@@ -46,9 +47,8 @@ impl<R: RestClient + Send + Sync> AccountInfo for Account<R> {
             if total > 0.0 || available > 0.0 || locked > 0.0 {
                 balances.push(Balance {
                     asset: okx_balance.ccy,
-                    free: available,
-                    locked,
-                    total,
+                    free: Quantity::from_f64(available),
+                    locked: Quantity::from_f64(locked),
                 });
             }
         }
@@ -78,7 +78,7 @@ impl<R: RestClient + Send + Sync> Account<R> {
         // Find the specific currency in the balance details
         for okx_balance in okx_account.details {
             if okx_balance.ccy.eq_ignore_ascii_case(currency) {
-                let total = okx_balance.eq.parse::<f64>().map_err(|e| {
+                let _total = okx_balance.eq.parse::<f64>().map_err(|e| {
                     ExchangeError::ParseError(format!("Invalid total balance: {}", e))
                 })?;
 
@@ -92,9 +92,8 @@ impl<R: RestClient + Send + Sync> Account<R> {
 
                 return Ok(Some(Balance {
                     asset: okx_balance.ccy,
-                    free: available,
-                    locked,
-                    total,
+                    free: Quantity::from_f64(available),
+                    locked: Quantity::from_f64(locked),
                 }));
             }
         }

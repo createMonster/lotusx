@@ -1,10 +1,10 @@
-use super::types as okx_types;
 use crate::core::types::{
-    conversion, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
-    Symbol, Ticker, TimeInForce, Trade,
+    conversion, Kline, Market, OrderBook, OrderBookEntry, OrderSide, OrderType, Price, Symbol,
+    Ticker, TimeInForce, Trade,
 };
+use crate::exchanges::okx::types as okx_types;
+use rust_decimal::Decimal;
 use serde_json::Value;
-use std::str::FromStr;
 
 /// Convert OKX market to core market type
 pub fn convert_okx_market(okx_market: okx_types::OkxMarket) -> Result<Market, String> {
@@ -12,8 +12,8 @@ pub fn convert_okx_market(okx_market: okx_types::OkxMarket) -> Result<Market, St
     let symbol = conversion::string_to_symbol(&okx_market.inst_id);
 
     // Convert tick size and lot size to appropriate types
-    let tick_size = conversion::string_to_price(&okx_market.tick_sz);
-    let lot_size = conversion::string_to_quantity(&okx_market.lot_sz);
+    let _tick_size = conversion::string_to_price(&okx_market.tick_sz);
+    let _lot_size = conversion::string_to_quantity(&okx_market.lot_sz);
     let min_size = conversion::string_to_quantity(&okx_market.min_sz);
 
     Ok(Market {
@@ -22,13 +22,9 @@ pub fn convert_okx_market(okx_market: okx_types::OkxMarket) -> Result<Market, St
         base_precision: 8, // OKX doesn't provide precision directly, using default
         quote_precision: 8,
         min_qty: Some(min_size),
-        max_qty: None, // OKX doesn't specify max quantity directly
-        min_price: Some(tick_size),
+        max_qty: None,   // OKX doesn't specify max quantity directly
+        min_price: None, // Not provided by OKX
         max_price: None, // OKX doesn't specify max price directly
-        tick_size: Some(tick_size),
-        lot_size: Some(lot_size),
-        exchange: "okx".to_string(),
-        fees: None, // Would need separate API call to get fee information
     })
 }
 
@@ -36,10 +32,7 @@ pub fn convert_okx_market(okx_market: okx_types::OkxMarket) -> Result<Market, St
 pub fn convert_okx_ticker(okx_ticker: okx_types::OkxTicker) -> Result<Ticker, String> {
     let symbol = conversion::string_to_symbol(&okx_ticker.inst_id);
     let last_price = conversion::string_to_price(&okx_ticker.last);
-    let bid_price = conversion::string_to_price(&okx_ticker.bid_px);
-    let ask_price = conversion::string_to_price(&okx_ticker.ask_px);
-    let bid_quantity = conversion::string_to_quantity(&okx_ticker.bid_sz);
-    let ask_quantity = conversion::string_to_quantity(&okx_ticker.ask_sz);
+    // Note: bid/ask prices and quantities are not part of the core Ticker struct
 
     // Parse timestamp
     let timestamp = okx_ticker
@@ -49,28 +42,25 @@ pub fn convert_okx_ticker(okx_ticker: okx_types::OkxTicker) -> Result<Ticker, St
 
     // Calculate 24h change
     let open_24h = conversion::string_to_price(&okx_ticker.open_24h);
-    let price_change_24h = last_price - open_24h;
-    let price_change_percent_24h = if open_24h > 0.0 {
-        (price_change_24h / open_24h) * 100.0
+    let price_change_24h = Price::new(last_price.value() - open_24h.value());
+    let price_change_percent_24h = if open_24h.value() > Decimal::ZERO {
+        (price_change_24h.value() / open_24h.value()) * Decimal::from(100)
     } else {
-        0.0
+        Decimal::ZERO
     };
 
     Ok(Ticker {
         symbol,
-        last_price,
-        bid_price,
-        ask_price,
-        bid_quantity,
-        ask_quantity,
-        high_24h: conversion::string_to_price(&okx_ticker.high_24h),
-        low_24h: conversion::string_to_price(&okx_ticker.low_24h),
-        volume_24h: conversion::string_to_quantity(&okx_ticker.vol_24h),
-        quote_volume_24h: conversion::string_to_quantity(&okx_ticker.vol_ccy_24h),
-        price_change_24h,
-        price_change_percent_24h,
-        timestamp,
-        exchange: "okx".to_string(),
+        price: last_price,
+        price_change: price_change_24h,
+        price_change_percent: price_change_percent_24h,
+        high_price: conversion::string_to_price(&okx_ticker.high_24h),
+        low_price: conversion::string_to_price(&okx_ticker.low_24h),
+        volume: conversion::string_to_volume(&okx_ticker.vol_24h),
+        quote_volume: conversion::string_to_volume(&okx_ticker.vol_ccy_24h),
+        open_time: timestamp.try_into().unwrap_or(i64::MAX),
+        close_time: timestamp.try_into().unwrap_or(i64::MAX),
+        count: 0, // Default value
     })
 }
 
@@ -110,8 +100,7 @@ pub fn convert_okx_order_book(
         symbol,
         bids,
         asks,
-        timestamp,
-        exchange: "okx".to_string(),
+        last_update_id: timestamp.try_into().unwrap_or(i64::MAX),
     })
 }
 
@@ -136,12 +125,11 @@ pub fn convert_okx_trade(okx_trade: okx_types::OkxTrade) -> Result<Trade, String
 
     Ok(Trade {
         symbol,
+        id: okx_trade.trade_id.parse().unwrap_or(0),
         price,
         quantity,
-        side,
-        timestamp,
-        trade_id: Some(okx_trade.trade_id),
-        exchange: "okx".to_string(),
+        time: timestamp.try_into().unwrap_or(i64::MAX),
+        is_buyer_maker: matches!(side, OrderSide::Sell),
     })
 }
 
@@ -157,13 +145,16 @@ pub fn convert_okx_kline(okx_kline: okx_types::OkxKline, symbol: &str) -> Result
 
     Ok(Kline {
         symbol,
-        open: conversion::string_to_price(&okx_kline.o),
-        high: conversion::string_to_price(&okx_kline.h),
-        low: conversion::string_to_price(&okx_kline.l),
-        close: conversion::string_to_price(&okx_kline.c),
-        volume: conversion::string_to_quantity(&okx_kline.vol),
-        timestamp,
-        exchange: "okx".to_string(),
+        open_time: timestamp.try_into().unwrap_or(i64::MAX),
+        close_time: timestamp.try_into().unwrap_or(i64::MAX),
+        interval: "1m".to_string(), // Default interval
+        open_price: conversion::string_to_price(&okx_kline.o),
+        high_price: conversion::string_to_price(&okx_kline.h),
+        low_price: conversion::string_to_price(&okx_kline.l),
+        close_price: conversion::string_to_price(&okx_kline.c),
+        volume: conversion::string_to_volume(&okx_kline.vol),
+        number_of_trades: 0, // Default value
+        final_bar: true,
     })
 }
 
@@ -187,13 +178,13 @@ pub fn convert_order_type_to_okx(
             match time_in_force {
                 Some(TimeInForce::IOC) => "ioc".to_string(),
                 Some(TimeInForce::FOK) => "fok".to_string(),
-                Some(TimeInForce::PostOnly) => "post_only".to_string(),
                 _ => "limit".to_string(),
             }
         }
-        OrderType::StopLoss => "conditional".to_string(),
-        OrderType::TakeProfit => "conditional".to_string(),
-        OrderType::LimitMaker => "post_only".to_string(),
+        OrderType::StopLoss
+        | OrderType::StopLossLimit
+        | OrderType::TakeProfit
+        | OrderType::TakeProfitLimit => "conditional".to_string(),
     }
 }
 
@@ -210,7 +201,7 @@ pub fn convert_okx_order_state(state: &str) -> String {
 
 /// Convert symbol to OKX instrument ID format
 pub fn convert_symbol_to_okx_inst_id(symbol: &Symbol) -> String {
-    format!("{}-{}", symbol.base(), symbol.quote())
+    format!("{}-{}", symbol.base, symbol.quote)
 }
 
 /// Helper function to convert OKX WebSocket ticker message

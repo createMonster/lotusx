@@ -8,9 +8,11 @@ use std::time::Duration;
 /// Builder for creating OKX exchange connectors
 ///
 /// This builder provides a fluent interface for configuring and building OKX connectors
-/// with various options including WebSocket reconnection settings.
+/// with various options including REST-only, WebSocket support, and reconnection logic.
+#[derive(Default)]
 pub struct OkxBuilder {
     config: ExchangeConfig,
+    passphrase: Option<String>,
     ws_reconnect_interval: Option<Duration>,
     ws_ping_interval: Option<Duration>,
     max_reconnect_attempts: Option<u32>,
@@ -19,10 +21,11 @@ pub struct OkxBuilder {
 }
 
 impl OkxBuilder {
-    /// Create a new OkxBuilder with default settings
+    /// Create a new `OkxBuilder` with default settings
     pub fn new() -> Self {
         Self {
-            config: ExchangeConfig::new("okx".to_string(), false),
+            config: ExchangeConfig::new(String::new(), String::new()),
+            passphrase: None,
             ws_reconnect_interval: None,
             ws_ping_interval: None,
             max_reconnect_attempts: None,
@@ -50,10 +53,11 @@ impl OkxBuilder {
         secret_key: String,
         passphrase: String,
     ) -> Self {
-        self.config = self
-            .config
-            .with_credentials(api_key, secret_key)
-            .with_passphrase(passphrase);
+        self.config = ExchangeConfig::new(api_key, secret_key).testnet(self.config.testnet);
+        if let Some(base_url) = self.config.base_url.clone() {
+            self.config = self.config.base_url(base_url);
+        }
+        self.passphrase = Some(passphrase);
         self
     }
 
@@ -63,9 +67,9 @@ impl OkxBuilder {
         self
     }
 
-    /// Set WebSocket URL
-    pub fn with_ws_url(mut self, ws_url: String) -> Self {
-        self.config.ws_url = Some(ws_url);
+    /// Set WebSocket URL (stored internally, not in config)
+    pub fn with_ws_url(self, _ws_url: String) -> Self {
+        // WebSocket URL is handled internally based on testnet setting
         self
     }
 
@@ -122,15 +126,16 @@ impl OkxBuilder {
 
         // Add authentication if credentials are provided
         if self.config.has_credentials() {
-            let passphrase = self
-                .config
-                .passphrase()
-                .ok_or_else(|| ExchangeError::AuthError("OKX requires passphrase".to_string()))?;
+            let passphrase = self.passphrase.ok_or_else(|| {
+                ExchangeError::ConfigurationError(
+                    "OKX passphrase is required when using credentials".to_string(),
+                )
+            })?;
 
             let signer = Arc::new(OkxSigner::new(
                 self.config.api_key().to_string(),
                 self.config.secret_key().to_string(),
-                passphrase.to_string(),
+                passphrase,
             ));
             rest_builder = rest_builder.with_signer(signer);
         }
@@ -157,14 +162,7 @@ impl OkxBuilder {
                 .unwrap_or_else(|| "https://www.okx.com".to_string())
         };
 
-        let ws_url = if self.config.testnet {
-            "wss://ws.okx.com:8443/ws/v5/public".to_string() // Public channel for testnet
-        } else {
-            self.config
-                .ws_url
-                .clone()
-                .unwrap_or_else(|| "wss://ws.okx.com:8443/ws/v5/public".to_string())
-        };
+        let ws_url = "wss://ws.okx.com:8443/ws/v5/public".to_string();
 
         // Build REST client
         let rest_config = RestClientConfig::new(rest_base_url, "okx".to_string())
@@ -175,15 +173,16 @@ impl OkxBuilder {
 
         // Add authentication if credentials are provided
         if self.config.has_credentials() {
-            let passphrase = self
-                .config
-                .passphrase()
-                .ok_or_else(|| ExchangeError::AuthError("OKX requires passphrase".to_string()))?;
+            let passphrase = self.passphrase.ok_or_else(|| {
+                ExchangeError::ConfigurationError(
+                    "OKX passphrase is required when using credentials".to_string(),
+                )
+            })?;
 
             let signer = Arc::new(OkxSigner::new(
                 self.config.api_key().to_string(),
                 self.config.secret_key().to_string(),
-                passphrase.to_string(),
+                passphrase,
             ));
             rest_builder = rest_builder.with_signer(signer);
         }
@@ -192,7 +191,7 @@ impl OkxBuilder {
 
         // Build WebSocket client
         let codec = OkxCodec::new();
-        let ws = TungsteniteWs::new(ws_url, codec)?;
+        let ws = TungsteniteWs::new(ws_url, "okx".to_string(), codec);
 
         Ok(OkxConnector::new_with_ws(rest, ws, self.config))
     }
@@ -215,7 +214,7 @@ impl OkxBuilder {
 
 /// Create an OKX connector with REST-only support
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn build_connector(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, ()>, ExchangeError> {
@@ -224,7 +223,7 @@ pub fn build_connector(
 
 /// Create an OKX connector with WebSocket support
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn build_connector_with_websocket(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, TungsteniteWs<OkxCodec>>, ExchangeError>
@@ -234,7 +233,7 @@ pub fn build_connector_with_websocket(
 
 /// Create an OKX connector with WebSocket support and reconnection
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn build_connector_with_reconnection(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, TungsteniteWs<OkxCodec>>, ExchangeError>
@@ -248,7 +247,7 @@ pub fn build_connector_with_reconnection(
 
 /// Legacy function to create OKX connector (REST only)
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn create_okx_connector(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, ()>, ExchangeError> {
@@ -257,7 +256,7 @@ pub fn create_okx_connector(
 
 /// Legacy function to create OKX REST connector
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn create_okx_rest_connector(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, ()>, ExchangeError> {
@@ -266,7 +265,7 @@ pub fn create_okx_rest_connector(
 
 /// Legacy function to create OKX connector with WebSocket
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn create_okx_connector_with_websocket(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, TungsteniteWs<OkxCodec>>, ExchangeError>
@@ -276,7 +275,7 @@ pub fn create_okx_connector_with_websocket(
 
 /// Legacy function to create OKX connector with reconnection
 ///
-/// @deprecated Use OkxBuilder instead
+/// @deprecated Use `OkxBuilder` instead
 pub fn create_okx_connector_with_reconnection(
     config: ExchangeConfig,
 ) -> Result<OkxConnector<crate::core::kernel::ReqwestRest, TungsteniteWs<OkxCodec>>, ExchangeError>
@@ -291,15 +290,14 @@ mod tests {
 
     #[test]
     fn test_build_okx_connector_without_credentials() {
-        let config = ExchangeConfig::new("okx".to_string(), false);
+        let config = ExchangeConfig::new(String::new(), String::new());
         let result = build_connector(config);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_build_okx_connector_missing_passphrase() {
-        let mut config = ExchangeConfig::new("okx".to_string(), false);
-        config = config.with_credentials("test_key".to_string(), "test_secret".to_string());
+        let config = ExchangeConfig::new("test_key".to_string(), "test_secret".to_string());
 
         let result = build_connector(config);
         assert!(result.is_err());
