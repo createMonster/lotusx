@@ -370,48 +370,6 @@ pub enum KlineInterval {
     Months1,
 }
 
-impl KlineInterval {
-    pub fn to_binance_format(&self) -> String {
-        match self {
-            Self::Minutes1 => "1m".to_string(),
-            Self::Minutes3 => "3m".to_string(),
-            Self::Minutes5 => "5m".to_string(),
-            Self::Minutes15 => "15m".to_string(),
-            Self::Minutes30 => "30m".to_string(),
-            Self::Hours1 => "1h".to_string(),
-            Self::Hours2 => "2h".to_string(),
-            Self::Hours4 => "4h".to_string(),
-            Self::Hours6 => "6h".to_string(),
-            Self::Hours8 => "8h".to_string(),
-            Self::Hours12 => "12h".to_string(),
-            Self::Days1 => "1d".to_string(),
-            Self::Days3 => "3d".to_string(),
-            Self::Weeks1 => "1w".to_string(),
-            Self::Months1 => "1M".to_string(),
-        }
-    }
-
-    pub fn to_bybit_format(&self) -> String {
-        match self {
-            Self::Minutes1 => "1".to_string(),
-            Self::Minutes3 => "3".to_string(),
-            Self::Minutes5 => "5".to_string(),
-            Self::Minutes15 => "15".to_string(),
-            Self::Minutes30 => "30".to_string(),
-            Self::Hours1 => "60".to_string(),
-            Self::Hours2 => "120".to_string(),
-            Self::Hours4 => "240".to_string(),
-            Self::Hours6 => "360".to_string(),
-            Self::Hours8 => "480".to_string(),
-            Self::Hours12 => "720".to_string(),
-            Self::Days1 => "D".to_string(),
-            Self::Days3 => "3D".to_string(),
-            Self::Weeks1 => "W".to_string(),
-            Self::Months1 => "M".to_string(),
-        }
-    }
-}
-
 impl fmt::Display for KlineInterval {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let description = match self {

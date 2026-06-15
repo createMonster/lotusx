@@ -4,6 +4,7 @@ use crate::core::types::conversion;
 use crate::core::types::{
     Kline, MarketDataType, OrderBook, OrderBookEntry, SubscriptionType, Ticker, Trade,
 };
+use crate::exchanges::paradex::conversions::kline_interval_to_paradex_string;
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -305,7 +306,11 @@ pub fn create_subscription_channel(symbol: &str, subscription_type: &Subscriptio
         ),
         SubscriptionType::Trades => format!("trade@{}", symbol),
         SubscriptionType::Klines { interval } => {
-            format!("kline_{}@{}", interval.to_binance_format(), symbol)
+            format!(
+                "kline_{}@{}",
+                kline_interval_to_paradex_string(*interval),
+                symbol
+            )
         }
     }
 }

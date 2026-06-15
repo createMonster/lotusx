@@ -1,11 +1,32 @@
 use crate::core::types::{
-    conversion, Balance, FundingRate, Kline, Market, OrderResponse, OrderSide, OrderType, Position,
-    PositionSide, Symbol,
+    conversion, Balance, FundingRate, Kline, KlineInterval, Market, OrderResponse, OrderSide,
+    OrderType, Position, PositionSide, Symbol,
 };
 use crate::exchanges::paradex::types::{
     ParadexBalance, ParadexFundingRate, ParadexMarket, ParadexOrder, ParadexPosition,
 };
 use serde_json::Value;
+
+/// Convert kline interval to Paradex format
+pub fn kline_interval_to_paradex_string(interval: KlineInterval) -> &'static str {
+    match interval {
+        KlineInterval::Minutes1 => "1m",
+        KlineInterval::Minutes3 => "3m",
+        KlineInterval::Minutes5 => "5m",
+        KlineInterval::Minutes15 => "15m",
+        KlineInterval::Minutes30 => "30m",
+        KlineInterval::Hours1 => "1h",
+        KlineInterval::Hours2 => "2h",
+        KlineInterval::Hours4 => "4h",
+        KlineInterval::Hours6 => "6h",
+        KlineInterval::Hours8 => "8h",
+        KlineInterval::Hours12 => "12h",
+        KlineInterval::Days1 => "1d",
+        KlineInterval::Days3 => "3d",
+        KlineInterval::Weeks1 => "1w",
+        KlineInterval::Months1 => "1M",
+    }
+}
 
 /// Convert `ParadexMarket` to Market
 pub fn convert_paradex_market(market: ParadexMarket) -> Market {

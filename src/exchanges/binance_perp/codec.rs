@@ -1,5 +1,6 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::WsCodec;
+use crate::exchanges::binance_perp::conversions::kline_interval_to_binance_perp_string;
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -213,7 +214,7 @@ pub fn create_binance_perp_stream_identifiers(
                     streams.push(format!(
                         "{}@kline_{}",
                         lower_symbol,
-                        interval.to_binance_format()
+                        kline_interval_to_binance_perp_string(*interval)
                     ));
                 }
             }

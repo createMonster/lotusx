@@ -1,6 +1,7 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
 use crate::core::types::KlineInterval;
+use crate::exchanges::paradex::conversions::kline_interval_to_paradex_string;
 use crate::exchanges::paradex::types::{
     ParadexBalance, ParadexFundingRate, ParadexFundingRateHistory, ParadexMarket, ParadexOrder,
     ParadexPosition,
@@ -44,8 +45,8 @@ impl<R: RestClient> ParadexRestClient<R> {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Value, ExchangeError> {
-        let interval_str = interval.to_paradex_format();
-        let mut params = vec![("symbol", symbol), ("interval", interval_str.as_str())];
+        let interval_str = kline_interval_to_paradex_string(interval);
+        let mut params = vec![("symbol", symbol), ("interval", interval_str)];
 
         let limit_str;
         let start_time_str;
@@ -195,34 +196,6 @@ impl<R: RestClient> ParadexRestClient<R> {
             Err(ExchangeError::Other(
                 "Unexpected positions response format".to_string(),
             ))
-        }
-    }
-}
-
-/// Extension trait for `KlineInterval` to support Paradex format
-pub trait ParadexKlineInterval {
-    fn to_paradex_format(&self) -> String;
-}
-
-impl ParadexKlineInterval for KlineInterval {
-    fn to_paradex_format(&self) -> String {
-        match self {
-            // Seconds1 removed - not commonly supported
-            Self::Minutes1 => "1m".to_string(),
-            Self::Minutes3 => "3m".to_string(),
-            Self::Minutes5 => "5m".to_string(),
-            Self::Minutes15 => "15m".to_string(),
-            Self::Minutes30 => "30m".to_string(),
-            Self::Hours1 => "1h".to_string(),
-            Self::Hours2 => "2h".to_string(),
-            Self::Hours4 => "4h".to_string(),
-            Self::Hours6 => "6h".to_string(),
-            Self::Hours8 => "8h".to_string(),
-            Self::Hours12 => "12h".to_string(),
-            Self::Days1 => "1d".to_string(),
-            Self::Days3 => "3d".to_string(),
-            Self::Weeks1 => "1w".to_string(),
-            Self::Months1 => "1M".to_string(),
         }
     }
 }

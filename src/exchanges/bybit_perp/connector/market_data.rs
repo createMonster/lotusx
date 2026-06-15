@@ -10,7 +10,9 @@ use crate::core::types::{
     conversion, FundingRate, Kline, KlineInterval, Market, MarketDataType, SubscriptionType,
     WebSocketConfig,
 };
-use crate::exchanges::bybit_perp::conversions::convert_bybit_perp_market;
+use crate::exchanges::bybit_perp::conversions::{
+    convert_bybit_perp_market, kline_interval_to_bybit_perp_string,
+};
 use crate::exchanges::bybit_perp::rest::BybitPerpRestClient;
 use crate::exchanges::bybit_perp::types::{self as bybit_perp_types};
 use async_trait::async_trait;
@@ -102,7 +104,11 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
                         streams.push(format!("publicTrade.{}", symbol));
                     }
                     SubscriptionType::Klines { interval } => {
-                        streams.push(format!("kline.{}.{}", interval.to_bybit_format(), symbol));
+                        streams.push(format!(
+                            "kline.{}.{}",
+                            kline_interval_to_bybit_perp_string(*interval),
+                            symbol
+                        ));
                     }
                 }
             }
@@ -181,10 +187,10 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        let interval_str = interval.to_bybit_format();
+        let interval_str = kline_interval_to_bybit_perp_string(interval);
         let klines_response = self
             .rest
-            .get_klines(&symbol, &interval_str, limit, start_time, end_time)
+            .get_klines(&symbol, interval_str, limit, start_time, end_time)
             .await?;
 
         if klines_response.ret_code != 0 {
@@ -235,7 +241,7 @@ impl<R: RestClient + Clone, W: Send + Sync> MarketDataSource for MarketData<R, W
                     symbol: conversion::string_to_symbol(&symbol),
                     open_time: start_time,
                     close_time,
-                    interval: interval_str.clone(),
+                    interval: interval_str.to_string(),
                     open_price: conversion::string_to_price(
                         kline_vec.get(1).unwrap_or(&"0".to_string()),
                     ),
@@ -371,36 +377,6 @@ impl<R: RestClient + Clone, W> MarketData<R, W> {
             .collect();
 
         Ok(funding_rates)
-    }
-}
-
-// Extension trait for KlineInterval to convert to Bybit format
-#[allow(dead_code)]
-trait BybitFormat {
-    fn to_bybit_format(&self) -> String;
-}
-
-impl BybitFormat for KlineInterval {
-    fn to_bybit_format(&self) -> String {
-        match self {
-            // Seconds1 removed - not commonly supported
-            KlineInterval::Minutes1 => "1",
-            KlineInterval::Minutes3 => "3",
-            KlineInterval::Minutes5 => "5",
-            KlineInterval::Minutes15 => "15",
-            KlineInterval::Minutes30 => "30",
-            KlineInterval::Hours1 => "60",
-            KlineInterval::Hours2 => "120",
-            KlineInterval::Hours4 => "240",
-            KlineInterval::Hours6 => "360",
-            KlineInterval::Hours8 => "480",
-            KlineInterval::Hours12 => "720",
-            KlineInterval::Days1 => "D",
-            KlineInterval::Days3 => "3D",
-            KlineInterval::Weeks1 => "W",
-            KlineInterval::Months1 => "M",
-        }
-        .to_string()
     }
 }
 

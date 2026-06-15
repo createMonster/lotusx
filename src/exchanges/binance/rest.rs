@@ -1,6 +1,7 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
 use crate::core::types::KlineInterval;
+use crate::exchanges::binance::conversions::kline_interval_to_binance_string;
 use crate::exchanges::binance::types::{
     BinanceAccountInfo, BinanceExchangeInfo, BinanceOrderResponse, BinanceRestKline,
 };
@@ -32,8 +33,8 @@ impl<R: RestClient> BinanceRestClient<R> {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<BinanceRestKline>, ExchangeError> {
-        let interval_str = interval.to_binance_format();
-        let mut params = vec![("symbol", symbol), ("interval", interval_str.as_str())];
+        let interval_str = kline_interval_to_binance_string(interval);
+        let mut params = vec![("symbol", symbol), ("interval", interval_str)];
 
         let limit_str;
         let start_time_str;
@@ -86,33 +87,5 @@ impl<R: RestClient> BinanceRestClient<R> {
         self.client
             .delete_json("/api/v3/order", &params, true)
             .await
-    }
-}
-
-/// Extension trait for `KlineInterval` to support Binance format
-pub trait BinanceKlineInterval {
-    fn to_binance_format(&self) -> &str;
-}
-
-impl BinanceKlineInterval for KlineInterval {
-    fn to_binance_format(&self) -> &str {
-        match self {
-            // Seconds1 removed - not commonly supported
-            Self::Minutes1 => "1m",
-            Self::Minutes3 => "3m",
-            Self::Minutes5 => "5m",
-            Self::Minutes15 => "15m",
-            Self::Minutes30 => "30m",
-            Self::Hours1 => "1h",
-            Self::Hours2 => "2h",
-            Self::Hours4 => "4h",
-            Self::Hours6 => "6h",
-            Self::Hours8 => "8h",
-            Self::Hours12 => "12h",
-            Self::Days1 => "1d",
-            Self::Days3 => "3d",
-            Self::Weeks1 => "1w",
-            Self::Months1 => "1M",
-        }
     }
 }

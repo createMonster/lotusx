@@ -1,7 +1,7 @@
 use super::types as binance_types;
 use crate::core::types::{
-    conversion, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
-    Symbol, Ticker, TimeInForce, Trade,
+    conversion, Kline, KlineInterval, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide,
+    OrderType, Symbol, Ticker, TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -77,6 +77,27 @@ pub fn convert_time_in_force(tif: &TimeInForce) -> String {
         TimeInForce::GTC => "GTC".to_string(),
         TimeInForce::IOC => "IOC".to_string(),
         TimeInForce::FOK => "FOK".to_string(),
+    }
+}
+
+/// Convert kline interval to Binance format
+pub fn kline_interval_to_binance_string(interval: KlineInterval) -> &'static str {
+    match interval {
+        KlineInterval::Minutes1 => "1m",
+        KlineInterval::Minutes3 => "3m",
+        KlineInterval::Minutes5 => "5m",
+        KlineInterval::Minutes15 => "15m",
+        KlineInterval::Minutes30 => "30m",
+        KlineInterval::Hours1 => "1h",
+        KlineInterval::Hours2 => "2h",
+        KlineInterval::Hours4 => "4h",
+        KlineInterval::Hours6 => "6h",
+        KlineInterval::Hours8 => "8h",
+        KlineInterval::Hours12 => "12h",
+        KlineInterval::Days1 => "1d",
+        KlineInterval::Days3 => "3d",
+        KlineInterval::Weeks1 => "1w",
+        KlineInterval::Months1 => "1M",
     }
 }
 
@@ -212,4 +233,26 @@ pub fn parse_websocket_message(value: Value) -> Option<MarketDataType> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::kline_interval_to_binance_string;
+    use crate::core::types::KlineInterval;
+
+    #[test]
+    fn kline_interval_to_binance_string_uses_exchange_format() {
+        assert_eq!(
+            kline_interval_to_binance_string(KlineInterval::Minutes1),
+            "1m"
+        );
+        assert_eq!(
+            kline_interval_to_binance_string(KlineInterval::Hours1),
+            "1h"
+        );
+        assert_eq!(
+            kline_interval_to_binance_string(KlineInterval::Months1),
+            "1M"
+        );
+    }
 }

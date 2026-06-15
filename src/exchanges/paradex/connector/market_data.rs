@@ -7,6 +7,7 @@ use crate::core::types::{
 use crate::exchanges::paradex::codec::ParadexWsEvent;
 use crate::exchanges::paradex::conversions::{
     convert_paradex_funding_rate, convert_paradex_kline, convert_paradex_market,
+    kline_interval_to_paradex_string,
 };
 use crate::exchanges::paradex::rest::ParadexRestClient;
 use async_trait::async_trait;
@@ -196,7 +197,11 @@ fn create_subscription_channel(symbol: &str, subscription_type: &SubscriptionTyp
         ),
         SubscriptionType::Trades => format!("trade@{}", symbol),
         SubscriptionType::Klines { interval } => {
-            format!("kline_{}@{}", interval.to_binance_format(), symbol)
+            format!(
+                "kline_{}@{}",
+                kline_interval_to_paradex_string(*interval),
+                symbol
+            )
         }
     }
 }

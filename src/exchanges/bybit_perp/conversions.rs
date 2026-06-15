@@ -1,8 +1,8 @@
 use super::types as bybit_perp_types;
 use super::types::{BybitPerpKlineData, BybitPerpMarket};
 use crate::core::types::{
-    Kline, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType, Symbol, Ticker,
-    TimeInForce, Trade,
+    Kline, KlineInterval, Market, MarketDataType, OrderBook, OrderBookEntry, OrderSide, OrderType,
+    Symbol, Ticker, TimeInForce, Trade,
 };
 use serde_json::Value;
 
@@ -67,6 +67,27 @@ pub fn convert_time_in_force(tif: &TimeInForce) -> String {
         TimeInForce::GTC => "GTC".to_string(),
         TimeInForce::IOC => "IOC".to_string(),
         TimeInForce::FOK => "FOK".to_string(),
+    }
+}
+
+/// Convert kline interval to Bybit perpetual format
+pub fn kline_interval_to_bybit_perp_string(interval: KlineInterval) -> &'static str {
+    match interval {
+        KlineInterval::Minutes1 => "1",
+        KlineInterval::Minutes3 => "3",
+        KlineInterval::Minutes5 => "5",
+        KlineInterval::Minutes15 => "15",
+        KlineInterval::Minutes30 => "30",
+        KlineInterval::Hours1 => "60",
+        KlineInterval::Hours2 => "120",
+        KlineInterval::Hours4 => "240",
+        KlineInterval::Hours6 => "360",
+        KlineInterval::Hours8 => "480",
+        KlineInterval::Hours12 => "720",
+        KlineInterval::Days1 => "D",
+        KlineInterval::Days3 => "3D",
+        KlineInterval::Weeks1 => "W",
+        KlineInterval::Months1 => "M",
     }
 }
 

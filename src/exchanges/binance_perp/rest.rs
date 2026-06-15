@@ -1,6 +1,7 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::RestClient;
 use crate::core::types::KlineInterval;
+use crate::exchanges::binance_perp::conversions::kline_interval_to_binance_perp_string;
 use crate::exchanges::binance_perp::types::{
     BinancePerpBalance, BinancePerpExchangeInfo, BinancePerpFundingRate, BinancePerpOrderResponse,
     BinancePerpPosition, BinancePerpPremiumIndex, BinancePerpRestKline,
@@ -86,12 +87,12 @@ impl<R: RestClient> BinancePerpRestClient<R> {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<BinancePerpRestKline>, ExchangeError> {
-        let interval_str = interval.to_binance_format();
+        let interval_str = kline_interval_to_binance_perp_string(interval);
         let limit_str = limit.map(|l| l.to_string());
         let start_time_str = start_time.map(|t| t.to_string());
         let end_time_str = end_time.map(|t| t.to_string());
 
-        let mut params = vec![("symbol", symbol), ("interval", &interval_str)];
+        let mut params = vec![("symbol", symbol), ("interval", interval_str)];
 
         if let Some(ref limit) = limit_str {
             params.push(("limit", limit.as_str()));

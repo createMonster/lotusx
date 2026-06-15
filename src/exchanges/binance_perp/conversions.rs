@@ -2,8 +2,8 @@ use crate::core::types::{
     conversion::{
         string_to_decimal, string_to_price, string_to_quantity, string_to_symbol, string_to_volume,
     },
-    Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, Position, PositionSide,
-    Ticker, Trade,
+    Balance, Kline, KlineInterval, Market, MarketDataType, OrderBook, OrderBookEntry, Position,
+    PositionSide, Ticker, Trade,
 };
 use crate::exchanges::binance_perp::types::{
     BinancePerpBalance, BinancePerpMarket, BinancePerpPosition, BinancePerpRestKline,
@@ -12,6 +12,27 @@ use crate::exchanges::binance_perp::types::{
 };
 use rust_decimal::Decimal;
 use tracing::warn;
+
+/// Convert kline interval to Binance perpetual format
+pub fn kline_interval_to_binance_perp_string(interval: KlineInterval) -> &'static str {
+    match interval {
+        KlineInterval::Minutes1 => "1m",
+        KlineInterval::Minutes3 => "3m",
+        KlineInterval::Minutes5 => "5m",
+        KlineInterval::Minutes15 => "15m",
+        KlineInterval::Minutes30 => "30m",
+        KlineInterval::Hours1 => "1h",
+        KlineInterval::Hours2 => "2h",
+        KlineInterval::Hours4 => "4h",
+        KlineInterval::Hours6 => "6h",
+        KlineInterval::Hours8 => "8h",
+        KlineInterval::Hours12 => "12h",
+        KlineInterval::Days1 => "1d",
+        KlineInterval::Days3 => "3d",
+        KlineInterval::Weeks1 => "1w",
+        KlineInterval::Months1 => "1M",
+    }
+}
 
 /// Convert Binance Perpetual market to core Market type
 pub fn convert_binance_perp_market(binance_market: BinancePerpMarket) -> Market {

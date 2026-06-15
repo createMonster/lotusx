@@ -7,6 +7,8 @@ pub mod builder;
 pub mod connector;
 pub mod rest;
 
+use crate::exchanges::backpack::conversions::kline_interval_to_backpack_string;
+
 // Re-export main components
 pub use builder::{
     build_connector,
@@ -48,7 +50,7 @@ pub fn create_backpack_stream_identifiers(
                 crate::core::types::SubscriptionType::Klines { interval } => {
                     streams.push(format!(
                         "kline.{}.{}",
-                        interval.to_backpack_format(),
+                        kline_interval_to_backpack_string(*interval),
                         symbol
                     ));
                 }
@@ -57,32 +59,4 @@ pub fn create_backpack_stream_identifiers(
     }
 
     streams
-}
-
-/// Helper extension trait for `KlineInterval` to support Backpack format
-pub trait BackpackKlineInterval {
-    fn to_backpack_format(&self) -> &str;
-}
-
-impl BackpackKlineInterval for crate::core::types::KlineInterval {
-    fn to_backpack_format(&self) -> &str {
-        match self {
-            Self::Minutes1 => "1m",
-            Self::Minutes3 => "3m",
-            Self::Minutes5 => "5m",
-            Self::Minutes15 => "15m",
-            Self::Minutes30 => "30m",
-            Self::Hours1 => "1h",
-            Self::Hours2 => "2h",
-            Self::Hours4 => "4h",
-            Self::Hours6 => "6h",
-            Self::Hours8 => "8h",
-            Self::Hours12 => "12h",
-            Self::Days1 => "1d",
-            Self::Days3 => "3d",
-            Self::Weeks1 => "1w",
-            Self::Months1 => "1M",
-            // Seconds1 removed - not commonly supported
-        }
-    }
 }
