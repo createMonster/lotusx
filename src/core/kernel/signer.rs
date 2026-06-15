@@ -27,7 +27,7 @@ pub trait Signer: Send + Sync {
     /// * `timestamp` - Request timestamp in milliseconds
     ///
     /// # Returns
-    /// Tuple of (headers, signed_query_params) to include in the request
+    /// Tuple of (headers, `signed_query_params`) to include in the request
     fn sign_request(
         &self,
         method: &str,

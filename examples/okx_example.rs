@@ -53,9 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Create OKX configuration from environment variables or use defaults
 fn create_config() -> ExchangeConfig {
-    let testnet = env::var("OKX_TESTNET")
-        .map(|v| v.to_lowercase() == "true")
-        .unwrap_or(false);
+    let testnet = env::var("OKX_TESTNET").is_ok_and(|v| v.to_lowercase() == "true");
 
     // Create config with credentials if available, otherwise use defaults
     let api_key = env::var("OKX_API_KEY").unwrap_or_else(|_| "your_api_key".to_string());

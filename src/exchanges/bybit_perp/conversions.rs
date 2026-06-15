@@ -16,8 +16,7 @@ pub fn convert_bybit_perp_market(bybit_perp_market: bybit_perp_types::BybitPerpM
         .lot_size_filter
         .qty_step
         .parse::<f64>()
-        .map(|p| (-p.log10()).ceil() as i32)
-        .unwrap_or(3);
+        .map_or(3, |p| (-p.log10()).ceil() as i32);
 
     Market {
         symbol: Symbol::new(bybit_perp_market.base_coin, bybit_perp_market.quote_coin)

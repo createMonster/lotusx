@@ -1,6 +1,6 @@
 use crate::core::{config::ExchangeConfig, traits::MarketDataSource};
 use crate::exchanges::backpack;
-use crate::exchanges::{bybit::BybitConnector, hyperliquid, paradex};
+use crate::exchanges::{hyperliquid, okx, paradex};
 
 /// Configuration for an exchange in the latency test
 #[derive(Debug, Clone)]
@@ -22,6 +22,7 @@ pub enum ExchangeType {
     BybitPerp,
     Backpack,
     Hyperliquid,
+    Okx,
     Paradex,
 }
 
@@ -34,6 +35,7 @@ impl std::fmt::Display for ExchangeType {
             Self::BybitPerp => write!(f, "Bybit Perp"),
             Self::Backpack => write!(f, "Backpack"),
             Self::Hyperliquid => write!(f, "Hyperliquid"),
+            Self::Okx => write!(f, "OKX"),
             Self::Paradex => write!(f, "Paradex"),
         }
     }
@@ -64,7 +66,7 @@ impl ExchangeFactory {
             }
             ExchangeType::Bybit => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
-                Ok(Box::new(BybitConnector::for_factory(cfg)))
+                Ok(Box::new(crate::exchanges::bybit::build_connector(cfg)?))
             }
             ExchangeType::BybitPerp => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
@@ -86,6 +88,10 @@ impl ExchangeFactory {
             ExchangeType::Hyperliquid => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
                 Ok(Box::new(hyperliquid::build_hyperliquid_connector(cfg)?))
+            }
+            ExchangeType::Okx => {
+                let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
+                Ok(Box::new(okx::build_connector(cfg)?))
             }
             ExchangeType::Paradex => {
                 let cfg = config.unwrap_or_else(|| ExchangeConfig::read_only().testnet(testnet));
@@ -212,6 +218,7 @@ impl ExchangeFactory {
             ExchangeType::BybitPerp,
             ExchangeType::Backpack,
             ExchangeType::Hyperliquid,
+            ExchangeType::Okx,
             ExchangeType::Paradex,
         ]
     }
@@ -244,6 +251,7 @@ impl ExchangeTestConfigBuilder {
         let symbols = match exchange_type {
             ExchangeType::Hyperliquid => vec!["BTC".to_string(), "ETH".to_string()],
             ExchangeType::Backpack => vec!["SOL_USDC".to_string(), "BTC_USDC".to_string()],
+            ExchangeType::Okx => vec!["BTC-USDT".to_string(), "ETH-USDT".to_string()],
             ExchangeType::Paradex => vec!["BTC-USD".to_string(), "ETH-USD".to_string()],
             _ => vec!["BTCUSDT".to_string(), "ETHUSDT".to_string()],
         };
@@ -275,5 +283,47 @@ impl ExchangeTestConfigBuilder {
 
     pub fn build(self) -> Vec<ExchangeTestConfig> {
         self.configs
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    #[test]
+    fn available_exchanges_include_okx() {
+        assert!(ExchangeFactory::get_available_exchanges().contains(&ExchangeType::Okx));
+    }
+
+    #[tokio::test]
+    async fn bybit_factory_uses_builder_base_url() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            let Ok((mut stream, _)) = listener.accept().await else {
+                return;
+            };
+            let mut buffer = [0; 2048];
+            let _ = stream.read(&mut buffer).await;
+            let body = r#"{"retCode":0,"retMsg":"OK","result":{"list":[{"symbol":"BTCUSDT","status":"Trading","baseCoin":"BTC","quoteCoin":"USDT","basePrecision":8,"quotePrecision":8,"minOrderQty":"0.0001","maxOrderQty":"100","qtyStep":"0.0001","minPrice":"1","maxPrice":"1000000","tickSize":"0.1","isSpotTradingAllowed":true,"isMarginTradingAllowed":false}]}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(response.as_bytes()).await;
+        });
+
+        let config = ExchangeConfig::read_only().base_url(format!("http://{}", address));
+        let connector =
+            ExchangeFactory::create_connector(&ExchangeType::Bybit, Some(config), false).unwrap();
+
+        let markets = connector.get_markets().await.unwrap();
+
+        assert_eq!(markets.len(), 1);
+        assert_eq!(markets[0].symbol.to_string(), "BTCUSDT");
     }
 }
