@@ -354,23 +354,27 @@ impl ReqwestRest {
                 ExchangeError::DeserializationError(format!("Failed to parse JSON response: {}", e))
             })
         } else {
-            Err(ExchangeError::ApiError {
-                code: status.as_u16() as i32,
-                message: response_text,
-            })
+            let status_code = status.as_u16();
+            match status_code {
+                401 | 403 => Err(ExchangeError::AuthError(response_text)),
+                429 => Err(ExchangeError::RateLimitExceeded(response_text)),
+                500..=599 => Err(ExchangeError::ServerError(response_text)),
+                _ => Err(ExchangeError::ApiError {
+                    code: status_code as i32,
+                    message: response_text,
+                }),
+            }
         }
     }
 
-    /// Make a request with the given parameters
-    #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, method = %method, endpoint = %endpoint))]
-    async fn make_request(
+    fn build_request(
         &self,
-        method: Method,
+        method: &Method,
         endpoint: &str,
         query_params: &[(&str, &str)],
         body: &[u8],
         authenticated: bool,
-    ) -> Result<Value, ExchangeError> {
+    ) -> Result<reqwest::RequestBuilder, ExchangeError> {
         let url = self.build_url(endpoint);
         let mut request = self.client.request(method.clone(), &url);
 
@@ -416,12 +420,67 @@ impl ReqwestRest {
                 .body(body.to_vec());
         }
 
+        Ok(request)
+    }
+
+    async fn send_once(
+        &self,
+        method: &Method,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        body: &[u8],
+        authenticated: bool,
+    ) -> Result<Value, ExchangeError> {
+        let request = self.build_request(method, endpoint, query_params, body, authenticated)?;
+
         let response = request
             .send()
             .await
             .map_err(|e| ExchangeError::NetworkError(format!("Request failed: {}", e)))?;
 
         self.handle_response(response).await
+    }
+
+    fn can_retry_method(method: &Method) -> bool {
+        *method == Method::GET || *method == Method::DELETE
+    }
+
+    /// Make a request with the given parameters
+    #[instrument(skip(self, body), fields(exchange = %self.config.exchange_name, method = %method, endpoint = %endpoint))]
+    async fn make_request(
+        &self,
+        method: Method,
+        endpoint: &str,
+        query_params: &[(&str, &str)],
+        body: &[u8],
+        authenticated: bool,
+    ) -> Result<Value, ExchangeError> {
+        let mut retries = 0;
+
+        loop {
+            match self
+                .send_once(&method, endpoint, query_params, body, authenticated)
+                .await
+            {
+                Ok(value) => return Ok(value),
+                Err(error)
+                    if retries < self.config.max_retries
+                        && error.is_retryable()
+                        && Self::can_retry_method(&method) =>
+                {
+                    retries += 1;
+                    trace!(
+                        exchange = %self.config.exchange_name,
+                        endpoint = %endpoint,
+                        retry = retries,
+                        max_retries = self.config.max_retries,
+                        error = %error,
+                        "Retrying REST request"
+                    );
+                }
+                Err(error) => return Err(error),
+            }
+        }
     }
 }
 
@@ -624,5 +683,106 @@ impl Signer for NoopSigner {
         };
 
         Ok((headers, signed_params))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn retries_retryable_api_errors_until_success() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_attempts = attempts.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                let current_attempt = server_attempts.fetch_add(1, Ordering::SeqCst) + 1;
+                let mut buffer = [0; 1024];
+                let _ = stream.read(&mut buffer).await;
+
+                let response = if current_attempt == 1 {
+                    let body = r#"{"error":"boom"}"#;
+                    format!(
+                        "HTTP/1.1 500 Internal Server Error\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    )
+                } else {
+                    let body = r#"{"ok":true}"#;
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    )
+                };
+
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+
+        let client = RestClientBuilder::new(
+            RestClientConfig::new(format!("http://{}", address), "test".to_string())
+                .with_max_retries(2),
+        )
+        .build()
+        .unwrap();
+
+        let response = client.get("/retry", &[], false).await.unwrap();
+
+        assert_eq!(response, serde_json::json!({ "ok": true }));
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn does_not_retry_post_api_errors() {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server_attempts = attempts.clone();
+
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else {
+                    break;
+                };
+                server_attempts.fetch_add(1, Ordering::SeqCst);
+                let mut buffer = [0; 1024];
+                let _ = stream.read(&mut buffer).await;
+                let body = r#"{"error":"boom"}"#;
+                let response = format!(
+                    "HTTP/1.1 500 Internal Server Error\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+
+        let client = RestClientBuilder::new(
+            RestClientConfig::new(format!("http://{}", address), "test".to_string())
+                .with_max_retries(2),
+        )
+        .build()
+        .unwrap();
+
+        let result = client
+            .post(
+                "/orders",
+                &serde_json::json!({ "symbol": "BTCUSDT" }),
+                false,
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert_eq!(attempts.load(Ordering::SeqCst), 1);
     }
 }

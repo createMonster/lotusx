@@ -105,8 +105,8 @@ Risks and debt:
 - `ExchangeConnector` is not the best documentation surface today; prefer the smaller capability traits when writing examples or new code.
 - `src/lib.rs` re-exports only part of the exchange surface. The reliable public namespace is still `lotusx::exchanges::<exchange>`.
 - Some legacy compatibility constructors keep old names or parameters while delegating to the new builders. Prefer the direct `build_connector*` functions in new code.
-- `ExchangeFactory` is for latency tests and demos, not the canonical construction path for every production connector. In particular, check exchange-specific builders when credentials, passphrases, testnet URLs, or custom base URLs matter.
-- `RestClientConfig::max_retries` is currently configuration intent, not a guarantee that every request path retries.
+- `ExchangeFactory` is for latency tests and demos. It now delegates Bybit and OKX creation through the exchange builders, but production code should still prefer exchange-specific builders when credentials, passphrases, or custom behavior matter.
+- `RestClientConfig::max_retries` applies to retryable GET and DELETE failures. POST requests are not automatically retried to avoid repeating order-style side effects.
 - `KlineInterval` includes exchange-specific formatting helpers, so a small amount of exchange dialect knowledge leaks into the shared type layer.
 - `src/exchanges/okx/` is implemented, but `src/exchanges/okx_perp/` is an empty, unregistered directory. Treat OKX perpetual as not implemented.
 - Some tests depend on public exchange APIs and can fail because of network or upstream API changes.
