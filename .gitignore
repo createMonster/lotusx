@@ -27,6 +27,9 @@ Thumbs.db
 PRODUCT_REQUIREMENTS_CN.md
 PRODUCT_REQUIREMENTS_EN.md
 LOTUSX_PROJECT_PLAN.md
+!docs/archive/**/PRODUCT_REQUIREMENTS_CN.md
+!docs/archive/**/PRODUCT_REQUIREMENTS_EN.md
+!docs/archive/**/LOTUSX_PROJECT_PLAN.md
 
 # Don't ignore assets (explicitly include them)
 !assets/
