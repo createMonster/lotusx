@@ -1,9 +1,11 @@
 use crate::core::errors::ExchangeError;
-use crate::core::kernel::RestClient;
+use crate::core::kernel::{ws::WsSession, RestClient};
 use crate::core::traits::MarketDataSource;
 use crate::core::types::{
-    Kline, KlineInterval, Market, MarketDataType, SubscriptionType, WebSocketConfig,
+    conversion, Kline, KlineInterval, Market, MarketDataType, OrderBook, OrderBookEntry,
+    SubscriptionType, Ticker, Trade, WebSocketConfig,
 };
+use crate::exchanges::bybit::codec::BybitWsEvent;
 use crate::exchanges::bybit::conversions::{
     convert_bybit_kline, convert_bybit_market, kline_interval_to_bybit_string,
 };
@@ -71,14 +73,58 @@ impl<R: RestClient + 'static, W: Send + Sync + 'static> MarketDataSource for Mar
     /// Subscribe to market data via WebSocket
     async fn subscribe_market_data(
         &self,
-        _symbols: Vec<String>,
-        _subscription_types: Vec<SubscriptionType>,
+        symbols: Vec<String>,
+        subscription_types: Vec<SubscriptionType>,
         _config: Option<WebSocketConfig>,
     ) -> Result<mpsc::Receiver<MarketDataType>, ExchangeError> {
-        // WebSocket implementation not yet ready
-        Err(ExchangeError::Other(
-            "WebSocket market data subscription not implemented yet".to_string(),
-        ))
+        let streams =
+            crate::exchanges::bybit::create_bybit_stream_identifiers(&symbols, &subscription_types);
+        let ws_url = self.get_websocket_url();
+        let codec = crate::exchanges::bybit::codec::BybitCodec;
+        let ws_session =
+            crate::core::kernel::ws::TungsteniteWs::new(ws_url, "bybit".to_string(), codec);
+
+        let mut reconnect_ws = crate::core::kernel::ws::ReconnectWs::new(ws_session)
+            .with_auto_resubscribe(true)
+            .with_max_reconnect_attempts(u32::MAX);
+
+        reconnect_ws.connect().await.map_err(|e| {
+            ExchangeError::Other(format!(
+                "Failed to connect to WebSocket for symbols: {:?}, error: {}",
+                symbols, e
+            ))
+        })?;
+
+        if !streams.is_empty() {
+            let stream_refs: Vec<&str> = streams.iter().map(String::as_str).collect();
+            reconnect_ws.subscribe(&stream_refs).await.map_err(|e| {
+                ExchangeError::Other(format!(
+                    "Failed to subscribe to streams: {:?}, error: {}",
+                    streams, e
+                ))
+            })?;
+        }
+
+        let (tx, rx) = mpsc::channel(1000);
+
+        tokio::spawn(async move {
+            while let Some(result) = reconnect_ws.next_message().await {
+                match result {
+                    Ok(bybit_event) => {
+                        if let Some(market_data) = convert_bybit_event_to_market_data(bybit_event) {
+                            if tx.send(market_data).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("WebSocket error: {:?}", e);
+                    }
+                }
+            }
+        });
+
+        Ok(rx)
     }
 
     /// Get WebSocket endpoint URL for market data
@@ -162,5 +208,57 @@ impl<R: RestClient + 'static, W: Send + Sync + 'static> MarketDataSource for Mar
         }
 
         Ok(klines)
+    }
+}
+
+fn convert_bybit_event_to_market_data(event: BybitWsEvent) -> Option<MarketDataType> {
+    match event {
+        BybitWsEvent::Ticker { data } => Some(MarketDataType::Ticker(Ticker {
+            symbol: conversion::string_to_symbol(&data.symbol),
+            price: conversion::string_to_price(&data.price),
+            price_change: conversion::string_to_price("0"),
+            price_change_percent: conversion::string_to_decimal(&data.price_24h_pcnt),
+            high_price: conversion::string_to_price(&data.high_price_24h),
+            low_price: conversion::string_to_price(&data.low_price_24h),
+            volume: conversion::string_to_volume(&data.volume_24h),
+            quote_volume: conversion::string_to_volume(&data.turnover_24h),
+            open_time: data.timestamp.parse().unwrap_or(0),
+            close_time: data.timestamp.parse().unwrap_or(0),
+            count: 0,
+        })),
+        BybitWsEvent::OrderBook { data } => Some(MarketDataType::OrderBook(OrderBook {
+            symbol: conversion::string_to_symbol(&data.symbol),
+            bids: data
+                .bids
+                .into_iter()
+                .map(|[price, quantity]| OrderBookEntry {
+                    price: conversion::string_to_price(&price),
+                    quantity: conversion::string_to_quantity(&quantity),
+                })
+                .collect(),
+            asks: data
+                .asks
+                .into_iter()
+                .map(|[price, quantity]| OrderBookEntry {
+                    price: conversion::string_to_price(&price),
+                    quantity: conversion::string_to_quantity(&quantity),
+                })
+                .collect(),
+            last_update_id: data.update_id,
+        })),
+        BybitWsEvent::Trade { data } => Some(MarketDataType::Trade(Trade {
+            symbol: conversion::string_to_symbol(&data.symbol),
+            id: data.trade_id.parse().unwrap_or(0),
+            price: conversion::string_to_price(&data.price),
+            quantity: conversion::string_to_quantity(&data.size),
+            time: data.timestamp,
+            is_buyer_maker: data.side == "Sell",
+        })),
+        BybitWsEvent::Kline { data } => {
+            convert_bybit_kline(&data.kline, &data.symbol, data.kline.interval.as_str())
+                .ok()
+                .map(MarketDataType::Kline)
+        }
+        BybitWsEvent::Pong { .. } | BybitWsEvent::Unknown => None,
     }
 }
