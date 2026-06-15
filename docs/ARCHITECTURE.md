@@ -103,7 +103,7 @@ Risks and debt:
 
 - WebSocket support exists in the kernel and several modules, but default builders are not uniformly WebSocket-enabled. Call the explicit WebSocket builder when a module exposes one.
 - `ExchangeConnector` is not the best documentation surface today; prefer the smaller capability traits when writing examples or new code.
-- `src/lib.rs` re-exports only part of the exchange surface. The reliable public namespace is still `lotusx::exchanges::<exchange>`.
+- `src/lib.rs` re-exports connector types for all active exchanges. Use `lotusx::exchanges::<exchange>` for builders and exchange-specific API details.
 - Some legacy compatibility constructors keep old names or parameters while delegating to the new builders. Prefer the direct `build_connector*` functions in new code.
 - `ExchangeFactory` is for latency tests and demos. It now delegates Bybit and OKX creation through the exchange builders, but production code should still prefer exchange-specific builders when credentials, passphrases, or custom behavior matter.
 - `RestClientConfig::max_retries` applies to retryable GET and DELETE failures. POST requests are not automatically retried to avoid repeating order-style side effects.
