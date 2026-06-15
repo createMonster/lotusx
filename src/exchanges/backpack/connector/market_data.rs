@@ -7,7 +7,9 @@ use crate::core::{
         SubscriptionType, Symbol, WebSocketConfig,
     },
 };
-use crate::exchanges::backpack::{codec::BackpackCodec, rest::BackpackRestClient};
+use crate::exchanges::backpack::{
+    codec::BackpackCodec, conversions::kline_interval_to_backpack_string, rest::BackpackRestClient,
+};
 use async_trait::async_trait;
 use rust_decimal::Decimal;
 use tokio::sync::mpsc;
@@ -173,10 +175,10 @@ impl<R: RestClient + Clone, W: WsSession<BackpackCodec>> MarketDataSource for Ma
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        let interval_str = interval.to_backpack_format();
+        let interval_str = kline_interval_to_backpack_string(interval);
         let klines = self
             .rest
-            .get_klines(&symbol, &interval_str, start_time, end_time, limit)
+            .get_klines(&symbol, interval_str, start_time, end_time, limit)
             .await?;
 
         Ok(klines
@@ -185,7 +187,7 @@ impl<R: RestClient + Clone, W: WsSession<BackpackCodec>> MarketDataSource for Ma
                 symbol: conversion::string_to_symbol(&symbol),
                 open_time: k.start.parse::<i64>().unwrap_or(0),
                 close_time: k.end.parse::<i64>().unwrap_or(0),
-                interval: interval_str.clone(),
+                interval: interval_str.to_string(),
                 open_price: conversion::string_to_price(&k.open),
                 high_price: conversion::string_to_price(&k.high),
                 low_price: conversion::string_to_price(&k.low),
@@ -266,10 +268,10 @@ impl<R: RestClient + Clone> MarketDataSource for MarketData<R, ()> {
         start_time: Option<i64>,
         end_time: Option<i64>,
     ) -> Result<Vec<Kline>, ExchangeError> {
-        let interval_str = interval.to_backpack_format();
+        let interval_str = kline_interval_to_backpack_string(interval);
         let klines = self
             .rest
-            .get_klines(&symbol, &interval_str, start_time, end_time, limit)
+            .get_klines(&symbol, interval_str, start_time, end_time, limit)
             .await?;
 
         Ok(klines
@@ -278,7 +280,7 @@ impl<R: RestClient + Clone> MarketDataSource for MarketData<R, ()> {
                 symbol: conversion::string_to_symbol(&symbol),
                 open_time: k.start.parse::<i64>().unwrap_or(0),
                 close_time: k.end.parse::<i64>().unwrap_or(0),
-                interval: interval_str.clone(),
+                interval: interval_str.to_string(),
                 open_price: conversion::string_to_price(&k.open),
                 high_price: conversion::string_to_price(&k.high),
                 low_price: conversion::string_to_price(&k.low),
@@ -288,34 +290,6 @@ impl<R: RestClient + Clone> MarketDataSource for MarketData<R, ()> {
                 final_bar: true, // Backpack doesn't indicate if bar is final
             })
             .collect())
-    }
-}
-
-/// Extension trait for `KlineInterval` to support Backpack format
-pub trait BackpackKlineInterval {
-    fn to_backpack_format(&self) -> String;
-}
-
-impl BackpackKlineInterval for KlineInterval {
-    fn to_backpack_format(&self) -> String {
-        match self {
-            Self::Minutes1 => "1m".to_string(),
-            Self::Minutes3 => "3m".to_string(),
-            Self::Minutes5 => "5m".to_string(),
-            Self::Minutes15 => "15m".to_string(),
-            Self::Minutes30 => "30m".to_string(),
-            Self::Hours1 => "1h".to_string(),
-            Self::Hours2 => "2h".to_string(),
-            Self::Hours4 => "4h".to_string(),
-            Self::Hours6 => "6h".to_string(),
-            Self::Hours8 => "8h".to_string(),
-            Self::Hours12 => "12h".to_string(),
-            Self::Days1 => "1d".to_string(),
-            Self::Days3 => "3d".to_string(),
-            Self::Weeks1 => "1w".to_string(),
-            Self::Months1 => "1M".to_string(),
-            // Seconds1 removed - not commonly supported
-        }
     }
 }
 

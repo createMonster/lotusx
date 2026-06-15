@@ -1,12 +1,33 @@
 use crate::core::types::{
-    conversion, Balance, Kline, Market, MarketDataType, OrderBook, OrderBookEntry, Position,
-    PositionSide, Symbol, Ticker, Trade,
+    conversion, Balance, Kline, KlineInterval, Market, MarketDataType, OrderBook, OrderBookEntry,
+    Position, PositionSide, Symbol, Ticker, Trade,
 };
 use crate::exchanges::backpack::types::{
     BackpackBalance, BackpackMarket, BackpackOrderBook, BackpackPosition, BackpackRestKline,
     BackpackTicker, BackpackTrade, BackpackWebSocketKline, BackpackWebSocketOrderBook,
     BackpackWebSocketTicker, BackpackWebSocketTrade,
 };
+
+/// Convert kline interval to Backpack format
+pub fn kline_interval_to_backpack_string(interval: KlineInterval) -> &'static str {
+    match interval {
+        KlineInterval::Minutes1 => "1m",
+        KlineInterval::Minutes3 => "3m",
+        KlineInterval::Minutes5 => "5m",
+        KlineInterval::Minutes15 => "15m",
+        KlineInterval::Minutes30 => "30m",
+        KlineInterval::Hours1 => "1h",
+        KlineInterval::Hours2 => "2h",
+        KlineInterval::Hours4 => "4h",
+        KlineInterval::Hours6 => "6h",
+        KlineInterval::Hours8 => "8h",
+        KlineInterval::Hours12 => "12h",
+        KlineInterval::Days1 => "1d",
+        KlineInterval::Days3 => "3d",
+        KlineInterval::Weeks1 => "1w",
+        KlineInterval::Months1 => "1M",
+    }
+}
 
 /// Convert Backpack market to core Market type
 pub fn convert_market(backpack_market: BackpackMarket) -> Market {

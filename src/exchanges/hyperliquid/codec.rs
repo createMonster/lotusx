@@ -3,6 +3,7 @@ use crate::core::kernel::codec::WsCodec;
 use crate::core::types::{
     conversion, Kline, KlineInterval, MarketDataType, OrderBook, OrderBookEntry, Ticker, Trade,
 };
+use crate::exchanges::hyperliquid::conversions::convert_kline_interval_to_hyperliquid;
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 use tracing::warn;
@@ -447,7 +448,7 @@ impl HyperliquidCodec {
                 symbol: conversion::string_to_symbol(symbol),
                 open_time: timestamp,
                 close_time: timestamp,
-                interval: KlineInterval::Minutes1.to_binance_format(),
+                interval: convert_kline_interval_to_hyperliquid(KlineInterval::Minutes1),
                 open_price: conversion::string_to_price(&open.to_string()),
                 high_price: conversion::string_to_price(&high.to_string()),
                 low_price: conversion::string_to_price(&low.to_string()),
