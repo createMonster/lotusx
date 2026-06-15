@@ -181,7 +181,7 @@ pub fn convert_asset_to_market(asset: AssetInfo) -> Market {
 pub fn convert_user_state_to_balances(user_state: &UserState) -> Vec<Balance> {
     let balances = vec![Balance {
         asset: "USD".to_string(),
-        free: conversion::string_to_quantity(&user_state.margin_summary.account_value.to_string()),
+        free: conversion::string_to_quantity(&user_state.margin_summary.account_value),
         locked: conversion::string_to_quantity("0"),
     }];
 

@@ -47,7 +47,7 @@ impl<R: RestClient + Clone + Send + Sync> OkxConnector<R, ()> {
     }
 }
 
-/// Implement AccountInfo trait for the OKX connector
+/// Implement `AccountInfo` trait for the OKX connector
 #[async_trait]
 impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> AccountInfo for OkxConnector<R, W> {
     async fn get_account_balance(&self) -> Result<Vec<Balance>, ExchangeError> {
@@ -59,7 +59,7 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> AccountInfo for OkxCon
     }
 }
 
-/// Implement MarketDataSource trait for the OKX connector
+/// Implement `MarketDataSource` trait for the OKX connector
 #[async_trait]
 impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for OkxConnector<R, W> {
     async fn get_markets(&self) -> Result<Vec<Market>, ExchangeError> {
@@ -95,7 +95,7 @@ impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> MarketDataSource for O
     }
 }
 
-/// Implement OrderPlacer trait for the OKX connector
+/// Implement `OrderPlacer` trait for the OKX connector
 #[async_trait]
 impl<R: RestClient + Clone + Send + Sync, W: Send + Sync> OrderPlacer for OkxConnector<R, W> {
     async fn place_order(&self, order: OrderRequest) -> Result<OrderResponse, ExchangeError> {

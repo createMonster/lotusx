@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             markets_metrics: markets_metrics.clone(),
             klines_metrics: markets_metrics.clone(), // Simplified for demo
             websocket_connection_time: std::time::Duration::from_millis(100),
-            websocket_first_message: std::time::Duration::from_millis(1000),
+            websocket_first_message: std::time::Duration::from_secs(1),
             websocket_success_rate: 1.0,
             tick_to_trade_latency: std::time::Duration::from_millis(50),
             market_impact_bps: calculate_market_impact(&markets_metrics),
