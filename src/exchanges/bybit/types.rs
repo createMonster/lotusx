@@ -288,33 +288,53 @@ pub struct BybitOrderResponse {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketTicker {
     pub symbol: String,
+    #[serde(rename = "lastPrice", alias = "price")]
     pub price: String,
+    #[serde(rename = "price24hPcnt", alias = "price_24h_pcnt", default)]
     pub price_24h_pcnt: String,
+    #[serde(rename = "price1hPcnt", alias = "price_1h_pcnt", default)]
     pub price_1h_pcnt: String,
+    #[serde(rename = "highPrice24h", alias = "high_price_24h", default)]
     pub high_price_24h: String,
+    #[serde(rename = "lowPrice24h", alias = "low_price_24h", default)]
     pub low_price_24h: String,
+    #[serde(rename = "turnover24h", alias = "turnover_24h", default)]
     pub turnover_24h: String,
+    #[serde(rename = "volume24h", alias = "volume_24h", default)]
     pub volume_24h: String,
+    #[serde(rename = "usdIndexPrice", alias = "usd_index_price", default)]
     pub usd_index_price: String,
+    #[serde(default)]
     pub timestamp: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketOrderBook {
+    #[serde(rename = "s", alias = "symbol")]
     pub symbol: String,
+    #[serde(rename = "b", alias = "bids", default)]
     pub bids: Vec<[String; 2]>,
+    #[serde(rename = "a", alias = "asks", default)]
     pub asks: Vec<[String; 2]>,
+    #[serde(default)]
     pub timestamp: String,
+    #[serde(rename = "u", alias = "update_id", default)]
     pub update_id: i64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitWebSocketTrade {
+    #[serde(rename = "s", alias = "symbol")]
     pub symbol: String,
+    #[serde(rename = "p", alias = "price")]
     pub price: String,
+    #[serde(rename = "v", alias = "size")]
     pub size: String,
+    #[serde(rename = "S", alias = "side")]
     pub side: String,
-    pub timestamp: String,
+    #[serde(rename = "T", alias = "timestamp", default)]
+    pub timestamp: i64,
+    #[serde(rename = "i", alias = "trade_id")]
     pub trade_id: String,
 }
 
@@ -326,14 +346,22 @@ pub struct BybitWebSocketKline {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BybitKlineData {
+    #[serde(rename = "start", alias = "start_time")]
     pub start_time: i64,
+    #[serde(rename = "end", alias = "end_time")]
     pub end_time: i64,
     pub interval: String,
+    #[serde(rename = "open", alias = "open_price")]
     pub open_price: String,
+    #[serde(rename = "high", alias = "high_price")]
     pub high_price: String,
+    #[serde(rename = "low", alias = "low_price")]
     pub low_price: String,
+    #[serde(rename = "close", alias = "close_price")]
     pub close_price: String,
+    #[serde(default)]
     pub volume: String,
+    #[serde(default)]
     pub turnover: String,
 }
 

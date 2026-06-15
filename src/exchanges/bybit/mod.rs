@@ -39,8 +39,9 @@ pub fn create_bybit_stream_identifiers(
                 crate::core::types::SubscriptionType::Trades => {
                     streams.push(format!("publicTrade.{}", symbol));
                 }
-                crate::core::types::SubscriptionType::OrderBook { depth: _ } => {
-                    streams.push(format!("orderbook.{}.200ms", symbol));
+                crate::core::types::SubscriptionType::OrderBook { depth } => {
+                    let depth = depth.unwrap_or(1);
+                    streams.push(format!("orderbook.{}.{}", depth, symbol));
                 }
                 crate::core::types::SubscriptionType::Klines { interval } => {
                     let interval_str =
@@ -54,4 +55,45 @@ pub fn create_bybit_stream_identifiers(
     }
 
     streams
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::types::{KlineInterval, SubscriptionType};
+
+    #[test]
+    fn stream_identifiers_match_bybit_v5_topics() {
+        let symbols = vec!["BTCUSDT".to_string()];
+        let subscription_types = vec![
+            SubscriptionType::Ticker,
+            SubscriptionType::Trades,
+            SubscriptionType::OrderBook { depth: Some(50) },
+            SubscriptionType::Klines {
+                interval: KlineInterval::Minutes1,
+            },
+        ];
+
+        let streams = create_bybit_stream_identifiers(&symbols, &subscription_types);
+
+        assert_eq!(
+            streams,
+            vec![
+                "tickers.BTCUSDT",
+                "publicTrade.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "kline.1.BTCUSDT"
+            ]
+        );
+    }
+
+    #[test]
+    fn orderbook_without_depth_uses_level_one_topic() {
+        let symbols = vec!["BTCUSDT".to_string()];
+        let subscription_types = vec![SubscriptionType::OrderBook { depth: None }];
+
+        let streams = create_bybit_stream_identifiers(&symbols, &subscription_types);
+
+        assert_eq!(streams, vec!["orderbook.1.BTCUSDT"]);
+    }
 }

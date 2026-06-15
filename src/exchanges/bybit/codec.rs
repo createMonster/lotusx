@@ -1,7 +1,8 @@
 use crate::core::errors::ExchangeError;
 use crate::core::kernel::WsCodec;
 use crate::exchanges::bybit::types::{
-    BybitWebSocketKline, BybitWebSocketOrderBook, BybitWebSocketTicker, BybitWebSocketTrade,
+    BybitKlineData, BybitWebSocketKline, BybitWebSocketOrderBook, BybitWebSocketTicker,
+    BybitWebSocketTrade,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{self, Value};
@@ -115,17 +116,28 @@ impl WsCodec for BybitCodec {
                                     }
                                 }
                                 t if t.starts_with("publicTrade.") => {
-                                    if let Ok(trade) =
-                                        serde_json::from_value::<BybitWebSocketTrade>(data.clone())
-                                    {
+                                    let trade_data = data
+                                        .as_array()
+                                        .and_then(|items| items.first())
+                                        .unwrap_or(data);
+                                    if let Ok(trade) = serde_json::from_value::<BybitWebSocketTrade>(
+                                        trade_data.clone(),
+                                    ) {
                                         return Ok(Some(BybitWsEvent::Trade { data: trade }));
                                     }
                                 }
                                 t if t.starts_with("kline.") => {
+                                    let kline_data = data
+                                        .as_array()
+                                        .and_then(|items| items.first())
+                                        .unwrap_or(data);
                                     if let Ok(kline) =
-                                        serde_json::from_value::<BybitWebSocketKline>(data.clone())
+                                        serde_json::from_value::<BybitKlineData>(kline_data.clone())
                                     {
-                                        return Ok(Some(BybitWsEvent::Kline { data: kline }));
+                                        let symbol = t.rsplit('.').next().unwrap_or("").to_string();
+                                        return Ok(Some(BybitWsEvent::Kline {
+                                            data: BybitWebSocketKline { symbol, kline },
+                                        }));
                                     }
                                 }
                                 _ => {}
@@ -145,6 +157,31 @@ impl WsCodec for BybitCodec {
                 // Ignore other message types (ping, pong, close)
                 Ok(None)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::kernel::WsCodec;
+    use tokio_tungstenite::tungstenite::Message;
+
+    #[test]
+    fn decodes_bybit_ticker_message() {
+        let message = Message::Text(
+            r#"{"topic":"tickers.BTCUSDT","type":"snapshot","ts":1710000000000,"data":{"symbol":"BTCUSDT","lastPrice":"43000","price24hPcnt":"0.01","highPrice24h":"44000","lowPrice24h":"42000","volume24h":"100","turnover24h":"4300000"}}"#
+                .to_string(),
+        );
+
+        let decoded = BybitCodec.decode_message(message).unwrap();
+
+        match decoded {
+            Some(BybitWsEvent::Ticker { data }) => {
+                assert_eq!(data.symbol, "BTCUSDT");
+                assert_eq!(data.price, "43000");
+            }
+            other => panic!("expected ticker event, got {other:?}"),
         }
     }
 }
